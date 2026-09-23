@@ -1,5 +1,11 @@
 # Architecture
 
+Guix migration is in progress: the intended host runtime remains unchanged,
+while the guest will become Guix System with Hyprland. The first image-build
+slice is documented in [guest/guix](../guest/guix/README.md); it is not connected
+to the launcher yet. See [the migration decision](decisions/0001-guix-guest-on-existing-qemu-runtime.md).
+The description below still reflects the active Arch-based application.
+
 Try Omarchy packages three pieces into one macOS app:
 
 1. A small Swift/AppKit launcher for the macOS side.
