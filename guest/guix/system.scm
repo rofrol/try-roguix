@@ -2,7 +2,8 @@
 (use-modules (gnu)
              (gnu system linux-initrd)
              (ice-9 regex)
-             (srfi srfi-1))
+             (srfi srfi-1)
+             (try-guix packages))
 (use-service-modules desktop sddm xorg)
 (use-package-modules fonts gl linux terminals window-management xdisorg)
 
@@ -16,6 +17,13 @@
                                value))
       (error "Set GUIX_GUEST_PASSWORD_HASH to a SHA-512 crypt hash"))
     value))
+
+;; Files that define this system; build and test tooling is left out.
+(define (try-guix-source? file stat)
+  (let ((name (basename file)))
+    (or (eq? 'directory (stat:type stat))
+        (member name '("system.scm" "hyprland.lua" "packages.scm" "display-sync"
+                       "hyprland-rounded-border-coverage.patch")))))
 
 (operating-system
   (host-name "try-guix")
@@ -60,10 +68,20 @@
 
   ;; Foot avoids the separate Kitty OpenGL-context workaround in the Arch
   ;; guest. Keep compositor rendering on VirGL, without a software override.
-  (packages (append (list hyprland foot wofi font-dejavu mesa-utils)
+  (packages (append (list hyprland-0.56 try-guix-display-sync
+                          foot wofi font-dejavu mesa-utils)
                     %base-packages))
   (services
-   (cons* (simple-service 'try-guix-hyprland account-service-type
+   (cons* ;; The same definitions for in-guest reconfigure and rollback, so they
+          ;; never fall back to the pinned checkout's broken Hyprland 0.55.4:
+          ;;   sudo guix system reconfigure -L /etc/try-guix/modules \
+          ;;     /etc/try-guix/system.scm
+          (simple-service 'try-guix-sources etc-service-type
+                          `(("try-guix"
+                             ,(local-file "." "try-guix-sources"
+                                          #:recursive? #t
+                                          #:select? try-guix-source?))))
+          (simple-service 'try-guix-hyprland account-service-type
                           `((".config/hypr/hyprland.lua"
                              ,(local-file "hyprland.lua"))))
           (service sddm-service-type)

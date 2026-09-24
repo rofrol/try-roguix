@@ -83,8 +83,23 @@ Foot avoids the separate Kitty OpenGL-context problem documented by the old
 Arch guest's `native-overlay/usr/local/bin/kitty` wrapper. Kitty and its
 software-rendering exception are not part of this image. No compositor
 software-rendering override or version-specific Arch Hyprland patch is carried
-over. This checkout packages Hyprland 0.55.4 without systemd/UWSM. Fonts and Mesa
-diagnostic tools are also installed.
+over. Fonts and Mesa diagnostic tools are also installed.
+
+The pinned checkout packages Hyprland 0.55.4 with Aquamarine 0.12.1, which
+cannot follow window resizes (see below). `modules/try-guix/packages.scm`
+therefore defines Hyprland 0.56.1 and Aquamarine 0.14.0, the known-good Arch
+guest pair, built without systemd/UWSM like the upstream package. Notes:
+
+- Hyprland 0.56 needs a newer C++ toolchain than the default GCC 14. This
+  checkout's aarch64 `gcc-16.2.0` substitute ships a libstdc++ configured
+  without C99 math (`_GLIBCXX11_USE_C99_MATH` undefined, so even
+  `std::signbit` is missing), so the package uses `gcc-toolchain-15`. Its one
+  gap, a single C++23 `std::ranges::starts_with` call, is rewritten to the
+  C++20 equivalent in an origin snippet.
+- The module is project code outside Guix's channel authentication; review it
+  like any other source. `build.py` passes it with `--load-path`, and the image
+  installs a copy under `/etc/try-guix` so an in-guest `guix system
+  reconfigure` keeps these versions instead of reverting to 0.55.4.
 
 ## Ephemeral graphics smoke test on macOS
 
@@ -131,31 +146,26 @@ built from Guix `7e74121a`, ran on this runtime with these observations:
   process. The image SHA-256 was identical afterwards, confirming the
   `-snapshot` isolation.
 
-### Known gap: the guest does not follow window resizes yet
+### Window resizes, verified 2026-09-24, Apple M1 Pro, macOS 26.5.2
 
-Resizing the macOS window does **not** change the guest mode. QEMU does publish
-fresh EDID bytes and the kernel does update
-`/sys/class/drm/card0-Virtual-1/modes`, but Aquamarine 0.12.1 logs
-`Connector id 40 already initialized` and keeps the stale `974x548` mode, so
-QEMU scales the framebuffer with `zoom-to-fit` instead of switching mode.
+Image `e0dc1a159133e9da30c934d1127244a0fb780c68fb68b352d68838e4f123349d`
+(Hyprland 0.56.1, Aquamarine 0.14.0, same Guix `7e74121a`):
 
-Runtime rules and reloads do not fix it on this version (probed 2026-09-23).
-`hyprctl eval 'hl.monitor({...})'` and a config reload with an explicit
-modeline both return `ok`, and the legacy `hyprctl keyword monitor` path is
-rejected for Lua configs. The compositor does attempt the new mode, but every
-mode larger than the current one fails: with atomic KMS the test commit returns
-`Invalid argument`; with `AQ_NO_ATOMIC=1` the log shows `drmModeSetCrtc failed:
-No space left on device`. In DRM that error comes from the viewport check when
-the mode is larger than the attached framebuffer, so Aquamarine 0.12.1 modesets
-with the old, smaller buffer. The fault is in Aquamarine, not in QEMU or the
-Hyprland configuration. The fix therefore needs a newer Aquamarine (the Arch
-guest works with 0.14.0 and Hyprland 0.56.1) plus a mode-refresh helper, because
-even legacy KMS does not pick up the new EDID mode by itself. The old Arch guest works around the same Aquamarine behavior with
-`/usr/local/bin/omarchy-native-display-sync`, which parses EDID, builds a full
-modeline, and re-applies it on udev change events; that helper targets Hyprland
-0.56.1 and assumes a runtime rule path that this checkout's Hyprland 0.55.4 does
-not provide. Porting or replacing it is its own slice, together with deciding
-whether to pin a newer Hyprland.
+- `hyprctl systeminfo` reported Hyprland 0.56.1 built against hyprutils 0.14.2
+  and Aquamarine 0.14.0; the guest log still showed `Renderer: virgl` and the
+  host ANGLE Metal Renderer.
+- `try-guix-display-sync` ran from the session. Resizing the QEMU window
+  through the macOS accessibility API changed the guest mode each time, at
+  scale 2: 1200x760 pt (clamped by macOS to 1187x700) gave `2374x1336`,
+  700x450 gave `1400x788`, and growing again gave `2374x1336`. Foot followed
+  the new size. Shrinking and growing past the boot mode both worked.
+- `halt` ended QEMU and the image SHA-256 was unchanged.
+
+With 0.55.4/0.12.1 (image `aaf78944…`, probed 2026-09-23) every mode larger
+than the current one failed: atomic test commits returned `Invalid argument`,
+and with `AQ_NO_ATOMIC=1` the log showed `drmModeSetCrtc failed: No space left
+on device`, i.e. a modeset with the old, smaller framebuffer. Runtime rules and
+config reloads did not help. Cursor handling is still unverified.
 
 ## Not connected to the launcher yet
 
@@ -167,9 +177,8 @@ checks or passing it a partitioned Guix disk would not be a safe migration.
 
 Remaining slices:
 
-1. Publish the display contract: make the guest follow host window resizes on
-   the packaged Hyprland, and decide on cursor handling. Resize, mode change
-   and cursor behavior are unverified; the rest of item 1 is verified above.
+1. Publish the display contract: resize and mode changes are verified above;
+   decide on and verify cursor handling.
 2. Integrate Guix's boot artifacts, provenance, validation and disk layout with
    the host launcher/storage contract. Isolate Guix state from existing Arch
    disks; do not migrate or delete user data implicitly.
