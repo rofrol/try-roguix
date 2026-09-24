@@ -174,10 +174,18 @@ class ProjectModuleTests(unittest.TestCase):
             ("audio-bridge", "native-overlay/usr/local/bin/omarchy-native-audio-bridge"),
             ("camera-bridge", "native-overlay/usr/local/bin/omarchy-native-camera-bridge"),
             ("camera-modprobe.conf", "native-overlay/etc/modprobe.d/90-try-omarchy-camera.conf"),
+            ("authentication-broker", "native-overlay/usr/local/lib/try-omarchy/native-authentication-broker"),
             ("pipewire-quantum.conf", "native-overlay/usr/share/pipewire/pipewire.conf.d/90-try-omarchy-quantum.conf"),
         ]:
             with self.subTest(copy=copy):
                 self.assertEqual((self.MODULES / copy).read_bytes(), (self.GUEST / original).read_bytes())
+
+    def test_broker_substitutions_match_exactly_once(self):
+        # integrations.scm rewrites only these two /usr/bin OpenSSL references.
+        broker = (self.MODULES / "authentication-broker").read_text()
+        self.assertEqual(broker.count('Path("/usr/bin/openssl")'), 1)
+        self.assertEqual(broker.count('{"PATH": "/usr/bin"}'), 1)
+        self.assertEqual(broker.count("/usr/bin"), 3)  # plus the python3 shebang
 
     def test_source_hashes_match_the_arch_guest_supply_chain(self):
         import json

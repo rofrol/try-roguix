@@ -88,6 +88,7 @@
           (service try-guix-clipboard-service-type)
           (service try-guix-audio-service-type)
           (service try-guix-camera-service-type)
+          (service try-guix-touch-id-service-type)
           ;; Installed but never auto-started: try-guix-ssh-access starts it
           ;; for one boot when the launcher forwards SSH.
           (service openssh-service-type

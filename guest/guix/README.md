@@ -302,6 +302,14 @@ differs.
   with the Arch guest's options (`/dev/video42`, "Mac Camera",
   `exclusive_caps`); `camera-bridge` runs under `try-guix-agent`. udev gives
   the port and `video42` to the `video` group.
+- **Touch ID for sudo.** `authentication-broker` is the Arch guest's broker,
+  with only its two `/usr/bin` OpenSSL references rewritten to the store at
+  build time (`test_build.py` pins both). `/etc/pam.d/sudo` always starts with
+  a `sufficient` `pam_exec` rule whose gate fails at once until
+  `try-guix-touch-id enable` (which runs `try-guix-touch-id-control` through
+  sudo) has enrolled with the Mac and written
+  `/var/lib/try-guix/touch-id-enabled`; see ADR 0001. The port is root-only,
+  mode 0600, as the broker requires.
 - **SSH.** `sshd` is installed with auto-start off; `try-guix-ssh-access`
   starts it for the current boot only when the settings contain exactly
   `tryomarchy.ssh_access=1`. Root login is refused; host keys live on the
@@ -323,13 +331,17 @@ same run found PipeWire, WirePlumber and pipewire-pulse running, the audio
 bridge exposing two Mac output and two Mac input endpoints, and `/dev/video42`
 named "Mac Camera" with its bridge running. Streaming the camera was not
 exercised: it would switch on the Mac's camera and needs macOS permission.
+With Touch ID added: `/etc/pam.d/sudo` carried the gated rule, the port was
+`root 600`, sudo accepted the password, and the gate returned 1 while Touch ID
+was off. Enrollment needs the owner's finger on the Mac and was not run.
 
 ### Not done yet
 
 1. Cursor handling in the display contract.
 2. The Swift app still shows Omarchy names and reads Arch workspace metrics
    for its free-space guard; `resize-vm-disk.sh` handles only the Arch disk.
-3. Guest integrations still to port: Touch ID for sudo.
+3. Enroll Touch ID once by hand (`try-guix-touch-id enable` in the guest,
+   with the VM window in front) to confirm the host approval path.
 4. Switch the default build to Guix and remove the Arch builder once the
    above covers the required behavior.
 
