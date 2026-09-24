@@ -35,9 +35,9 @@ DISK = "disk.raw.zst"
 MANIFEST = "guix-manifest.json"
 SUMS = "SHA256SUMS"
 FILES = frozenset({DISK, MANIFEST, SUMS})
-# The image bakes a development password hash; first-boot account creation
-# replaces this before release.
-CREDENTIALS = frozenset({"development-password"})
+# The image carries no password: try-guix-first-boot asks for one on the first
+# start (modules/try-guix/services.scm).
+CREDENTIALS = frozenset({"first-boot"})
 ZSTD_MAGIC = bytes.fromhex("28b52ffd")
 # The persistent workspace the launcher creates; the guest grows its root
 # partition into the difference (try-guix-grow-root). Matches the Arch guest's

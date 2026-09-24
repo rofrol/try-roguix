@@ -1,23 +1,11 @@
 ;; Development guest for the existing ARM64 Virtio/VirGL QEMU runtime.
 (use-modules (gnu)
              (gnu system linux-initrd)
-             (ice-9 regex)
              (srfi srfi-1)
              (try-guix packages)
              (try-guix services))
 (use-service-modules desktop sddm xorg)
 (use-package-modules fonts gl linux terminals window-management xdisorg)
-
-;; Never ship a shared default password or enable passwordless sudo.  This
-;; development image contains the supplied hash in its store closure: use a
-;; throwaway password and do not distribute the resulting image.
-(define guest-password
-  (let ((value (getenv "GUIX_GUEST_PASSWORD_HASH")))
-    (unless (and value
-                 (string-match "^\\$6\\$[./0-9A-Za-z]{1,16}\\$[./0-9A-Za-z]{86}$"
-                               value))
-      (error "Set GUIX_GUEST_PASSWORD_HASH to a SHA-512 crypt hash"))
-    value))
 
 ;; Files that define this system; build and test tooling is left out.
 (define (try-guix-source? file stat)
@@ -63,11 +51,13 @@
                  (group "root")
                  (home-directory "/root")
                  (password "!"))
+                ;; No password ships in the image: the account starts locked
+                ;; and try-guix-first-boot asks for one on the first start.
                 (user-account
-                 (name "guest")
+                 (name %try-guix-account)
                  (uid 1000)
                  (group "users")
-                 (password guest-password)
+                 (password "!")
                  (supplementary-groups '("wheel" "netdev" "audio" "video")))
                 %base-user-accounts))
 
@@ -90,8 +80,24 @@
                           `((".config/hypr/hyprland.lua"
                              ,(local-file "hyprland.lua"))))
           (service try-guix-grow-root-service-type)
-          (service sddm-service-type)
-          (remove (lambda (service)
-                    (memq (service-kind service)
-                          (list gdm-service-type sddm-service-type)))
-                  %desktop-services))))
+          (service try-guix-first-boot-service-type)
+          ;; Like the Arch guest, log straight in on the VM console: the disk
+          ;; is protected by the Mac account. tty1 waits for the first-start
+          ;; password prompt, then /etc/profile.d starts Hyprland there.
+          (simple-service 'try-guix-session etc-profile-d-service-type
+                          (list try-guix-session-script))
+          (modify-services
+              (remove (lambda (service)
+                        (memq (service-kind service)
+                              (list gdm-service-type sddm-service-type)))
+                      %desktop-services)
+            (mingetty-service-type
+             config => (if (string=? (mingetty-configuration-tty config) "tty1")
+                           (mingetty-configuration
+                            (inherit config)
+                            (auto-login %try-guix-account)
+                            (shepherd-requirement
+                             (cons 'try-guix-first-boot
+                                   (mingetty-configuration-shepherd-requirement
+                                    config))))
+                           config))))))

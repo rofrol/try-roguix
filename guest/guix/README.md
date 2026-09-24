@@ -32,16 +32,12 @@ From the project root, on any host, inspect the plan without starting a build:
 python3 guest/guix/build.py --dry-run
 ```
 
-On the Linux builder, generate a SHA-512 crypt hash for a **throwaway development
-password**, for example with `openssl passwd -6` (interactive input), then:
+On the Linux builder:
 
 ```sh
-read -r -s -p 'Development password hash: ' GUIX_GUEST_PASSWORD_HASH; echo
-export GUIX_GUEST_PASSWORD_HASH
 # Authenticate and evaluate with the pinned Guix before building the image:
 python3 guest/guix/build.py --source /path/to/vendor/guix --check
 python3 guest/guix/build.py --source /path/to/vendor/guix
-unset GUIX_GUEST_PASSWORD_HASH
 ```
 
 Unlike `--dry-run`, `--check` actually runs Guix and needs Linux, network access
@@ -66,12 +62,19 @@ just the symlink, when transferring it to macOS. An existing output, including
 a dangling symlink, is refused rather than replaced. Choose another `--output`
 for another build. The builder never opens existing VM workspaces.
 
-This development image has a `guest` account (UID 1000) with the supplied
-password and ordinary password-authenticated sudo. Root password login is
-locked; neither autologin nor an SSH server is enabled. The password hash is
-part of the world-readable Guix store closure: **do not reuse a real password
-or distribute this development image**. Release-quality first-boot owner
-provisioning is still to be designed before packaging a public factory.
+The image carries no password. It declares one desktop account, `guest`
+(UID 1000, the shared-folder owner), with the locked password `!`, and a
+locked root. On the first start, `try-guix-first-boot`
+(`modules/try-guix/services.scm`) switches to tty1 and asks for the account's
+password twice before tty1 logs in; it sets it with `chpasswd` (SHA-512).
+Guix account activation keeps a password set this way across reboots and
+reconfigures, so the prompt appears only while the password is still locked.
+
+Like the Arch guest, the VM console then logs in directly: the disk is
+protected by the Mac account. tty1 auto-logs in `guest`, and
+`/etc/profile.d/try-guix-session.sh` runs `start-hyprland` there only; other
+consoles, the serial console and SSH get an ordinary shell. The password is
+what `sudo` asks for. No display manager runs and no SSH server is enabled.
 
 SDDM provides login into the packaged Hyprland Wayland session. Guix installs
 `hyprland.lua` through the account skeleton for newly created users. It starts
@@ -123,9 +126,8 @@ The directory is staged beside its target and renamed into place only after
 `artifact.validate_artifacts` passes, including a full decompression that
 must reproduce the raw SHA-256. An existing output is never replaced.
 `systemFilesSHA256` records the definition present when packaging; the image
-itself is not re-derived. The credentials profile is `development-password`
-while the image bakes a password hash; release packaging needs first-boot
-account creation instead.
+itself is not re-derived. The credentials profile is `first-boot`: the
+image carries no password (see above).
 
 ## Ephemeral graphics smoke test on macOS
 
@@ -250,6 +252,21 @@ With a test state root: the first launch materialized and verified the
 guest grew `/` to 24G. A file written before `sudo halt` was present after a
 second launch, which reused the workspace without materializing again.
 
+### First start, verified 2026-09-24, Apple M1 Pro, macOS 27.0
+
+On a fresh persistent copy of the image: tty1 showed the password prompt,
+rejected two different entries ("The passwords differ") and asked again;
+after two equal entries it set a SHA-512 hash, tty1 logged in as `guest` and
+Hyprland with Foot came up. `sudo` accepted the new password, root stayed
+locked (`!`), and the next boot went straight to the desktop without a prompt.
+
+An earlier version ran `chvt 1` before prompting. On both first starts with it,
+Hyprland then waited forever in `epoll_wait` right after renderer setup
+(the logind session was active, but the compositor never got the seat), and
+a manual VT switch away and back released it. tty1 is already the active VT
+at boot, so the prompt no longer switches VTs; two fresh first starts since
+went straight to the desktop.
+
 ### Not done yet
 
 1. Cursor handling in the display contract.
@@ -259,10 +276,7 @@ second launch, which reused the workspace without materializing again.
    Touch ID. Their host devices are attached, but the Guix guest runs no
    services for them yet, and it cannot receive the Arch guest's kernel
    arguments (shared folder name, SSH activation).
-4. First-boot account creation instead of the baked development password;
-   an in-guest `guix system reconfigure` also needs that, since `system.scm`
-   reads `GUIX_GUEST_PASSWORD_HASH`.
-5. Switch the default build to Guix and remove the Arch builder once the
+4. Switch the default build to Guix and remove the Arch builder once the
    above covers the required behavior.
 
 ## Local checks
