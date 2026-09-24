@@ -5,7 +5,7 @@ import importlib.util
 from pathlib import Path
 import unittest
 
-path = Path(__file__).with_name("modules") / "try-guix" / "busctl"
+path = Path(__file__).with_name("modules") / "roguix" / "busctl"
 loader = importlib.machinery.SourceFileLoader("busctl_shim", str(path))
 spec = importlib.util.spec_from_loader("busctl_shim", loader)
 busctl = importlib.util.module_from_spec(spec)

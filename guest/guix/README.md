@@ -64,15 +64,15 @@ for another build. The builder never opens existing VM workspaces.
 
 The image carries no password. It declares one desktop account, `guest`
 (UID 1000, the shared-folder owner), with the locked password `!`, and a
-locked root. On the first start, `try-guix-first-boot`
-(`modules/try-guix/services.scm`) switches to tty1 and asks for the account's
+locked root. On the first start, `roguix-first-boot`
+(`modules/roguix/services.scm`) switches to tty1 and asks for the account's
 password twice before tty1 logs in; it sets it with `chpasswd` (SHA-512).
 Guix account activation keeps a password set this way across reboots and
 reconfigures, so the prompt appears only while the password is still locked.
 
 Like the Arch guest, the VM console then logs in directly: the disk is
 protected by the Mac account. tty1 auto-logs in `guest`, and
-`/etc/profile.d/try-guix-session.sh` runs `start-hyprland` there only; other
+`/etc/profile.d/roguix-session.sh` runs `start-hyprland` there only; other
 consoles, the serial console and SSH get an ordinary shell. The password is
 what `sudo` asks for. No display manager runs and no SSH server is enabled.
 
@@ -89,7 +89,7 @@ software-rendering override or version-specific Arch Hyprland patch is carried
 over. Fonts and Mesa diagnostic tools are also installed.
 
 The pinned checkout packages Hyprland 0.55.4 with Aquamarine 0.12.1, which
-cannot follow window resizes (see below). `modules/try-guix/packages.scm`
+cannot follow window resizes (see below). `modules/roguix/packages.scm`
 therefore defines Hyprland 0.56.1 and Aquamarine 0.14.0, the known-good Arch
 guest pair, built without systemd/UWSM like the upstream package. Notes:
 
@@ -101,7 +101,7 @@ guest pair, built without systemd/UWSM like the upstream package. Notes:
   C++20 equivalent in an origin snippet.
 - The module is project code outside Guix's channel authentication; review it
   like any other source. `build.py` passes it with `--load-path`, and the image
-  installs a copy under `/etc/try-guix` so an in-guest reconfigure keeps these
+  installs a copy under `/etc/roguix` so an in-guest reconfigure keeps these
   versions instead of reverting to 0.55.4.
 
 ## Package the launcher artifact
@@ -116,7 +116,7 @@ system partition (FAT) at LBA 2048 and partition 2 an ext4 root labelled
 `Guix_image`, nothing else. It writes `dist/guix/` with exactly:
 
 - `disk.raw.zst`: the disk, compressed with the runtime's pinned `zstd`;
-- `guix-manifest.json`: kind `try-guix-guest-artifacts`, boot ABI
+- `guix-manifest.json`: kind `roguix-guest-artifacts`, boot ABI
   `uefi-gpt-v1`, the recorded partition layout, raw and compressed sizes and
   SHA-256 values, the Guix commit, a digest of the system definition files, and
   the credentials profile;
@@ -180,7 +180,7 @@ Image `e0dc1a159133e9da30c934d1127244a0fb780c68fb68b352d68838e4f123349d`
 - `hyprctl systeminfo` reported Hyprland 0.56.1 built against hyprutils 0.14.2
   and Aquamarine 0.14.0; the guest log still showed `Renderer: virgl` and the
   host ANGLE Metal Renderer.
-- `try-guix-display-sync` ran from the session. Resizing the QEMU window
+- `roguix-display-sync` ran from the session. Resizing the QEMU window
   through the macOS accessibility API changed the guest mode each time, at
   scale 2: 1200x760 pt (clamped by macOS to 1187x700) gave `2374x1336`,
   700x450 gave `1400x788`, and growing again gave `2374x1336`. Foot followed
@@ -205,9 +205,9 @@ arguments:
   reinstalls it there.
 - `/` is declared by the label `Guix_image`, which the partition's ext4
   carries. The image mounts it by a derived UUID; an in-guest reconfigure of
-  `/etc/try-guix/system.scm` mounts the same file system by label.
-- The one-shot Shepherd service `try-guix-grow-root`
-  (`modules/try-guix/services.scm`) runs after `file-systems` and `udev`. If
+  `/etc/roguix/system.scm` mounts the same file system by label.
+- The one-shot Shepherd service `roguix-grow-root`
+  (`modules/roguix/services.scm`) runs after `file-systems` and `udev`. If
   more than 1 MiB lies after partition 2 of `/dev/vdX`, it relocates the
   backup GPT (`sfdisk --relocate gpt-bak-std`), extends partition 2 in place
   (`sfdisk -N 2`, keeping start, type, GUID and name), tells the kernel
@@ -220,7 +220,7 @@ genimage writes; later boots find nothing to fix.
 ## Running through the app
 
 ```sh
-make guix-app   # dist/app.noindex/Try Guix.app with the dist/guix guest
+make guix-app   # dist/app.noindex/Roguix.app with the dist/guix guest
 make guix-run   # build it and open it like `make run`
 ```
 
@@ -243,7 +243,7 @@ none. For Guix it:
   subdirectory, so an Arch VM in the same root is never read or reset;
 - boots with `-bios runtime/share/qemu/edk2-aarch64-code.fd` instead of
   `-kernel/-initrd/-append`; there is no boot kit and no boot recovery;
-- keeps every other device and the window title `Try Guix`.
+- keeps every other device and the window title `Roguix`.
 
 ### Verified 2026-09-24, Apple M1 Pro, through the app's launcher
 
@@ -269,7 +269,7 @@ went straight to the desktop.
 
 ## The Omarchy 4 desktop
 
-`modules/try-guix/omarchy.scm` gives the desktop account the same Omarchy 4
+`modules/roguix/omarchy.scm` gives the desktop account the same Omarchy 4
 ("Quattro") desktop as the Arch guest, from the same pinned upstream commit
 (`346e69e1`, tree `24ff1b25`):
 
@@ -278,7 +278,7 @@ went straight to the desktop.
   default `OMARCHY_PATH`) linked to it. Quickshell 0.3.1 (the Arch guest's
   version, `packages.scm`) runs its shell; JetBrainsMono Nerd Font 3.5.1, the
   `omarchy` glyph font, Liberation and Yaru provide its fonts and icons.
-- **Arch assumptions** are replaced by `try-guix-omarchy-compat`: `uwsm-app`
+- **Arch assumptions** are replaced by `roguix-omarchy-compat`: `uwsm-app`
   and `systemd-cat` run the command directly; `systemd-run` runs it detached
   after `--on-active`'s delay; `systemctl` sends `poweroff`, `reboot`,
   `suspend` and `hibernate` to elogind's `loginctl` and accepts everything
@@ -287,16 +287,16 @@ went straight to the desktop.
   through gdbus (`test_busctl.py`); `xdg-terminal-exec` is the Arch guest's
   (byte-identical copy).
 - **The account** is seeded once, at the first desktop login, by
-  `try-guix-omarchy-seed`: Omarchy's `config/` into `~/.config` (never
+  `roguix-omarchy-seed`: Omarchy's `config/` into `~/.config` (never
   overwriting), its applications, Hyprland toggles and fontconfig aliases;
   `OMARCHY_THEME_HEADLESS=1 omarchy-theme-set "Tokyo Night"`; first-run,
   user provisioning and shipped migrations marked done, since they install
   Arch packages and systemd units. An account from the pre-Omarchy image gets
-  its old Try Guix `hyprland.lua` replaced.
-- **The VM additions** live in `/etc/try-guix-hypr-vm.lua`, which the seed
+  its old Roguix `hyprland.lua` replaced.
+- **The VM additions** live in `/etc/roguix-hypr-vm.lua`, which the seed
   appends to `~/.config/hypr/monitors.lua` as the Arch guest appends its QEMU
   fragment: Hyprland's cursor is hidden when the launcher reports VirGL (Cocoa
-  draws the Mac's cursor), `try-guix-display-sync` follows the window, and the
+  draws the Mac's cursor), `roguix-display-sync` follows the window, and the
   host bridges and PipeWire start with the session.
 - **Lock screen:** the shell authenticates with the PAM service
   `omarchy-lock-password`, defined with `pam_unix`.
@@ -310,30 +310,30 @@ There is no pacman, AUR or Arch update channel. Every program comes from Guix
 and is part of the system configuration:
 
 - **`/etc/config.scm`** is written on the first boot and is the owner's to
-  edit. It calls `try-guix-operating-system` (`modules/try-guix/system.scm`,
+  edit. It calls `roguix-operating-system` (`modules/roguix/system.scm`,
   the same procedure `system.scm` builds the image from) with a list of Guix
-  package names between `;; BEGIN try-guix packages` and `;; END try-guix
+  package names between `;; BEGIN roguix packages` and `;; END roguix
   packages`.
-- **`try-guix-pkg`** (`modules/try-guix/guix-pkg`, `test_guix_pkg.py`) edits
+- **`roguix-pkg`** (`modules/roguix/roguix-pkg`, `test_roguix_pkg.py`) edits
   that list and applies it: `add` and `remove` (root; the list is restored if
   the reconfigure fails), `present` and `list` (the running system's
   profile), `pick-add` and `pick-remove` (fzf pickers).
 - **Omarchy's menu** is rewritten when the `omarchy` package is built
-  (`modules/try-guix/omarchy-menu.py`, `test_omarchy_menu.py`): Arch-only
+  (`modules/roguix/omarchy-menu.py`, `test_omarchy_menu.py`): Arch-only
   entries are dropped; Install and Remove offer any Guix package and curated
   Guix programs; Update → Guix System applies, edits or rolls back the
-  configuration. Omarchy's `omarchy-pkg-*` helpers call `try-guix-pkg`, and
+  configuration. Omarchy's `omarchy-pkg-*` helpers call `roguix-pkg`, and
   the menu's installed-package check asks it instead of pacman.
-- **`try-guix-reconfigure`** runs `guix system reconfigure -L
-  /etc/try-guix/modules /etc/config.scm` with the Guix that built the image,
-  kept as the GC root `/var/guix/gcroots/try-guix-guix`, so it computes the
+- **`roguix-reconfigure`** runs `guix system reconfigure -L
+  /etc/roguix/modules /etc/config.scm` with the Guix that built the image,
+  kept as the GC root `/var/guix/gcroots/roguix-guix`, so it computes the
   image's own derivations. The image also keeps its whole system *without
-  grafts* as `/var/guix/gcroots/try-guix-ungrafted`: a reconfigure grafts
+  grafts* as `/var/guix/gcroots/roguix-ungrafted`: a reconfigure grafts
   again from those builds, and without them it would rebuild Hyprland and
   Quickshell, which have no substitutes, for hours.
 
 Measured 2026-09-24 on a fresh image with the Mac's network: the first
-`try-guix-pkg add alacritty` took 20 minutes, mostly downloading about 900 MB
+`roguix-pkg add alacritty` took 20 minutes, mostly downloading about 900 MB
 of other outputs (`debug`, `doc`, `jdk`) of grafted packages that grafting
 needs; the next, `add helix`, took 3 minutes and 5.3 MB. Shutdown and Logout
 from the menu work.
@@ -346,15 +346,15 @@ same image.
 
 ## macOS integrations
 
-`modules/try-guix/integrations.scm` ports the guest side of the launcher's
+`modules/roguix/integrations.scm` ports the guest side of the launcher's
 integrations. The host side and wire protocols are the Arch guest's,
 unchanged, and the guest programs are byte-identical copies of the Arch
 guest's reviewed scripts (`test_build.py` pins them); only their startup
 differs.
 
 - **Launcher settings.** The launcher passes its arguments as SMBIOS OEM
-  strings (see ADR 0001); `try-guix-host-settings` writes them to
-  `/run/try-guix/host-settings` in kernel command-line format. The shared
+  strings (see ADR 0001); `roguix-host-settings` writes them to
+  `/run/roguix/host-settings` in kernel command-line format. The shared
   folder script reads it through its `OMARCHY_MAC_SHARE_CMDLINE` override, the
   SSH gate directly. A
   missing or unreadable table yields an empty file, never a failed boot.
@@ -362,13 +362,13 @@ differs.
   the `mac` 9p tag at `/mnt/mac` from a Shepherd service that tty1's session
   waits for, and `/etc/profile.d` links `~/<Mac folder name>` at each login of
   the desktop account. Mount failures are logged and never block the session.
-- **Clipboard.** `clipboard-bridge` runs under `try-guix-agent`, which Hyprland
+- **Clipboard.** `clipboard-bridge` runs under `roguix-agent`, which Hyprland
   starts: it keeps the bridge running while the session's Wayland socket and
   the `dev.tryomarchy.clipboard` port exist and restarts it 2 s after it
   exits, as the Arch unit's `Restart=` does. A udev rule gives the port to the
   `users` group, mode 0660. `wl-clipboard` is installed system-wide.
 - **Audio.** Sound itself flows through QEMU's intel-hda. Hyprland starts
-  PipeWire, WirePlumber and pipewire-pulse under `try-guix-agent`, then
+  PipeWire, WirePlumber and pipewire-pulse under `roguix-agent`, then
   `audio-bridge`, which mirrors the Mac's devices as `omarchy_host_*` remap
   endpoints through `pactl` and relays the selection. The Arch guest's graph
   quantum file is installed as `/etc/pipewire/pipewire.conf.d/`
@@ -377,17 +377,17 @@ differs.
   `dbus-run-session`.
 - **Camera.** `v4l2loopback-linux-module` is a loadable module, loaded at boot
   with the Arch guest's options (`/dev/video42`, "Mac Camera",
-  `exclusive_caps`); `camera-bridge` runs under `try-guix-agent`. udev gives
+  `exclusive_caps`); `camera-bridge` runs under `roguix-agent`. udev gives
   the port and `video42` to the `video` group.
 - **Touch ID for sudo.** `authentication-broker` is the Arch guest's broker,
   with only its two `/usr/bin` OpenSSL references rewritten to the store at
   build time (`test_build.py` pins both). `/etc/pam.d/sudo` always starts with
   a `sufficient` `pam_exec` rule whose gate fails at once until
-  `try-guix-touch-id enable` (which runs `try-guix-touch-id-control` through
+  `roguix-touch-id enable` (which runs `roguix-touch-id-control` through
   sudo) has enrolled with the Mac and written
-  `/var/lib/try-guix/touch-id-enabled`; see ADR 0001. The port is root-only,
+  `/var/lib/roguix/touch-id-enabled`; see ADR 0001. The port is root-only,
   mode 0600, as the broker requires.
-- **SSH.** `sshd` is installed with auto-start off; `try-guix-ssh-access`
+- **SSH.** `sshd` is installed with auto-start off; `roguix-ssh-access`
   starts it for the current boot only when the settings contain exactly
   `tryomarchy.ssh_access=1`. Root login is refused; host keys live on the
   guest disk.
@@ -417,7 +417,7 @@ was off. Enrollment needs the owner's finger on the Mac and was not run.
 1. Cursor handling in the display contract.
 2. The Swift app still shows Omarchy names and reads Arch workspace metrics
    for its free-space guard; `resize-vm-disk.sh` handles only the Arch disk.
-3. Enroll Touch ID once by hand (`try-guix-touch-id enable` in the guest,
+3. Enroll Touch ID once by hand (`roguix-touch-id enable` in the guest,
    with the VM window in front) to confirm the host approval path.
 4. Switch the default build to Guix and remove the Arch builder once the
    above covers the required behavior.

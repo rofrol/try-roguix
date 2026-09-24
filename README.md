@@ -75,9 +75,9 @@ Omarchy desktop keeps its old one; **Reset Guix** starts a new one.
 - **SSH:** add the SSH port mapping on the start menu, then
   `ssh -p 2222 guest@127.0.0.1`. `sshd` runs only while that mapping exists.
 - **Touch ID for sudo:** with the VM window in front, run
-  `try-guix-touch-id enable` in the guest and approve on the Mac. `sudo` then
+  `roguix-touch-id enable` in the guest and approve on the Mac. `sudo` then
   asks the Mac first and falls back to the password;
-  `try-guix-touch-id disable` turns it off.
+  `roguix-touch-id disable` turns it off.
 
 Processor cores, memory, networking (NAT or bridged), port forwarding and the
 VM's storage location are chosen on the start menu as in Try Omarchy; see the

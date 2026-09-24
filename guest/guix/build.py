@@ -80,7 +80,7 @@ def build(args):
         raise ValueError("Build on Linux with Guix and a running guix-daemon; macOS cannot build this image directly")
     if not shutil.which("guix"):
         raise ValueError("guix is required")
-    with tempfile.TemporaryDirectory(prefix="try-guix-channel-") as directory:
+    with tempfile.TemporaryDirectory(prefix="roguix-channel-") as directory:
         channel_source = Path(directory) / "source.git"
         subprocess.run(
             ["git", "clone", "--quiet", "--bare", "--shared", str(source),

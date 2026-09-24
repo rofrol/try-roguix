@@ -73,7 +73,7 @@ qemu_persistent_storage_configure_guest() {
       QPS_DISK_NAME=disk.raw
       QPS_IMAGE_SUFFIX=raw
       QPS_STATE_SUBDIRECTORY=guix
-      QEMU_PERSISTENT_STORAGE_KIND='try-guix-qemu-persistent-disk'
+      QEMU_PERSISTENT_STORAGE_KIND='roguix-qemu-persistent-disk'
       ;;
     *)
       _qps_fail 'guest boot mode must be direct or uefi'

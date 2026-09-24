@@ -45,7 +45,7 @@ kernel command line. A UEFI guest boots its own GRUB, so the launcher passes
 the same `name=value` strings as SMBIOS type 11 OEM strings (`-smbios
 type=11,value=...`); EDK2 publishes them and the guest reads
 `/sys/firmware/dmi/entries/11-*/raw` as root at boot, keeping only values of
-that exact shape, and writes them to `/run/try-guix/host-settings` in the
+that exact shape, and writes them to `/run/roguix/host-settings` in the
 command line's format. The authority is unchanged: only the launcher sets
 them, their values are the same, and `/run` keeps them for one boot, as the
 command line does. QEMU's `fw_cfg` was not used because this checkout's
@@ -59,8 +59,8 @@ after enrolling, and removes it before disabling. Guix generates `/etc/pam.d`
 from the system configuration, so the Guix guest carries the same
 `sufficient pam_exec.so quiet seteuid stdout` rule permanently, and the program
 it runs is a gate that fails immediately unless
-`/var/lib/try-guix/touch-id-enabled` (root, 0600, in a 0700 directory) exists;
-only then does it run the broker. `try-guix-touch-id-control enable` enrolls
+`/var/lib/roguix/touch-id-enabled` (root, 0600, in a 0700 directory) exists;
+only then does it run the broker. `roguix-touch-id-control enable` enrolls
 with the host before writing that marker, and `disable` removes the marker
 before revoking. Until the owner opts in the rule has no effect, and afterwards
 any failure still falls back to the password, so the authority and fallback

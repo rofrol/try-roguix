@@ -29,18 +29,18 @@ GPT_ENTRIES = 128
 GPT_ENTRY_SIZE = 128
 GPT_ENTRY_SECTORS = GPT_ENTRIES * GPT_ENTRY_SIZE // SECTOR
 
-KIND = "try-guix-guest-artifacts"
+KIND = "roguix-guest-artifacts"
 BOOT_ABI = "uefi-gpt-v1"
 DISK = "disk.raw.zst"
 MANIFEST = "guix-manifest.json"
 SUMS = "SHA256SUMS"
 FILES = frozenset({DISK, MANIFEST, SUMS})
-# The image carries no password: try-guix-first-boot asks for one on the first
-# start (modules/try-guix/services.scm).
+# The image carries no password: roguix-first-boot asks for one on the first
+# start (modules/roguix/services.scm).
 CREDENTIALS = frozenset({"first-boot"})
 ZSTD_MAGIC = bytes.fromhex("28b52ffd")
 # The persistent workspace the launcher creates; the guest grows its root
-# partition into the difference (try-guix-grow-root). Matches the Arch guest's
+# partition into the difference (roguix-grow-root). Matches the Arch guest's
 # expandedSizeMiB.
 WORKING_DISK_BYTES = 24576 << 20
 CHUNK = 8 << 20
