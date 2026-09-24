@@ -2,11 +2,40 @@
   width="1024" height="1024" viewBox="0 0 1024 1024"
   role="img" aria-labelledby="title desc">
   <title id="title">Try Roguix app icon</title>
-  <desc id="desc">A geometric letter G on a dark rounded tile. An original
-    mark, not the GNU or Guix logo.</desc>
+  <desc id="desc">A block-letter R, drawn with the full and half blocks of
+    the guest's ROGUIX ASCII logo, on a dark rounded tile.</desc>
   <rect x="100" y="100" width="824" height="824" rx="191"
     fill="#17150f" stroke="#f2b33d" stroke-opacity="0.28" stroke-width="4"/>
-  <path d="M 700 348 H 324 V 676 H 700 V 512 H 536"
-    fill="none" stroke="#f2b33d" stroke-width="92"
-    stroke-linecap="square" stroke-linejoin="miter"/>
+  <g fill="#f2b33d" shape-rendering="crispEdges">
+    <rect x="392" y="242" width="240" height="30"/>
+    <rect x="362" y="272" width="300" height="30"/>
+    <rect x="362" y="302" width="90" height="30"/>
+    <rect x="572" y="302" width="90" height="30"/>
+    <rect x="362" y="332" width="90" height="30"/>
+    <rect x="572" y="332" width="90" height="30"/>
+    <rect x="362" y="362" width="90" height="30"/>
+    <rect x="572" y="362" width="90" height="30"/>
+    <rect x="362" y="392" width="90" height="30"/>
+    <rect x="572" y="392" width="90" height="30"/>
+    <rect x="362" y="422" width="90" height="30"/>
+    <rect x="572" y="422" width="90" height="30"/>
+    <rect x="362" y="452" width="270" height="30"/>
+    <rect x="362" y="482" width="240" height="30"/>
+    <rect x="362" y="512" width="90" height="30"/>
+    <rect x="542" y="512" width="90" height="30"/>
+    <rect x="362" y="542" width="90" height="30"/>
+    <rect x="572" y="542" width="90" height="30"/>
+    <rect x="362" y="572" width="90" height="30"/>
+    <rect x="572" y="572" width="90" height="30"/>
+    <rect x="362" y="602" width="90" height="30"/>
+    <rect x="572" y="602" width="90" height="30"/>
+    <rect x="362" y="632" width="90" height="30"/>
+    <rect x="572" y="632" width="90" height="30"/>
+    <rect x="362" y="662" width="90" height="30"/>
+    <rect x="572" y="662" width="90" height="30"/>
+    <rect x="362" y="692" width="90" height="30"/>
+    <rect x="572" y="692" width="90" height="30"/>
+    <rect x="362" y="722" width="90" height="30"/>
+    <rect x="572" y="722" width="90" height="30"/>
+  </g>
 </svg>
