@@ -5,7 +5,7 @@
              (try-guix integrations)
              (try-guix packages)
              (try-guix services))
-(use-service-modules desktop sddm ssh xorg)
+(use-service-modules desktop sddm sound ssh xorg)
 (use-package-modules fonts gl linux terminals window-management xdisorg)
 
 ;; Files that define this system; build and test tooling is left out.
@@ -21,6 +21,8 @@
   (keyboard-layout (keyboard-layout "us"))
   (kernel linux-libre)
   (firmware '())
+  ;; /dev/video42 for the Mac camera (try-guix-camera-service-type).
+  (kernel-loadable-modules (list v4l2loopback-linux-module))
   (initrd-modules (cons* "virtio_gpu" "virtio_console"
                          (base-initrd-modules linux-libre)))
   (kernel-arguments (cons "console=hvc0" %default-kernel-arguments))
@@ -84,6 +86,8 @@
           (service try-guix-host-settings-service-type)
           (service try-guix-mac-share-service-type)
           (service try-guix-clipboard-service-type)
+          (service try-guix-audio-service-type)
+          (service try-guix-camera-service-type)
           ;; Installed but never auto-started: try-guix-ssh-access starts it
           ;; for one boot when the launcher forwards SSH.
           (service openssh-service-type
@@ -101,6 +105,12 @@
                         (memq (service-kind service)
                               (list gdm-service-type sddm-service-type)))
                       %desktop-services)
+            ;; pipewire-pulse serves the PulseAudio socket; pactl (the audio
+            ;; bridge's tool) must never start a real PulseAudio daemon.
+            (pulseaudio-service-type
+             config => (pulseaudio-configuration
+                        (inherit config)
+                        (client-conf '((autospawn . no)))))
             (mingetty-service-type
              config => (if (string=? (mingetty-configuration-tty config) "tty1")
                            (mingetty-configuration

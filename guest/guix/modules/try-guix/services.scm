@@ -13,6 +13,7 @@
 (define-module (try-guix services)
   #:use-module (gnu packages admin)
   #:use-module (gnu packages base)
+  #:use-module (gnu packages glib)
   #:use-module (gnu packages linux)
   #:use-module (gnu services)
   #:use-module (gnu services shepherd)
@@ -172,13 +173,14 @@
    (default-value #f)
    (description "Ask for the desktop account's password on the first start.")))
 
-;; For etc-profile-d-service-type: the auto-login console runs the compositor;
-;; other consoles, the serial console and SSH get an ordinary shell.
+;; For etc-profile-d-service-type: the auto-login console runs the compositor
+;; inside its own D-Bus session bus (PipeWire's WirePlumber and desktop
+;; programs expect one); other consoles, the serial console and SSH get an
+;; ordinary shell.
 (define try-guix-session-script
-  (plain-file "try-guix-session.sh"
-              (string-append "\
+  (mixed-text-file "try-guix-session.sh" "\
 if [ \"$(tty)\" = /dev/tty1 ] && [ -z \"$WAYLAND_DISPLAY\" ] \\
    && [ \"$(id -un)\" = " %try-guix-account " ]; then
-  exec start-hyprland
+  exec " (file-append dbus "/bin/dbus-run-session") " start-hyprland
 fi
-")))
+"))
