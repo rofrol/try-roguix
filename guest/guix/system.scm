@@ -2,17 +2,17 @@
 (use-modules (gnu)
              (gnu system linux-initrd)
              (srfi srfi-1)
+             (try-guix integrations)
              (try-guix packages)
              (try-guix services))
-(use-service-modules desktop sddm xorg)
+(use-service-modules desktop sddm ssh xorg)
 (use-package-modules fonts gl linux terminals window-management xdisorg)
 
 ;; Files that define this system; build and test tooling is left out.
 (define (try-guix-source? file stat)
-  (let ((name (basename file)))
-    (or (eq? 'directory (stat:type stat))
-        (member name '("system.scm" "hyprland.lua" "packages.scm" "services.scm"
-                       "display-sync" "hyprland-rounded-border-coverage.patch")))))
+  (or (eq? 'directory (stat:type stat))
+      (member (basename file) '("system.scm" "hyprland.lua"))
+      (string-contains file "/modules/try-guix/")))
 
 (operating-system
   (host-name "try-guix")
@@ -81,6 +81,16 @@
                              ,(local-file "hyprland.lua"))))
           (service try-guix-grow-root-service-type)
           (service try-guix-first-boot-service-type)
+          (service try-guix-host-settings-service-type)
+          (service try-guix-mac-share-service-type)
+          (service try-guix-clipboard-service-type)
+          ;; Installed but never auto-started: try-guix-ssh-access starts it
+          ;; for one boot when the launcher forwards SSH.
+          (service openssh-service-type
+                   (openssh-configuration
+                    (%auto-start? #f)
+                    (permit-root-login #f)))
+          (service try-guix-ssh-access-service-type)
           ;; Like the Arch guest, log straight in on the VM console: the disk
           ;; is protected by the Mac account. tty1 waits for the first-start
           ;; password prompt, then /etc/profile.d starts Hyprland there.
@@ -96,8 +106,16 @@
                            (mingetty-configuration
                             (inherit config)
                             (auto-login %try-guix-account)
+                            ;; The shared folder is mounted before the
+                            ;; session starts, as in the Arch guest. The
+                            ;; login also waits for Shepherd's elogind:
+                            ;; pam_elogind would otherwise D-Bus-activate a
+                            ;; second one, Shepherd would disable its own,
+                            ;; and everything requiring elogind (pam, sshd)
+                            ;; could no longer start.
                             (shepherd-requirement
-                             (cons 'try-guix-first-boot
-                                   (mingetty-configuration-shepherd-requirement
-                                    config))))
+                             (cons* 'try-guix-first-boot 'try-guix-mac-share
+                                    'elogind
+                                    (mingetty-configuration-shepherd-requirement
+                                     config))))
                            config))))))

@@ -267,15 +267,54 @@ a manual VT switch away and back released it. tty1 is already the active VT
 at boot, so the prompt no longer switches VTs; two fresh first starts since
 went straight to the desktop.
 
+## macOS integrations
+
+`modules/try-guix/integrations.scm` ports the guest side of the launcher's
+integrations. The host side and wire protocols are the Arch guest's,
+unchanged, and the guest programs are byte-identical copies of the Arch
+guest's reviewed scripts (`test_build.py` pins them); only their startup
+differs.
+
+- **Launcher settings.** The launcher passes its arguments as SMBIOS OEM
+  strings (see ADR 0001); `try-guix-host-settings` writes them to
+  `/run/try-guix/host-settings` in kernel command-line format. The shared
+  folder script reads it through its `OMARCHY_MAC_SHARE_CMDLINE` override, the
+  SSH gate directly. A
+  missing or unreadable table yields an empty file, never a failed boot.
+- **Shared folder.** `mac-share` (the Arch `omarchy-native-mac-share`) mounts
+  the `mac` 9p tag at `/mnt/mac` from a Shepherd service that tty1's session
+  waits for, and `/etc/profile.d` links `~/<Mac folder name>` at each login of
+  the desktop account. Mount failures are logged and never block the session.
+- **Clipboard.** `clipboard-bridge` runs under `try-guix-agent`, which Hyprland
+  starts: it keeps the bridge running while the session's Wayland socket and
+  the `dev.tryomarchy.clipboard` port exist and restarts it 2 s after it
+  exits, as the Arch unit's `Restart=` does. A udev rule gives the port to the
+  `users` group, mode 0660. `wl-clipboard` is installed system-wide.
+- **SSH.** `sshd` is installed with auto-start off; `try-guix-ssh-access`
+  starts it for the current boot only when the settings contain exactly
+  `tryomarchy.ssh_access=1`. Root login is refused; host keys live on the
+  guest disk.
+
+tty1's login also waits for Shepherd's `elogind`. Without that, an early
+auto-login let `pam_elogind` D-Bus-activate a second elogind; Shepherd then
+disabled its own, and `pam` and `sshd` could never start.
+
+### Integrations, verified 2026-09-24, Apple M1 Pro, macOS 27.0
+
+Through the app's launcher with a fresh state root, a shared Mac folder named
+`Work Folder` and the `tcp:2222:22` forward: SSH logged in as `guest`; the
+settings file held all three launcher arguments; `~/Work Folder` pointed at
+`/mnt/mac`; a Mac file was readable in the guest and a file written by the
+guest appeared on the Mac; the Mac pasteboard reached `wl-paste` and a
+`wl-copy` in the guest reached `pbpaste`.
+
 ### Not done yet
 
 1. Cursor handling in the display contract.
 2. The Swift app still shows Omarchy names and reads Arch workspace metrics
    for its free-space guard; `resize-vm-disk.sh` handles only the Arch disk.
-3. Guest integrations: shared folder, clipboard, audio, camera, SSH and
-   Touch ID. Their host devices are attached, but the Guix guest runs no
-   services for them yet, and it cannot receive the Arch guest's kernel
-   arguments (shared folder name, SSH activation).
+3. Guest integrations still to port: audio device routing, camera and
+   Touch ID (shared folder, clipboard and SSH work, see above).
 4. Switch the default build to Guix and remove the Arch builder once the
    above covers the required behavior.
 

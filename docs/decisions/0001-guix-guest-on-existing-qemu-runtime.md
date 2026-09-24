@@ -37,6 +37,21 @@ distinct ABI; existing Arch workspaces are left untouched and reported
 incompatible, with deletion only behind a confirmed reset. The Arch boot-kit
 recovery mechanism is not reused.
 
+### Launcher settings: SMBIOS OEM strings (decided)
+
+The Arch guest learns its launcher-owned settings (`omarchy.qemu_virgl=1`,
+`omarchy.shared_folder_name=<base64url>`, `tryomarchy.ssh_access=1`) from the
+kernel command line. A UEFI guest boots its own GRUB, so the launcher passes
+the same `name=value` strings as SMBIOS type 11 OEM strings (`-smbios
+type=11,value=...`); EDK2 publishes them and the guest reads
+`/sys/firmware/dmi/entries/11-*/raw` as root at boot, keeping only values of
+that exact shape, and writes them to `/run/try-guix/host-settings` in the
+command line's format. The authority is unchanged: only the launcher sets
+them, their values are the same, and `/run` keeps them for one boot, as the
+command line does. QEMU's `fw_cfg` was not used because this checkout's
+linux-libre is built without `CONFIG_FW_CFG_SYSFS`; a new virtio port would
+need host code for what is static boot data.
+
 ## Alternatives
 
 - Direct kernel/initrd boot of an unpartitioned root: smaller launcher change,

@@ -24,14 +24,9 @@ ROOT = HERE.parents[1]
 ZSTD = ROOT / "macos/.build/qemu-gpu-runtime/bin/zstd"
 # The files that define the system; the same set the image installs under
 # /etc/try-guix (see try-guix-source? in system.scm).
-SYSTEM_FILES = (
-    "system.scm",
-    "hyprland.lua",
-    "modules/try-guix/packages.scm",
-    "modules/try-guix/services.scm",
-    "modules/try-guix/display-sync",
-    "modules/try-guix/hyprland-rounded-border-coverage.patch",
-)
+SYSTEM_FILES = ("system.scm", "hyprland.lua") + tuple(
+    path.relative_to(HERE).as_posix()
+    for path in sorted((HERE / "modules/try-guix").iterdir()) if path.is_file())
 
 
 def guix_commit():
