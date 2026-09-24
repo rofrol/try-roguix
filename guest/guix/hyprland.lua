@@ -7,6 +7,8 @@ hl.monitor({ output = "", mode = "preferred", position = "auto", scale = "auto" 
 hl.on("hyprland.start", function()
     -- Follows QEMU window resizes; exits with the session.
     hl.exec_cmd("try-guix-display-sync")
+    -- Host bridges, restarted for the life of this session (try-guix-agent).
+    hl.exec_cmd("try-guix-agent /dev/virtio-ports/dev.tryomarchy.clipboard try-guix-clipboard-bridge")
     hl.exec_cmd("foot")
 end)
 

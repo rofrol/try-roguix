@@ -121,13 +121,13 @@ class InspectDiskTests(unittest.TestCase):
 
 class SystemFilesTests(unittest.TestCase):
     def test_digest_covers_exactly_the_files_the_image_installs(self):
-        import re
+        # system.scm installs system.scm, hyprland.lua and all of modules/try-guix.
         text = (HERE / "system.scm").read_text()
-        listed = re.search(r"\(member name '\(([^)]*)\)", text).group(1)
-        installed = set(re.findall(r'"([^"]+)"', listed))
-        self.assertEqual({Path(name).name for name in package.SYSTEM_FILES}, installed)
-        for name in package.SYSTEM_FILES:
-            self.assertTrue((HERE / name).is_file(), name)
+        self.assertIn('''(member (basename file) '("system.scm" "hyprland.lua"))''', text)
+        self.assertIn('(string-contains file "/modules/try-guix/")', text)
+        modules = sorted(p.relative_to(HERE).as_posix()
+                         for p in (HERE / "modules/try-guix").iterdir() if p.is_file())
+        self.assertEqual(package.SYSTEM_FILES, ("system.scm", "hyprland.lua", *modules))
 
 
 @unittest.skipUnless(shutil.which("zstd") or package.ZSTD.is_file(), "needs zstd")

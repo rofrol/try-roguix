@@ -169,6 +169,8 @@ class ProjectModuleTests(unittest.TestCase):
         for copy, original in [
             ("hyprland-rounded-border-coverage.patch", "patches/hyprland/rounded-border-coverage.patch"),
             ("display-sync", "native-overlay/usr/local/bin/omarchy-native-display-sync"),
+            ("mac-share", "native-overlay/usr/local/bin/omarchy-native-mac-share"),
+            ("clipboard-bridge", "native-overlay/usr/local/bin/omarchy-native-clipboard-bridge"),
         ]:
             with self.subTest(copy=copy):
                 self.assertEqual((self.MODULES / copy).read_bytes(), (self.GUEST / original).read_bytes())
@@ -190,8 +192,7 @@ class ProjectModuleTests(unittest.TestCase):
 
     def test_guest_source_selection_covers_every_module_file(self):
         system = (self.GUEST / "guix/system.scm").read_text()
-        for path in self.MODULES.iterdir():
-            self.assertIn(f'"{path.name}"', system, f"{path.name} would be missing from /etc/try-guix")
+        self.assertIn('(string-contains file "/modules/try-guix/")', system)
 
 
 if __name__ == "__main__":

@@ -1638,6 +1638,14 @@ if (( QEMU_PERSISTENT_STORAGE_NEEDS_BOOT_RECOVERY )); then
 fi
 if [[ $guest_kind == guix ]]; then
   boot_args=(-bios "$uefi_firmware")
+  # Firmware boots the guest's own GRUB, so the launcher-owned arguments the
+  # Arch guest reads from its command line travel as SMBIOS OEM strings
+  # (type 11); try-guix-host-settings reads them. Each is name=value with a
+  # base64url or literal value, so none contains a space or comma.
+  for launcher_argument in omarchy.qemu_virgl=1 \
+    $shared_folder_kernel_argument $ssh_kernel_argument; do
+    boot_args+=(-smbios "type=11,value=$launcher_argument")
+  done
 else
   launch_kernel=$QEMU_SELECTED_KERNEL
   launch_initramfs=$QEMU_SELECTED_INITRAMFS

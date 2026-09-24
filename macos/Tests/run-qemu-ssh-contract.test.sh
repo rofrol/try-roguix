@@ -1103,6 +1103,11 @@ for option in -kernel -initrd -append; do
   ! grep -Fxq -- "$option" "$test_root/guix-uefi/qemu.log" || fail "UEFI launch passed $option"
 done
 assert_contains "$(<"$test_root/guix-uefi/storage.log")" 'configure uefi'
+assert_line_pair "$test_root/guix-uefi/qemu.log" -smbios 'type=11,value=omarchy.qemu_virgl=1'
+assert_not_contains "$guix_arguments" 'tryomarchy.ssh_access'
+run_scenario guix-ssh 0 "$guix_guest" FAKE_PERSISTENT_ROOT="$test_root/guix-ssh-root" \
+  OMARCHY_QEMU_GPU_PORT_FORWARDS=tcp:2222:22
+assert_line_pair "$test_root/guix-ssh/qemu.log" -smbios 'type=11,value=tryomarchy.ssh_access=1'
 assert_contains "$(<"$test_root/disabled/storage.log")" 'configure direct'
 
 /usr/bin/plutil -insert kernelCommandLine -string 'root=/dev/vda rw' "$guix_guest/launch.plist"
