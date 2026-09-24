@@ -20,7 +20,7 @@ struct NetworkingTests {
     func concurrentStartupFailure() throws {
         let output = "Another bridged session is still active or finishing cleanup.\n[qemu-gpu] Bridged networking could not start."
         let message = try #require(NetworkStartupFailure.message(standardError: output))
-        #expect(message.contains("Another bridged Guix VM"))
+        #expect(message.contains("Another bridged Roguix VM"))
         #expect(message.contains("choose NAT"))
         #expect(!message.contains("Repair"))
         #expect(NetworkStartupFailure.message(standardError: "unrelated startup failure") == nil)

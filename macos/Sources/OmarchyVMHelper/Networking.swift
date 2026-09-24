@@ -113,11 +113,11 @@ enum NetworkStartupFailure {
             return "The selected network adapter is unavailable. Reconnect it, or open Networking and select another adapter or Shared connection (NAT), then try again."
         }
         if standardError.contains("Another bridged session is still active or finishing cleanup.") ||
-            standardError.contains("Another bridged Try Guix session is active, or its lock is unavailable.") {
-            return "Another bridged Guix VM is running or finishing shutdown. Shut it down and wait a moment, or choose NAT for this VM."
+            standardError.contains("Another bridged Try Roguix session is active, or its lock is unavailable.") {
+            return "Another bridged Roguix VM is running or finishing shutdown. Shut it down and wait a moment, or choose NAT for this VM."
         }
         if standardError.contains("Bridged networking could not start.") {
-            return "Bridged networking could not start. Shut down any bridged Guix VM, then use Set Up / Repair Networking, or choose NAT."
+            return "Bridged networking could not start. Shut down any bridged Roguix VM, then use Set Up / Repair Networking, or choose NAT."
         }
         return nil
     }

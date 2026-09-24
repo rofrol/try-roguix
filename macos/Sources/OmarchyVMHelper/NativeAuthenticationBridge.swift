@@ -14,13 +14,13 @@ enum NativeAuthenticationOperation: String, Equatable {
     var localizedReason: String {
         switch self {
         case .disable:
-            "Disable Touch ID for sudo in this Try Guix guest"
+            "Disable Touch ID for sudo in this Try Roguix guest"
         case .enroll:
-            "Pair this Try Guix guest for Touch ID sudo testing"
+            "Pair this Try Roguix guest for Touch ID sudo testing"
         case .sudo:
-            "Approve sudo in the focused Try Guix guest"
+            "Approve sudo in the focused Try Roguix guest"
         case .onePasswordUnlock:
-            "Unlock 1Password in the focused Try Guix guest"
+            "Unlock 1Password in the focused Try Roguix guest"
         }
     }
 }
@@ -232,7 +232,7 @@ final class SecureEnclaveAuthorizationSigner: HostAuthorizationSigning, @uncheck
                 for: .applicationSupportDirectory,
                 in: .userDomainMask
             )[0]
-            .appendingPathComponent("Try Guix", isDirectory: true)
+            .appendingPathComponent("Try Roguix", isDirectory: true)
             .appendingPathComponent("Native Authentication Keys", isDirectory: true)
     }
 
@@ -310,7 +310,7 @@ final class SecureEnclaveAuthorizationSigner: HostAuthorizationSigning, @uncheck
 
     private func authenticate(reason: String) -> LAContext? {
         let context = LAContext()
-        context.localizedCancelTitle = "Return to Guix"
+        context.localizedCancelTitle = "Return to Roguix"
         context.localizedFallbackTitle = ""
         context.touchIDAuthenticationAllowableReuseDuration = 0
 

@@ -72,7 +72,7 @@ struct NativeCameraBridgeTests {
 
 @Suite("Camera launch policy")
 struct CameraLaunchDecisionTests {
-    @Test("denial keeps Guix launchable and gives recovery instructions")
+    @Test("denial keeps Roguix launchable and gives recovery instructions")
     func deniedStillLaunches() {
         let decision = CameraLaunchDecision.make(for: .denied)
         #expect(decision.allowsLaunch)

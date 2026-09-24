@@ -7,7 +7,7 @@
 #include <xpc/xpc.h>
 
 #ifndef NETWORK_SERVICE_NAME
-#define NETWORK_SERVICE_NAME "dev.tryguix.network"
+#define NETWORK_SERVICE_NAME "dev.tryroguix.network"
 #endif
 #include "payload-check.h"
 

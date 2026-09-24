@@ -66,13 +66,13 @@ enum StartMenuPresentation {
             + (resources.diskGiB.map { " · \($0) GiB disk" } ?? "")
     }
 
-    static let incompatibleWorkspaceDetail = "The saved VM uses a storage or boot format this version can’t use, or its data folder contains multiple saved VMs. Reset Guix to create a compatible VM. Resetting permanently erases everything in the VM."
+    static let incompatibleWorkspaceDetail = "The saved VM uses a storage or boot format this version can’t use, or its data folder contains multiple saved VMs. Reset Roguix to create a compatible VM. Resetting permanently erases everything in the VM."
 
     static let bootRecoveryConfirmationTitle = "Prepare this saved VM once?"
     static let bootRecoveryConfirmationDetail = """
-        Try Guix found an existing VM from an earlier app version. Before it starts, Try Guix will run a one-time, read-only recovery to pair that VM with its own kernel and startup files. The saved disk and all of its data remain intact.
+        Try Roguix found an existing VM from an earlier app version. Before it starts, Try Roguix will run a one-time, read-only recovery to pair that VM with its own kernel and startup files. The saved disk and all of its data remain intact.
 
-        The factory image bundled with this app is ignored for this VM. Continuing does not reset the VM, upgrade Guix, or install system updates.
+        The factory image bundled with this app is ignored for this VM. Continuing does not reset the VM, upgrade Roguix, or install system updates.
         """
 
     static func microphone(
@@ -82,7 +82,7 @@ enum StartMenuPresentation {
         switch state {
         case .authorized:
             StartMenuPermissionPresentation(
-                detail: "Apps in Guix can record from your Mac microphone.",
+                detail: "Apps in Roguix can record from your Mac microphone.",
                 isGranted: true,
                 actionTitle: nil,
                 action: nil
@@ -118,21 +118,21 @@ enum StartMenuPresentation {
         switch state {
         case .authorized:
             StartMenuPermissionPresentation(
-                detail: "Apps in Guix can use your Mac camera while they are recording.",
+                detail: "Apps in Roguix can use your Mac camera while they are recording.",
                 isGranted: true,
                 actionTitle: nil,
                 action: nil
             )
         case .notDetermined:
             StartMenuPermissionPresentation(
-                detail: "Optional. The camera turns on only while a Guix app uses it.",
+                detail: "Optional. The camera turns on only while a Roguix app uses it.",
                 isGranted: false,
                 actionTitle: requestInFlight ? "Waiting…" : "Allow…",
                 action: .request
             )
         case .denied:
             StartMenuPermissionPresentation(
-                detail: "The Mac camera is off inside Guix.",
+                detail: "The Mac camera is off inside Roguix.",
                 isGranted: false,
                 actionTitle: "Open Settings",
                 action: .openSettings
@@ -157,19 +157,19 @@ enum StartMenuPresentation {
             compactDetailLines = nil
         } else if let displayPath = state.displayPath, state.isEnabled {
             let guestPath = "~/\(SharedFolderPolicy.guestLinkName(state.path ?? displayPath))"
-            detail = "Mac folder: \(displayPath). In Guix: \(guestPath)."
+            detail = "Mac folder: \(displayPath). In Roguix: \(guestPath)."
             compactDetailLines = [
                 "Mac folder: \(displayPath)",
-                "In Guix: \(guestPath)",
+                "In Roguix: \(guestPath)",
             ]
         } else if let displayPath = state.displayPath {
-            detail = "Mac folder: \(displayPath). In Guix: Off."
+            detail = "Mac folder: \(displayPath). In Roguix: Off."
             compactDetailLines = [
                 "Mac folder: \(displayPath)",
-                "In Guix: Off",
+                "In Roguix: Off",
             ]
         } else {
-            detail = "Optional. Pick a Mac folder to use inside Guix under the same name."
+            detail = "Optional. Pick a Mac folder to use inside Roguix under the same name."
             compactDetailLines = nil
         }
 
@@ -246,7 +246,7 @@ enum StartMenuPresentation {
     ) -> StartMenuPortForwardingPresentation {
         if mappings.isEmpty {
             return StartMenuPortForwardingPresentation(
-                detail: "Optional. Reach services running in Guix at localhost on this Mac.",
+                detail: "Optional. Reach services running in Roguix at localhost on this Mac.",
                 compactDetailLines: nil,
                 isGranted: false,
                 grantedStatusLabel: "●  0 Ports"
@@ -255,10 +255,10 @@ enum StartMenuPresentation {
         if mappings.count == 1, let mapping = mappings.first {
             return StartMenuPortForwardingPresentation(
                 detail: "localhost:\(mapping.hostPort) → "
-                    + "Guix:\(mapping.guestPort) · \(mapping.protocol.displayName)",
+                    + "Roguix:\(mapping.guestPort) · \(mapping.protocol.displayName)",
                 compactDetailLines: [
                     "Mac: localhost:\(mapping.hostPort)",
-                    "Guix: port \(mapping.guestPort) · \(mapping.protocol.displayName)",
+                    "Roguix: port \(mapping.guestPort) · \(mapping.protocol.displayName)",
                 ],
                 isGranted: true,
                 grantedStatusLabel: "●  1 Port"
@@ -301,8 +301,8 @@ enum StartMenuPresentation {
 
     static func immersiveDetail(isEnabled: Bool) -> String {
         isEnabled
-            ? "Guix opens Full Screen with the Mac menu bar and Dock hidden."
-            : "Guix opens in a window with the Mac menu bar and Dock available."
+            ? "Roguix opens Full Screen with the Mac menu bar and Dock hidden."
+            : "Roguix opens in a window with the Mac menu bar and Dock available."
     }
 
     static func language(state: LanguageMenuState) -> StartMenuLanguagePresentation {

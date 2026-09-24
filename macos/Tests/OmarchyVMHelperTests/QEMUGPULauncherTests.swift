@@ -248,7 +248,7 @@ struct QEMUGPUStorageSpaceEstimateTests {
         let defaultDirectory = try #require(QEMUGPUStorageSpaceEstimate.dataDirectoryDisplayPath(
             environment: [:]
         ))
-        #expect(defaultDirectory == "~/Library/Application Support/Try Guix")
+        #expect(defaultDirectory == "~/Library/Application Support/Try Roguix")
 
         let defaultDirectoryURL = try #require(QEMUGPUStorageSpaceEstimate.dataDirectoryURL(
             environment: [:]
@@ -595,7 +595,7 @@ struct MicrophoneLaunchDecisionTests {
 
 @Suite("Accessibility launch policy")
 struct AccessibilityLaunchDecisionTests {
-    @Test("an unavailable grant never blocks Guix startup")
+    @Test("an unavailable grant never blocks Roguix startup")
     func unavailableStillLaunches() {
         let decision = AccessibilityLaunchDecision.make(for: .unavailable)
         #expect(decision.allowsLaunch)

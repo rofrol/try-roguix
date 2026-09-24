@@ -105,7 +105,7 @@ struct PortForwardingEditorModel {
                   PortForwardPolicy.validPortRange.contains(guestPort) else {
                 return result(
                     mappings: nil,
-                    message: "Guix port in mapping \(row) must be a number from 1 to 65535.",
+                    message: "Roguix port in mapping \(row) must be a number from 1 to 65535.",
                     isError: true
                 )
             }
