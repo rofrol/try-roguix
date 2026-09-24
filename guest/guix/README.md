@@ -101,8 +101,8 @@ guest pair, built without systemd/UWSM like the upstream package. Notes:
   C++20 equivalent in an origin snippet.
 - The module is project code outside Guix's channel authentication; review it
   like any other source. `build.py` passes it with `--load-path`, and the image
-  installs a copy under `/etc/try-guix` so an in-guest `guix system
-  reconfigure` keeps these versions instead of reverting to 0.55.4.
+  installs a copy under `/etc/try-guix` so an in-guest reconfigure keeps these
+  versions instead of reverting to 0.55.4.
 
 ## Package the launcher artifact
 
@@ -298,9 +298,41 @@ went straight to the desktop.
 - **Lock screen:** the shell authenticates with the PAM service
   `omarchy-lock-password`, defined with `pam_unix`.
 
-Menus that manage Arch packages or systemd timers (updates, installing apps,
-reminders) do nothing here. `gum` and `libvips` are not in this Guix, so gum
+Menus that manage systemd timers (reminders) do nothing here. `gum` and `libvips` are not in this Guix, so gum
 dialogs and background-picker thumbnails are missing.
+
+### Packages: /etc/config.scm
+
+There is no pacman, AUR or Arch update channel. Every program comes from Guix
+and is part of the system configuration:
+
+- **`/etc/config.scm`** is written on the first boot and is the owner's to
+  edit. It calls `try-guix-operating-system` (`modules/try-guix/system.scm`,
+  the same procedure `system.scm` builds the image from) with a list of Guix
+  package names between `;; BEGIN try-guix packages` and `;; END try-guix
+  packages`.
+- **`try-guix-pkg`** (`modules/try-guix/guix-pkg`, `test_guix_pkg.py`) edits
+  that list and applies it: `add` and `remove` (root; the list is restored if
+  the reconfigure fails), `present` and `list` (the running system's
+  profile), `pick-add` and `pick-remove` (fzf pickers).
+- **Omarchy's menu** is rewritten when the `omarchy` package is built
+  (`modules/try-guix/omarchy-menu.py`, `test_omarchy_menu.py`): Arch-only
+  entries are dropped; Install and Remove offer any Guix package and curated
+  Guix programs; Update → Guix System applies, edits or rolls back the
+  configuration. Omarchy's `omarchy-pkg-*` helpers call `try-guix-pkg`, and
+  the menu's installed-package check asks it instead of pacman.
+- **`try-guix-reconfigure`** runs `guix system reconfigure -L
+  /etc/try-guix/modules /etc/config.scm` with the Guix that built the image,
+  kept as the GC root `/var/guix/gcroots/try-guix-guix`, so it computes the
+  image's own derivations. The image also keeps its whole system *without
+  grafts* as `/var/guix/gcroots/try-guix-ungrafted`: a reconfigure grafts
+  again from those builds, and without them it would rebuild Hyprland and
+  Quickshell, which have no substitutes, for hours.
+
+Measured 2026-09-24 on a fresh image with the Mac's network: the first
+`try-guix-pkg add alacritty` took 20 minutes, mostly downloading about 900 MB
+of other outputs (`debug`, `doc`, `jdk`) of grafted packages that grafting
+needs; the next, `add helix`, took 3 minutes and 5.3 MB.
 
 Verified 2026-09-24 on a fresh image: the shell's bar (workspaces, clock,
 weather, network, audio, display), the Tokyo Night background, Foot with the

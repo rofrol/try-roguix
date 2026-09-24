@@ -28,6 +28,8 @@ while the Arch code is still in the repository.
   following the window size and HiDPI scale
 - No password in the image: the first start asks for one, then the VM logs
   straight into the desktop
+- Programs are Guix packages listed in `/etc/config.scm`; Omarchy's Install
+  and Remove menus edit that list and reconfigure the system
 - Two-way text and PNG clipboard, one shared Mac folder under its own name
   (`~/Work` stays `~/Work`), Mac audio device selection, the Mac camera as
   `/dev/video42`, optional SSH, and optional Touch ID for `sudo`

@@ -34,6 +34,7 @@
   #:use-module (gnu packages gnome-xyz)
   #:use-module (gnu packages gtk)
   #:use-module (gnu packages linux)
+  #:use-module (gnu packages ncurses)
   #:use-module (gnu packages networking)
   #:use-module (gnu packages python)
   #:use-module (gnu packages qt)
@@ -70,7 +71,53 @@
           ("default/fonts/omarchy/omarchy.ttf" "share/fonts/omarchy/"))
       #:phases
       #~(modify-phases %standard-phases
-          (add-after 'install 'link-commands
+          (add-after 'install 'use-guix-packages
+            ;; Programs come from Guix and /etc/config.scm, never pacman or
+            ;; the AUR: the menu's Install, Remove and Update entries are
+            ;; Guix's (omarchy-menu.py), Omarchy's package helpers call
+            ;; try-guix-pkg, and its Arch-only package commands are gone.
+            (lambda* (#:key native-inputs inputs #:allow-other-keys)
+              (let* ((omarchy (string-append #$output "/share/omarchy"))
+                     (bin (string-append omarchy "/bin"))
+                     (menu (string-append omarchy "/default/omarchy/omarchy-menu.jsonc")))
+                (invoke "python3" #$(local-file "omarchy-menu.py") menu
+                        (string-append menu ".guix"))
+                (rename-file (string-append menu ".guix") menu)
+                (for-each (lambda (command)
+                            (delete-file (string-append bin "/" command)))
+                          '("omarchy-pkg-aur-accessible" "omarchy-pkg-aur-add"
+                            "omarchy-pkg-aur-install" "omarchy-update-aur-pkgs"))
+                (for-each
+                 (lambda (helper)
+                   (let ((file (string-append bin "/" (car helper))))
+                     (call-with-output-file file
+                       (lambda (port)
+                         (format port "#!/bin/bash~%# Try Guix: ~a~%~a~%"
+                                 (cadr helper) (caddr helper))))
+                     (chmod file #o555)))
+                 '(("omarchy-pkg-add" "add Guix packages to /etc/config.scm"
+                    "exec sudo try-guix-pkg add \"$@\"")
+                   ("omarchy-pkg-drop" "remove Guix packages from /etc/config.scm"
+                    "exec sudo try-guix-pkg remove \"$@\"")
+                   ("omarchy-pkg-present" "all of these Guix packages are installed"
+                    "exec try-guix-pkg present \"$@\"")
+                   ("omarchy-pkg-missing" "some of these Guix packages are missing"
+                    "! try-guix-pkg present \"$@\"")
+                   ("omarchy-pkg-install" "choose Guix packages to install"
+                    "exec try-guix-pkg pick-add")
+                   ("omarchy-pkg-remove" "choose Guix packages to remove"
+                    "exec try-guix-pkg pick-remove")))
+                ;; The menu decides what is installed from pacman's database.
+                (substitute* (string-append omarchy "/shell/plugins/menu/MenuModel.js")
+                  (("pacman -Qq; LC_ALL=C pacman -Qi") "try-guix-pkg list; true")
+                  (("pacman -Q \"[$]1\"") "try-guix-pkg present \"$1\"")))))
+          (add-after 'install 'use-guix-logo
+            ;; omarchy-show-logo and friends print logo.txt: say GUIX, in
+            ;; Omarchy's own block lettering, instead of OMARCHY.
+            (lambda _
+              (copy-file #$(local-file "guix-logo.txt")
+                         (string-append #$output "/share/omarchy/logo.txt"))))
+          (add-after 'use-guix-packages 'link-commands
             ;; The Arch package installs each command in /usr/bin.
             (lambda _
               (let ((bin (string-append #$output "/bin")))
@@ -80,6 +127,7 @@
                                      (string-append bin "/" (basename command))))
                           (find-files (string-append #$output
                                                      "/share/omarchy/bin")))))))))
+    (native-inputs (list python-minimal))
     (inputs (list bash))
     (home-page "https://omarchy.org")
     (synopsis "Omarchy desktop configuration, shell and commands")
@@ -120,12 +168,13 @@ configuration, Quickshell desktop shell, themes and helper commands.")
                                     (or (eq? 'directory (stat:type stat))
                                         (member (basename file)
                                                 '("busctl" "xdg-terminal-exec"
-                                                  "omarchy-seed"))))))
+                                                  "omarchy-seed" "guix-pkg"))))))
     (build-system copy-build-system)
     (arguments
      (list
       #:install-plan
       #~'(("busctl" "bin/")
+          ("guix-pkg" "bin/try-guix-pkg")
           ("xdg-terminal-exec" "bin/")
           ("omarchy-seed" "bin/try-guix-omarchy-seed"))
       #:phases
@@ -160,9 +209,17 @@ exec \"$@\"
               ;; No user service manager: accept `systemctl --user ...'
               ;; calls (environment import, timer queries) as empty successes.
               (shim "systemctl" "exit 0\n")
+              ;; Apply /etc/config.scm with the Guix that built this system
+              ;; (see (try-guix system)), which only fetches what was added.
+              (shim "try-guix-reconfigure" "\
+[ \"$(id -u)\" = 0 ] || exec sudo \"$0\" \"$@\"
+exec /var/guix/gcroots/try-guix-guix/bin/guix system reconfigure \\
+  -L /etc/try-guix/modules /etc/config.scm \"$@\"
+")
               (for-each (lambda (program)
                           (chmod (string-append #$output "/bin/" program) #o555))
-                        '("busctl" "xdg-terminal-exec" "try-guix-omarchy-seed"))
+                        '("busctl" "try-guix-pkg" "xdg-terminal-exec"
+                          "try-guix-omarchy-seed"))
               (wrap-program (string-append #$output "/bin/busctl")
                 `("PATH" ":" prefix
                   (,(dirname (search-input-file inputs "bin/gdbus"))))))))))
@@ -225,7 +282,8 @@ end)
           (service-extension profile-service-type
                              (const
                               (list omarchy try-guix-omarchy-compat quickshell-0.3
-                                    foot jq socat inotify-tools hyprsunset
+                                    foot jq socat inotify-tools hyprsunset ncurses
+                                    fzf
                                     fontconfig procps gawk util-linux curl
                                     `(,gtk+ "bin") libnotify xdg-user-dirs
                                     qtimageformats yaru-theme font-liberation

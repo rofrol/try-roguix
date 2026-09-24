@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+"""try-guix-pkg: the programs of this Guix system, for people and Omarchy.
+
+  try-guix-pkg add NAME...      add to /etc/config.scm and reconfigure (root)
+  try-guix-pkg remove NAME...   remove from /etc/config.scm and reconfigure
+  try-guix-pkg present NAME...  exit 0 when every NAME is installed
+  try-guix-pkg list             the installed package names
+  try-guix-pkg pick-add         choose from all Guix packages, then add
+  try-guix-pkg pick-remove      choose from /etc/config.scm, then remove
+
+NAME is a Guix package name (`guix search' finds them). Every program is part
+of the declarative system configuration: `add' edits the package list in
+/etc/config.scm and applies it with try-guix-reconfigure (`guix system
+reconfigure' with the Guix that built this system). Omarchy's package helpers
+and its Install and Remove menus use this; a name Guix does not package is
+refused.
+"""
+
+import os
+import re
+import subprocess
+import sys
+
+CONFIG = "/etc/config.scm"
+BEGIN = ";; BEGIN try-guix packages"
+END = ";; END try-guix packages"
+PROFILE_MANIFEST = "/run/current-system/profile/manifest"
+GUIX = "/var/guix/gcroots/try-guix-guix/bin/guix"
+RECONFIGURE = "/run/current-system/profile/bin/try-guix-reconfigure"
+
+
+class Failure(Exception):
+    pass
+
+
+def installed_names():
+    try:
+        text = open(PROFILE_MANIFEST, encoding="utf-8").read()
+    except OSError:
+        return set()
+    # Each entry is ("NAME" "VERSION" "OUTPUT" "/gnu/store/..." ...), with
+    # its fields on separate lines.
+    return set(re.findall(r'\("([^"]+)"\s+"[^"]*"\s+"[^"]*"\s+"/gnu/store/', text))
+
+
+def read_config():
+    try:
+        text = open(CONFIG, encoding="utf-8").read()
+    except OSError as error:
+        raise Failure(f"cannot read {CONFIG}: {error.strerror}")
+    if text.count(BEGIN) != 1 or text.count(END) != 1 or text.index(BEGIN) > text.index(END):
+        raise Failure(f"{CONFIG} no longer has its '{BEGIN}' ... '{END}' block")
+    return text
+
+
+def config_packages(text):
+    block = text[text.index(BEGIN) + len(BEGIN):text.index(END)]
+    return re.findall(r'^\s*"([^"]+)"', block, re.MULTILINE)
+
+
+def with_packages(text, names):
+    start = text.index(BEGIN) + len(BEGIN)
+    stop = text.index(END)
+    indent = re.search(r"\n([ \t]*)" + re.escape(END), text).group(1)
+    lines = "".join(f"\n{indent}\"{name}\"" for name in names)
+    return text[:start] + lines + "\n" + indent + text[stop:]
+
+
+def write_config(text):
+    staging = CONFIG + ".new"
+    with open(staging, "w", encoding="utf-8") as stream:
+        stream.write(text)
+    os.chmod(staging, 0o644)
+    os.replace(staging, CONFIG)
+
+
+def guix_has(name):
+    result = subprocess.run([GUIX, "package", "-A", f"^{re.escape(name)}$"],
+                            capture_output=True, text=True)
+    return any(line.split("\t")[0] == name for line in result.stdout.splitlines())
+
+
+def apply(old_text, new_text):
+    if new_text == old_text:
+        return 0
+    write_config(new_text)
+    status = subprocess.run([RECONFIGURE]).returncode
+    if status != 0:
+        write_config(old_text)
+        print(f"Reconfiguring failed; {CONFIG} is unchanged.", file=sys.stderr)
+    return status
+
+
+def install(names):
+    if os.geteuid() != 0:
+        raise Failure("installing changes the system configuration; run it with sudo")
+    text = read_config()
+    current = config_packages(text)
+    present = installed_names()
+    added = []
+    for name in names:
+        if name in current or name in present or name in added:
+            continue
+        if not guix_has(name):
+            raise Failure(f"Guix has no package named '{name}' (try `guix search`).")
+        added.append(name)
+    if not added:
+        return 0
+    print(f"Adding {' '.join(added)} to {CONFIG}")
+    return apply(text, with_packages(text, current + added))
+
+
+def remove(names):
+    if os.geteuid() != 0:
+        raise Failure("removing changes the system configuration; run it with sudo")
+    text = read_config()
+    current = config_packages(text)
+    dropped = set(names)
+    kept = [n for n in current if n not in dropped]
+    return apply(text, with_packages(text, kept))
+
+
+def query(names, quiet):
+    present = installed_names()
+    if not names:
+        if quiet:
+            print("\n".join(sorted(present)))
+        return 0
+    status = 0
+    for name in names:
+        if name not in present:
+            status = 1
+    return status
+
+
+def pick(lines, prompt):
+    """Let the owner choose lines with fzf; return the first field of each."""
+    result = subprocess.run(["fzf", "--multi", "--prompt", prompt],
+                            input="\n".join(lines), capture_output=False,
+                            stdout=subprocess.PIPE, text=True)
+    return [line.split()[0] for line in result.stdout.splitlines() if line.strip()]
+
+
+def sudo(arguments):
+    """Changes need root; interactive commands ask for it once."""
+    if os.geteuid() == 0:
+        return main(arguments)
+    return subprocess.run(["sudo", sys.argv[0], *arguments]).returncode
+
+
+def pick_add():
+    listing = subprocess.run([GUIX, "package", "-A"], capture_output=True, text=True)
+    lines = sorted({"\t".join(line.split("\t")[:2])
+                    for line in listing.stdout.splitlines() if line.strip()})
+    names = pick(lines, "Install> ")
+    return sudo(["add", *names]) if names else 0
+
+
+def pick_remove():
+    names = pick(config_packages(read_config()), "Remove> ")
+    return sudo(["remove", *names]) if names else 0
+
+
+def main(argv):
+    command, names = (argv[0], argv[1:]) if argv else ("", [])
+    try:
+        if command == "add" and names:
+            return install(names)
+        if command == "remove" and names:
+            return remove(names)
+        if command == "present":
+            return query(names, quiet=True)
+        if command == "list" and not names:
+            return query([], quiet=True)
+        if command == "pick-add" and not names:
+            return pick_add()
+        if command == "pick-remove" and not names:
+            return pick_remove()
+        raise Failure("usage: try-guix-pkg add|remove|present NAME... "
+                      "| list | pick-add | pick-remove")
+    except Failure as error:
+        print(f"\033[31mtry-guix-pkg: {error}\033[0m", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
