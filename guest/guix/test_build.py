@@ -83,7 +83,6 @@ class BuildTests(unittest.TestCase):
 
         with self.git(), patch.object(builder.platform, "system", return_value="Linux"), \
              patch.object(builder.shutil, "which", return_value="/bin/guix"), \
-             patch.dict(os.environ, {"GUIX_GUEST_PASSWORD_HASH": "test-not-logged"}), \
              patch.object(builder.subprocess, "run", side_effect=fail):
             with self.assertRaises(subprocess.CalledProcessError):
                 builder.build(self.args)
@@ -137,7 +136,6 @@ class BuildTests(unittest.TestCase):
         with patch.object(builder, "COMMIT", head), \
              patch.object(builder.platform, "system", return_value="Linux"), \
              patch.object(builder.shutil, "which", return_value="/bin/guix"), \
-             patch.dict(os.environ, {"GUIX_GUEST_PASSWORD_HASH": "test-not-logged"}), \
              patch.object(builder.subprocess, "run", side_effect=inspect), \
              contextlib.redirect_stdout(io.StringIO()):
             builder.build(self.args)

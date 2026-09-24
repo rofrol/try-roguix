@@ -80,8 +80,6 @@ def build(args):
         raise ValueError("Build on Linux with Guix and a running guix-daemon; macOS cannot build this image directly")
     if not shutil.which("guix"):
         raise ValueError("guix is required")
-    if not os.environ.get("GUIX_GUEST_PASSWORD_HASH"):
-        raise ValueError("Set GUIX_GUEST_PASSWORD_HASH before building; see guest/guix/README.md")
     with tempfile.TemporaryDirectory(prefix="try-guix-channel-") as directory:
         channel_source = Path(directory) / "source.git"
         subprocess.run(

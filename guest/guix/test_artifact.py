@@ -141,7 +141,7 @@ class PackageTests(unittest.TestCase):
         self.output = self.root / "dist/guix"
 
     def packaged(self):
-        return package.package(self.image, self.output, self.zstd, "development-password")
+        return package.package(self.image, self.output, self.zstd, "first-boot")
 
     def test_round_trip_records_layout_source_and_checksums(self):
         manifest = self.packaged()
@@ -151,7 +151,7 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(manifest["bootABI"], "uefi-gpt-v1")
         self.assertEqual(manifest["source"]["guixCommit"], package.guix_commit())
         self.assertEqual(manifest["source"]["systemFilesSHA256"], package.system_files_sha256())
-        self.assertEqual(manifest["guest"]["credentials"], "development-password")
+        self.assertEqual(manifest["guest"]["credentials"], "first-boot")
         self.assertEqual([p for p in self.root.iterdir() if p.name.startswith(".guix-package")], [])
 
     def test_launch_record_matches_the_launcher_contract(self):

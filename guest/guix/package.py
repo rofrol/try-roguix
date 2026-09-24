@@ -86,7 +86,7 @@ def main():
                         help="raw efi-raw disk image produced by build.py")
     parser.add_argument("--output", type=Path, default=ROOT / "dist/guix")
     parser.add_argument("--zstd", type=Path, default=ZSTD)
-    parser.add_argument("--credentials", default="development-password",
+    parser.add_argument("--credentials", default="first-boot",
                         choices=sorted(artifact.CREDENTIALS))
     args = parser.parse_args()
     try:
