@@ -1,0 +1,26 @@
+# Roguix substitutes: guix publish on localhost, behind nginx at
+# https://roguix.frolow.dev. Nars are compressed once into the cache, one at
+# a time and at a light zstd level: at zstd:19 with several baking at once,
+# this 2-CPU, 2.4 GB host stopped responding (2026-09-24). The limits below
+# keep it from starving nginx and the other sites whatever it does.
+[Unit]
+Description=Publish the Guix store (roguix.frolow.dev)
+Requires=guix-daemon.service
+PartOf=guix-daemon.service
+After=guix-daemon.service
+
+[Service]
+ExecStart=/var/guix/profiles/per-user/root/current-guix/bin/guix publish --user=nobody --listen=127.0.0.1 --port=8181 --cache=/var/cache/guix/publish --workers=1 --compression=zstd:3 --ttl=180d
+Environment='GUIX_LOCPATH=/var/guix/profiles/per-user/root/guix-profile/lib/locale' LC_ALL=C.UTF-8
+StandardOutput=journal
+StandardError=journal
+Restart=always
+TasksMax=256
+Nice=19
+IOSchedulingClass=idle
+CPUQuota=100%
+MemoryHigh=500M
+MemoryMax=700M
+
+[Install]
+WantedBy=multi-user.target
