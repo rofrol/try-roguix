@@ -49,6 +49,38 @@ QPS_BOOT_INITRAMFS_BYTES=''
 QPS_BOOT_INITRAMFS_SHA=''
 QPS_BOOT_KERNEL_BYTES=''
 QPS_BOOT_KERNEL_SHA=''
+# Guest layout, chosen with qemu_persistent_storage_configure_guest before any
+# other call. `direct` is the Arch guest: an unpartitioned ext4 root booted
+# with -kernel/-initrd from a per-identity boot kit. `uefi` is the Guix guest:
+# a GPT disk booted by firmware, so it has no boot kit and never needs boot
+# recovery; its state lives in a `guix` subdirectory of the state root.
+QPS_BOOT_MODE=direct
+QPS_DISK_NAME=rootfs.ext4
+QPS_IMAGE_SUFFIX=ext4
+QPS_STATE_SUBDIRECTORY=''
+
+qemu_persistent_storage_configure_guest() {
+  case ${1:-} in
+    direct)
+      QPS_BOOT_MODE=direct
+      QPS_DISK_NAME=rootfs.ext4
+      QPS_IMAGE_SUFFIX=ext4
+      QPS_STATE_SUBDIRECTORY=''
+      QEMU_PERSISTENT_STORAGE_KIND='omarchy-qemu-persistent-disk'
+      ;;
+    uefi)
+      QPS_BOOT_MODE=uefi
+      QPS_DISK_NAME=disk.raw
+      QPS_IMAGE_SUFFIX=raw
+      QPS_STATE_SUBDIRECTORY=guix
+      QEMU_PERSISTENT_STORAGE_KIND='try-guix-qemu-persistent-disk'
+      ;;
+    *)
+      _qps_fail 'guest boot mode must be direct or uefi'
+      return 1
+      ;;
+  esac
+}
 
 _qps_error() {
   printf 'qemu-persistent-storage: %s\n' "$*" >&2
@@ -306,6 +338,9 @@ _qps_prepare_state_root() {
     }
     qps_configured_root="$HOME/Library/Application Support/Try Omarchy/VM/v1"
   fi
+  if [[ -n $QPS_STATE_SUBDIRECTORY ]]; then
+    qps_configured_root="${qps_configured_root%/}/$QPS_STATE_SUBDIRECTORY"
+  fi
   _qps_assert_safe_root_path "$qps_configured_root" || return 1
 
   umask 077
@@ -524,7 +559,8 @@ _qps_validate_metadata() {
 _qps_read_metadata_fields() {
   local qps_path=$1
   local qps_content=''
-  local qps_pattern='^\{"bundleIdentity":"([0-9a-f]{64})","kind":"omarchy-qemu-persistent-disk","schemaVersion":([12]),"sourceRootfs":\{"bytes":([1-9][0-9]*),"sha256":"([0-9a-f]{64})"\}\}$'
+  # Both kinds are lowercase letters and hyphens, so they are literal here.
+  local qps_pattern='^\{"bundleIdentity":"([0-9a-f]{64})","kind":"'"$QEMU_PERSISTENT_STORAGE_KIND"'","schemaVersion":([12]),"sourceRootfs":\{"bytes":([1-9][0-9]*),"sha256":"([0-9a-f]{64})"\}\}$'
 
   _qps_assert_private_regular_file "$qps_path" 'persistent-disk metadata' || return 1
   [[ $(_qps_size "$qps_path") -le 16384 ]] || {
@@ -556,7 +592,7 @@ _qps_has_only_store_contents() (
     ((qps_count += 1))
     case ${qps_entry##*/} in
       metadata.json) qps_has_metadata=1 ;;
-      rootfs.ext4) qps_has_disk=1 ;;
+      "$QPS_DISK_NAME") qps_has_disk=1 ;;
       *) return 1 ;;
     esac
   done
@@ -577,7 +613,7 @@ _qps_validate_store_directory() {
   local qps_working_bytes=$5
   local qps_allow_missing_disk=${6:-0}
   local qps_schema=${7:-$QEMU_PERSISTENT_STORAGE_SCHEMA}
-  local qps_disk="$qps_directory/rootfs.ext4"
+  local qps_disk="$qps_directory/$QPS_DISK_NAME"
 
   _qps_assert_private_directory "$qps_directory" 'persistent-disk directory' || return 1
   _qps_has_only_store_contents "$qps_directory" "$qps_allow_missing_disk" || {
@@ -1129,6 +1165,19 @@ _qps_validate_immutable_source() {
     _qps_fail 'materialized immutable root disk has the wrong size'
     return 1
   }
+  if [[ $QPS_BOOT_MODE == uefi ]]; then
+    # The launcher validated the complete GPT layout from the signed manifest;
+    # this guards against a foreign file under the identity-keyed name.
+    qps_magic=$(/usr/bin/od -An -tx1 -j 512 -N 8 "$qps_source" | tr -d '[:space:]') || {
+      _qps_fail 'cannot inspect the materialized GPT header'
+      return 1
+    }
+    [[ $qps_magic == 4546492050415254 ]] || {
+      _qps_fail 'materialized immutable disk has no GPT header'
+      return 1
+    }
+    return 0
+  fi
   qps_magic=$(/usr/bin/od -An -tx1 -j 1080 -N 2 "$qps_source" | tr -d '[:space:]') || {
     _qps_fail 'cannot inspect the materialized ext4 superblock'
     return 1
@@ -1179,7 +1228,7 @@ qemu_persistent_storage_materialize_source() {
   }
 
   _qps_prepare_state_root || return 1
-  qps_final="$QEMU_PERSISTENT_STORAGE_IMAGES_ROOT/$qps_identity.ext4"
+  qps_final="$QEMU_PERSISTENT_STORAGE_IMAGES_ROOT/$qps_identity.$QPS_IMAGE_SUFFIX"
   qps_lock_path="$QEMU_PERSISTENT_STORAGE_LOCKS_ROOT/$qps_identity.image.lock"
   exec 8>>"$qps_lock_path" || return 1
   chmod 600 "$qps_lock_path" || { exec 8>&-; return 1; }
@@ -1315,8 +1364,8 @@ _qps_remove_recorded_directory() {
   qps_existing_source_sha=$QPS_METADATA_SOURCE_SHA
   qps_existing_source_bytes=$QPS_METADATA_SOURCE_BYTES
 
-  if [[ -e $qps_directory/rootfs.ext4 || -L $qps_directory/rootfs.ext4 ]]; then
-    qps_existing_bytes=$(_qps_size "$qps_directory/rootfs.ext4")
+  if [[ -e $qps_directory/$QPS_DISK_NAME || -L $qps_directory/$QPS_DISK_NAME ]]; then
+    qps_existing_bytes=$(_qps_size "$qps_directory/$QPS_DISK_NAME")
     _qps_is_positive_integer "$qps_existing_bytes" || return 1
     (( qps_existing_bytes >= qps_existing_source_bytes )) || return 1
   else
@@ -1378,13 +1427,13 @@ _qps_initialize_persistent_disk() {
     _qps_fail 'cannot write persistent-disk metadata'
     return 1
   fi
-  if ! _qps_clone_disk "$qps_source" "$qps_staging/rootfs.ext4" "$qps_source_bytes"; then
+  if ! _qps_clone_disk "$qps_source" "$qps_staging/$QPS_DISK_NAME" "$qps_source_bytes"; then
     _qps_remove_recognized_directory \
       "$qps_staging" "$qps_identity" "$qps_source_sha" "$qps_source_bytes" \
       "$qps_working_bytes" 1 || true
     return 1
   fi
-  if ! _qps_expand_disk "$qps_staging/rootfs.ext4" "$qps_source_bytes" "$qps_working_bytes"; then
+  if ! _qps_expand_disk "$qps_staging/$QPS_DISK_NAME" "$qps_source_bytes" "$qps_working_bytes"; then
     _qps_remove_recognized_directory \
       "$qps_staging" "$qps_identity" "$qps_source_sha" "$qps_source_bytes" \
       "$qps_working_bytes" 1 || true
@@ -1517,7 +1566,7 @@ _qps_validate_recorded_workspace() {
 
   QPS_RECORDED_EXISTING_BYTES=''
   _qps_read_metadata_fields "$qps_directory/metadata.json" || return 1
-  qps_existing_bytes=$(_qps_size "$qps_directory/rootfs.ext4")
+  qps_existing_bytes=$(_qps_size "$qps_directory/$QPS_DISK_NAME")
   _qps_is_positive_integer "$qps_existing_bytes" || {
     _qps_fail 'existing single workspace has an invalid disk size'
     return 1
@@ -1665,7 +1714,7 @@ _qps_migrate_legacy_single_workspace() {
       continue
     fi
     ((qps_valid_count += 1))
-    qps_candidate_mtime=$(/usr/bin/stat -f '%m' "$qps_candidate/rootfs.ext4" 2>/dev/null)
+    qps_candidate_mtime=$(/usr/bin/stat -f '%m' "$qps_candidate/$QPS_DISK_NAME" 2>/dev/null)
     [[ $qps_candidate_mtime =~ ^[0-9]+$ ]] || {
       [[ $qps_candidate_name != "$qps_identity" ]] || qps_exact_invalid=1
       _qps_error "leaving legacy workspace with an unreadable modification time untouched: $qps_candidate_name"
@@ -1750,16 +1799,18 @@ _qps_publish_recorded_selection() {
     return $?
   fi
   if [[ -n $qps_source ]] && \
-    [[ $(_qps_file_identity "$qps_final/rootfs.ext4") == $(_qps_file_identity "$qps_source") ]]; then
+    [[ $(_qps_file_identity "$qps_final/$QPS_DISK_NAME") == $(_qps_file_identity "$qps_source") ]]; then
     _qps_fail 'persistent root disk aliases the immutable source disk'
     return 1
   fi
 
-  QEMU_SELECTED_DISK="$qps_final/rootfs.ext4"
+  QEMU_SELECTED_DISK="$qps_final/$QPS_DISK_NAME"
   QEMU_SELECTED_STORAGE_MODE=persistent
   QEMU_PERSISTENT_STORAGE_DIRECTORY=$qps_final
   QEMU_PERSISTENT_STORAGE_IDENTITY=$QPS_METADATA_IDENTITY
   QEMU_PERSISTENT_STORAGE_WORKING_BYTES=$QPS_RECORDED_EXISTING_BYTES
+  # Firmware boots the disk's own bootloader: no boot kit to pair or recover.
+  [[ $QPS_BOOT_MODE == uefi ]] && return 0
 
   if [[ ! -e $QEMU_PERSISTENT_STORAGE_BOOT_ROOT/$QPS_METADATA_IDENTITY && \
         ! -L $QEMU_PERSISTENT_STORAGE_BOOT_ROOT/$QPS_METADATA_IDENTITY && \
@@ -1875,8 +1926,8 @@ _qps_select_ephemeral_disk() {
   local qps_source_bytes=$2
   local qps_work_directory=$3
   local qps_working_bytes=${4:-$qps_source_bytes}
-  local qps_final="$qps_work_directory/rootfs.ext4"
-  local qps_staging="$qps_work_directory/.rootfs.ext4.initializing.$$.$RANDOM$RANDOM"
+  local qps_final="$qps_work_directory/$QPS_DISK_NAME"
+  local qps_staging="$qps_work_directory/.$QPS_DISK_NAME.initializing.$$.$RANDOM$RANDOM"
 
   _qps_assert_private_directory "$qps_work_directory" 'ephemeral work directory' || return 1
   [[ ! -e $qps_final && ! -L $qps_final ]] || {
