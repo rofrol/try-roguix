@@ -122,7 +122,7 @@ class InspectDiskTests(unittest.TestCase):
 class SystemFilesTests(unittest.TestCase):
     def test_digest_covers_exactly_the_files_the_image_installs(self):
         # system.scm installs system.scm and all of modules/try-guix.
-        text = (HERE / "system.scm").read_text()
+        text = (HERE / "modules/try-guix/system.scm").read_text()
         self.assertIn('''(member (basename file) '("system.scm"))''', text)
         self.assertIn('(string-contains file "/modules/try-guix/")', text)
         modules = sorted(p.relative_to(HERE).as_posix()

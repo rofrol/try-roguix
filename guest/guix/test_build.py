@@ -204,7 +204,7 @@ class ProjectModuleTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(patch).hexdigest(), spec["hyprland"]["patchSha256"])
 
     def test_guest_source_selection_covers_every_module_file(self):
-        system = (self.GUEST / "guix/system.scm").read_text()
+        system = (self.MODULES / "system.scm").read_text()
         self.assertIn('(string-contains file "/modules/try-guix/")', system)
 
 
