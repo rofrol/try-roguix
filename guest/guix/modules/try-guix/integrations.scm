@@ -20,6 +20,7 @@
   #:use-module (gnu packages bash)
   #:use-module (gnu packages linux)
   #:use-module (gnu packages pulseaudio)
+  #:use-module (gnu packages tls)
   #:use-module (gnu packages python)
   #:use-module (gnu packages xdisorg)
   #:use-module (gnu services)
@@ -27,6 +28,7 @@
   #:use-module (gnu services linux)
   #:use-module (gnu services shepherd)
   #:use-module (gnu services ssh)
+  #:use-module (gnu system pam)
   #:export (%try-guix-host-settings-file
             try-guix-host-settings-service-type
             try-guix-mac-share
@@ -38,6 +40,8 @@
             try-guix-audio-service-type
             try-guix-camera-bridge
             try-guix-camera-service-type
+            try-guix-touch-id
+            try-guix-touch-id-service-type
             try-guix-ssh-access-service-type))
 
 (define %try-guix-host-settings-file "/run/try-guix/host-settings")
@@ -380,3 +384,126 @@ KERNEL==\"video42\", SUBSYSTEM==\"video4linux\", GROUP=\"video\", MODE=\"0660\"\
                                           try-guix-camera-bridge)))))
    (default-value #f)
    (description "Load v4l2loopback and install the macOS camera bridge.")))
+
+;;; Touch ID for sudo: the Arch guest's broker (byte-identical copy; only its
+;;; two /usr/bin OpenSSL references are pointed at the store below) asks the
+;;; host over the root-only dev.tryomarchy.authentication port and verifies
+;;; the Secure Enclave signature with OpenSSL.
+;;;
+;;; The Arch guest edits /etc/pam.d/sudo when the owner opts in. Guix generates
+;;; /etc/pam.d, so sudo always carries one `sufficient' pam_exec rule, and its
+;;; gate fails at once unless try-guix-touch-id-control has enrolled with the
+;;; host and written %touch-id-marker. Until then the rule changes nothing;
+;;; afterwards any failure still falls back to the password. Enrollment comes
+;;; before the marker and disabling removes the marker first, as in the Arch
+;;; control script.
+
+(define %touch-id-marker "/var/lib/try-guix/touch-id-enabled")
+
+(define try-guix-touch-id
+  (package
+    (name "try-guix-touch-id")
+    (version "1")
+    (source (local-file "authentication-broker"))
+    (build-system copy-build-system)
+    (arguments
+     (list
+      #:install-plan
+      #~'(("authentication-broker" "libexec/try-guix/authentication-broker"))
+      #:phases
+      #~(modify-phases %standard-phases
+          (add-after 'unpack 'use-store-openssl
+            (lambda* (#:key inputs #:allow-other-keys)
+              (let ((openssl (search-input-file inputs "bin/openssl")))
+                (substitute* "authentication-broker"
+                  (("Path\\(\"/usr/bin/openssl\"\\)")
+                   (string-append "Path(\"" openssl "\")"))
+                  (("\\{\"PATH\": \"/usr/bin\"\\}")
+                   (string-append "{\"PATH\": \"" (dirname openssl) "\"}"))))))
+          (add-after 'install 'install-commands
+            (lambda _
+              (let* ((broker (string-append
+                              #$output "/libexec/try-guix/authentication-broker"))
+                     (sh #$(file-append bash-minimal "/bin/sh"))
+                     (sudo "/run/privileged/bin/sudo")
+                     (gate (string-append #$output "/libexec/try-guix/touch-id-gate"))
+                     (control (string-append #$output "/sbin/try-guix-touch-id-control"))
+                     (user (string-append #$output "/bin/try-guix-touch-id")))
+                (define (script file text)
+                  (mkdir-p (dirname file))
+                  (call-with-output-file file
+                    (lambda (port) (format port "#!~a~%~a" sh text)))
+                  (chmod file #o555))
+                (chmod broker #o555)
+                (script gate (string-append "\
+# pam_exec gate for sudo: inert until Touch ID was enabled.
+[ -f " #$%touch-id-marker " ] || exit 1
+exec " broker " pam
+"))
+                (script control (string-append "\
+set -eu
+marker=" #$%touch-id-marker "
+[ \"$(id -u)\" = 0 ] || { echo 'try-guix-touch-id-control: run as root' >&2; exit 1; }
+case \"${1:-}\" in
+  enable)
+    " broker " enroll
+    mkdir -p -m 0700 \"$(dirname \"$marker\")\"
+    : > \"$marker\"
+    chmod 0600 \"$marker\"
+    echo 'Touch ID is enabled for sudo. The guest password remains available as fallback.' ;;
+  disable)
+    rm -f \"$marker\"
+    " broker " disable
+    echo 'Touch ID is disabled for sudo.' ;;
+  repair)
+    \"$0\" disable
+    \"$0\" enable ;;
+  *)
+    echo 'Usage: try-guix-touch-id-control enable|disable|repair' >&2
+    exit 64 ;;
+esac
+"))
+                (script user (string-append "\
+# Enable or disable Touch ID for sudo; sudo asks for the password once.
+exec " sudo " " control " \"$@\"
+"))))))))
+    (inputs (list bash-minimal openssl python-minimal))
+    (home-page "https://github.com/omacom/try-omarchy")
+    (synopsis "Approve sudo with the Mac's Touch ID")
+    (description "Ask the Mac to approve sudo with Touch ID, verifying its
+Secure Enclave signature, with the password as fallback.")
+    (license license:expat)))
+
+(define touch-id-gate
+  (file-append try-guix-touch-id "/libexec/try-guix/touch-id-gate"))
+
+(define (touch-id-pam-extension _)
+  (list (pam-extension
+         (transformer
+          (lambda (service)
+            (if (string=? (pam-service-name service) "sudo")
+                (pam-service
+                 (inherit service)
+                 (auth (cons (pam-entry
+                              (control "sufficient")
+                              (module (file-append linux-pam
+                                                   "/lib/security/pam_exec.so"))
+                              (arguments (list "quiet" "seteuid" "stdout"
+                                               touch-id-gate)))
+                             (pam-service-auth service))))
+                service))))))
+
+(define try-guix-touch-id-service-type
+  (service-type
+   (name 'try-guix-touch-id)
+   (extensions
+    (list (service-extension pam-root-service-type touch-id-pam-extension)
+          (service-extension udev-service-type
+                             (const
+                              (list (udev-rule
+                                     "93-try-guix-authentication.rules"
+                                     "SUBSYSTEM==\"virtio-ports\", ATTR{name}==\"dev.tryomarchy.authentication\", OWNER=\"root\", GROUP=\"root\", MODE=\"0600\"\n"))))
+          (service-extension profile-service-type
+                             (const (list try-guix-touch-id)))))
+   (default-value #f)
+   (description "Offer Touch ID approval for sudo, inert until enabled.")))

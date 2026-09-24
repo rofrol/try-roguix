@@ -52,6 +52,22 @@ command line does. QEMU's `fw_cfg` was not used because this checkout's
 linux-libre is built without `CONFIG_FW_CFG_SYSFS`; a new virtio port would
 need host code for what is static boot data.
 
+### Touch ID for sudo: a static, gated PAM rule (decided)
+
+The Arch guest opts in by inserting its `pam_exec` rule into `/etc/pam.d/sudo`
+after enrolling, and removes it before disabling. Guix generates `/etc/pam.d`
+from the system configuration, so the Guix guest carries the same
+`sufficient pam_exec.so quiet seteuid stdout` rule permanently, and the program
+it runs is a gate that fails immediately unless
+`/var/lib/try-guix/touch-id-enabled` (root, 0600, in a 0700 directory) exists;
+only then does it run the broker. `try-guix-touch-id-control enable` enrolls
+with the host before writing that marker, and `disable` removes the marker
+before revoking. Until the owner opts in the rule has no effect, and afterwards
+any failure still falls back to the password, so the authority and fallback
+match the Arch guest; the difference is that the rule is visible in
+`/etc/pam.d/sudo` while inert. The broker is the Arch guest's, with only its
+two `/usr/bin` OpenSSL references pointed at the store.
+
 ## Alternatives
 
 - Direct kernel/initrd boot of an unpartitioned root: smaller launcher change,
