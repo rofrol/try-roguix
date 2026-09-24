@@ -63,6 +63,7 @@ def build(args):
         raise ValueError(f"Output already exists; choose a new --output: {output}")
     command = [
         "guix", "time-machine", "--channels=CHANNELS", "--", "system", "image",
+        f"--load-path={HERE / 'modules'}",
         "--system=aarch64-linux", "--image-type=efi-raw", "--image-size=12G",
         f"--root={output}", str(HERE / "system.scm"),
     ]

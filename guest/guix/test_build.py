@@ -34,6 +34,7 @@ class BuildTests(unittest.TestCase):
         self.assertIn(builder.COMMIT, output.getvalue())
         self.assertIn("--system=aarch64-linux", output.getvalue())
         self.assertIn("--image-type=efi-raw", output.getvalue())
+        self.assertIn("--load-path=" + str(builder.HERE / "modules"), output.getvalue())
         run.assert_not_called()
         self.assertEqual(list(self.root.iterdir()), [])
 
@@ -158,6 +159,41 @@ class BuildTests(unittest.TestCase):
         self.assertNotIn("GIT_DIR", env)
         self.assertNotIn("GIT_WORK_TREE", env)
         self.assertIn("PATH", env)
+
+
+class ProjectModuleTests(unittest.TestCase):
+    """The self-contained module directory is also installed into the guest."""
+
+    GUEST = Path(__file__).resolve().parents[1]
+    MODULES = Path(__file__).resolve().parent / "modules" / "try-guix"
+
+    def test_copies_match_the_reviewed_arch_guest_files(self):
+        for copy, original in [
+            ("hyprland-rounded-border-coverage.patch", "patches/hyprland/rounded-border-coverage.patch"),
+            ("display-sync", "native-overlay/usr/local/bin/omarchy-native-display-sync"),
+        ]:
+            with self.subTest(copy=copy):
+                self.assertEqual((self.MODULES / copy).read_bytes(), (self.GUEST / original).read_bytes())
+
+    def test_source_hashes_match_the_arch_guest_supply_chain(self):
+        import json
+        spec = json.loads((self.GUEST / "spec.json").read_text())["supplyChain"]
+        module = (self.MODULES / "packages.scm").read_text()
+        self.assertIn('(version "0.56.1")', module)
+        self.assertIn('(version "0.14.0")', module)
+        self.assertEqual(spec["hyprland"]["version"], "0.56.1")
+        self.assertEqual(spec["aquamarine"]["version"], "0.14.0")
+        # Guix records base32 hashes; the reviewed hex digests are kept alongside.
+        for digest in (spec["hyprland"]["sha256"], spec["aquamarine"]["sha256"]):
+            self.assertIn(f"SHA-256 {digest}", module)
+        import hashlib
+        patch = (self.MODULES / "hyprland-rounded-border-coverage.patch").read_bytes()
+        self.assertEqual(hashlib.sha256(patch).hexdigest(), spec["hyprland"]["patchSha256"])
+
+    def test_guest_source_selection_covers_every_module_file(self):
+        system = (self.GUEST / "guix/system.scm").read_text()
+        for path in self.MODULES.iterdir():
+            self.assertIn(f'"{path.name}"', system, f"{path.name} would be missing from /etc/try-guix")
 
 
 if __name__ == "__main__":

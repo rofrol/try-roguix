@@ -5,6 +5,8 @@ hl.monitor({ output = "", mode = "preferred", position = "auto", scale = "auto" 
 -- Foot uses Wayland buffers, avoiding Kitty's separate OpenGL-context issue
 -- on this VirGL path. Do not force software rendering for the compositor.
 hl.on("hyprland.start", function()
+    -- Follows QEMU window resizes; exits with the session.
+    hl.exec_cmd("try-guix-display-sync")
     hl.exec_cmd("foot")
 end)
 
