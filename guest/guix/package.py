@@ -28,6 +28,7 @@ SYSTEM_FILES = (
     "system.scm",
     "hyprland.lua",
     "modules/try-guix/packages.scm",
+    "modules/try-guix/services.scm",
     "modules/try-guix/display-sync",
     "modules/try-guix/hyprland-rounded-border-coverage.patch",
 )
