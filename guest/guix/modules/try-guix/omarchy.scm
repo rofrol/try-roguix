@@ -206,9 +206,40 @@ while [ $# -gt 0 ]; do
 done
 exec \"$@\"
 ")
-              ;; No user service manager: accept `systemctl --user ...'
-              ;; calls (environment import, timer queries) as empty successes.
-              (shim "systemctl" "exit 0\n")
+              ;; No user service manager: power actions go to elogind, which
+              ;; lets the active local session power off or suspend; other
+              ;; calls (environment import, timer queries) are empty successes.
+              (shim "systemctl" (string-append "\
+for arg; do
+  case \"$arg\" in
+    poweroff|reboot|suspend|hibernate) exec " #$(file-append elogind "/bin/loginctl") " \"$arg\" ;;
+    -*) ;;
+    *) exit 0 ;;
+  esac
+done
+"))
+              ;; systemd-run [OPTIONS] COMMAND...: run COMMAND detached from
+              ;; the caller, after --on-active's delay (seconds or minutes).
+              (shim "systemd-run" "\
+delay=0
+while [ $# -gt 0 ]; do
+  case \"$1\" in
+    --on-active=*) delay=${1#--on-active=}; delay=${delay%s}
+      case $delay in *m) delay=$((${delay%m} * 60)) ;; esac ;;
+    --unit|--description|-p|--property|--timer-property) shift ;;
+    -*) ;;
+    *) break ;;
+  esac
+  shift
+done
+setsid sh -c 'sleep \"$0\"; exec \"$@\"' \"$delay\" \"$@\" </dev/null >/dev/null 2>&1 &
+")
+              ;; uwsm stop: end the Hyprland session (Lua dispatcher syntax); tty1 then
+              ;; logs in again, as a display manager would show its greeter.
+              (shim "uwsm" "\
+[ \"$1\" = stop ] && exec hyprctl dispatch 'hl.dsp.exit()'
+exit 0
+")
               ;; Apply /etc/config.scm with the Guix that built this system
               ;; (see (try-guix system)), which only fetches what was added.
               (shim "try-guix-reconfigure" "\
