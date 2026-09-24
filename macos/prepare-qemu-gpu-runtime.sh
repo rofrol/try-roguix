@@ -4,7 +4,8 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: macos/prepare-qemu-gpu-runtime.sh --source-qemu PATH --source-slirp PATH --source-virgl PATH [--archive-dir DIR]
+Usage: macos/prepare-qemu-gpu-runtime.sh --source-qemu PATH --source-slirp PATH --source-virgl PATH
+         --source-pc-bios DIR [--archive-dir DIR]
 
 Stage, relocate, validate, and ad-hoc sign the source-built QEMU runtime at:
   macos/.build/qemu-gpu-runtime
@@ -12,6 +13,9 @@ Stage, relocate, validate, and ad-hoc sign the source-built QEMU runtime at:
 QEMU, libslirp, and VirGL are source-built; the remaining runtime closure comes from
 checksum-pinned bottles compatible with macOS 15 or newer;
 it never reads or bundles libraries from the build machine's Homebrew prefix.
+--source-pc-bios names the pinned QEMU source's pc-bios directory; its AArch64
+EDK2 UEFI firmware and license text are published under share/qemu with
+pinned SHA-256 values.
 With --archive-dir, reuse pinned archives from DIR after verifying every hash.
 EOF
 }
@@ -19,6 +23,7 @@ EOF
 source_qemu=
 source_slirp=
 source_virgl=
+source_pc_bios=
 archive_cache=
 while (($#)); do
   case "$1" in
@@ -38,6 +43,12 @@ while (($#)); do
       (($# >= 2)) || { usage >&2; exit 64; }
       [[ -z $source_virgl ]] || { usage >&2; exit 64; }
       source_virgl=$2
+      shift 2
+      ;;
+    --source-pc-bios)
+      (($# >= 2)) || { usage >&2; exit 64; }
+      [[ -z $source_pc_bios ]] || { usage >&2; exit 64; }
+      source_pc_bios=$2
       shift 2
       ;;
     --archive-dir)
@@ -76,6 +87,13 @@ epoxy_archive_name=libepoxy-1.0.5.arm64_sequoia.bottle.tar.gz
 epoxy_url="https://github.com/startergo/homebrew-libepoxy/releases/download/v1.0.5/$epoxy_archive_name"
 epoxy_sha256=109384a1d37edf207a9b9f3d8950710c00767635b3c7ff295e3af83611876ef2
 
+# EDK2 blobs committed in QEMU c3d48b7d (11.1.1), decompressed. The firmware is
+# byte-identical to Homebrew QEMU's share/qemu/edk2-aarch64-code.fd.
+firmware_file=share/qemu/edk2-aarch64-code.fd
+firmware_sha256=47765fe344818cbc464b1c14ae658fb4b854f5c2ceffa982411731eb4865594d
+firmware_license_file=share/qemu/edk2-licenses.txt
+firmware_license_sha256=1ddeaed2e7d2e9ecb960bdfc1b8ee45387aff70d056d985d145949af3951657c
+
 die() {
   echo "qemu-gpu-runtime: $*" >&2
   exit 1
@@ -90,7 +108,7 @@ log() {
 # shellcheck source=macos/pinned-runtime-bottles.sh
 source "$pinned_bottles"
 
-for tool in awk codesign curl ditto file find grep install mkdir mktemp otool \
+for tool in awk bzip2 codesign curl ditto file find grep install mkdir mktemp otool \
   python3 rm sed shasum sw_vers tar uname xattr; do
   command -v "$tool" >/dev/null 2>&1 || die "required tool is unavailable: $tool"
 done
@@ -110,6 +128,9 @@ macos_major=$(sw_vers -productVersion | awk -F. '{ print $1 }')
 [[ $source_qemu == /* ]] || die "--source-qemu must be an absolute path"
 [[ -f $source_qemu && ! -L $source_qemu && -x $source_qemu ]] || \
   die "--source-qemu must name a regular executable: $source_qemu"
+[[ -n $source_pc_bios ]] || die "--source-pc-bios is required"
+[[ $source_pc_bios == /* && -d $source_pc_bios && ! -L $source_pc_bios ]] || \
+  die "--source-pc-bios must name an absolute regular directory"
 [[ -f $entitlements && ! -L $entitlements ]] || \
   die "missing QEMU signing entitlements: $entitlements"
 [[ -x $dependency_bundler && ! -L $dependency_bundler ]] || \
@@ -159,7 +180,8 @@ work_dir=$(mktemp -d /private/tmp/omarchy-qemu-gpu-runtime.XXXXXX)
 archive_dir="$work_dir/archives"
 extract_dir="$work_dir/extracted"
 staged_runtime="$work_dir/runtime"
-mkdir -p "$archive_dir" "$extract_dir" "$staged_runtime/bin" "$staged_runtime/lib"
+mkdir -p "$archive_dir" "$extract_dir" "$staged_runtime/bin" "$staged_runtime/lib" \
+  "$staged_runtime/share/qemu"
 
 download_and_verify() {
   local label=$1
@@ -247,10 +269,30 @@ while IFS=$'\t' read -r archive_name member destination; do
   install -m 0755 "$extract_dir/$member" "$staged_runtime/$destination"
 done < <(pinned_runtime_member_manifest)
 
+firmware_source="$source_pc_bios/edk2-aarch64-code.fd.bz2"
+license_source="$source_pc_bios/edk2-licenses.txt"
+[[ -f $firmware_source && ! -L $firmware_source ]] || \
+  die "QEMU source is missing a regular edk2-aarch64-code.fd.bz2"
+[[ -f $license_source && ! -L $license_source ]] || \
+  die "QEMU source is missing a regular edk2-licenses.txt"
+bzip2 -dc "$firmware_source" > "$staged_runtime/$firmware_file" || \
+  die "could not decompress the EDK2 AArch64 firmware"
+install -m 0644 "$license_source" "$staged_runtime/$firmware_license_file"
+chmod 0644 "$staged_runtime/$firmware_file"
+
+# bin/ and lib/ hold signed arm64 Mach-O images; share/qemu/ holds pinned data.
+runtime_data_sha256() {
+  case "$1" in
+    "$firmware_file") echo "$firmware_sha256" ;;
+    "$firmware_license_file") echo "$firmware_license_sha256" ;;
+    *) return 1 ;;
+  esac
+}
+
 runtime_files=()
 runtime_file_count=0
 while IFS= read -r relative || [[ -n $relative ]]; do
-  [[ $relative =~ ^(bin|lib)/[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || \
+  [[ $relative =~ ^(bin|lib|share/qemu)/[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || \
     die "runtime file manifest contains an unsafe path: ${relative:-<empty>}"
   for ((runtime_file_index = 0; runtime_file_index < runtime_file_count; runtime_file_index++)); do
     [[ ${runtime_files[$runtime_file_index]} != "$relative" ]] || \
@@ -261,8 +303,17 @@ while IFS= read -r relative || [[ -n $relative ]]; do
 done < "$runtime_manifest"
 ((runtime_file_count > 0)) || die "runtime file manifest is empty"
 
+for relative in "$firmware_file" "$firmware_license_file"; do
+  is_listed=0
+  for listed in "${runtime_files[@]}"; do
+    [[ $listed != "$relative" ]] || is_listed=1
+  done
+  ((is_listed)) || die "runtime file manifest is missing $relative"
+done
+
 runtime_images=()
 for relative in "${runtime_files[@]}"; do
+  [[ $relative != share/* ]] || continue
   image="$staged_runtime/$relative"
   [[ -f $image && ! -L $image ]] || die "staged runtime is missing $relative"
   description=$(file -b "$image") || die "could not inspect staged runtime file: $relative"
@@ -318,6 +369,8 @@ verify_runtime_tree() {
   local relative
   local actual_count=0
   local description
+  local expected_sha
+  local actual_sha
   local entitlements_output
   local minimum_versions
   local minimum_version
@@ -338,7 +391,8 @@ verify_runtime_tree() {
     if [[ -L $path ]]; then
       die "runtime contains an unsafe symlink: $relative"
     elif [[ -d $path ]]; then
-      [[ $relative == bin || $relative == lib ]] || \
+      [[ $relative == bin || $relative == lib || $relative == share || \
+         $relative == share/qemu ]] || \
         die "runtime contains an unexpected directory: $relative"
     elif [[ -f $path ]]; then
       is_expected_runtime_file "$relative" || \
@@ -354,6 +408,15 @@ verify_runtime_tree() {
   for relative in "${runtime_files[@]}"; do
     path="$root/$relative"
     [[ -f $path && ! -L $path ]] || die "published runtime is missing $relative"
+    if [[ $relative == share/* ]]; then
+      expected_sha=$(runtime_data_sha256 "$relative") || \
+        die "runtime data file has no pinned checksum: $relative"
+      actual_sha=$(shasum -a 256 "$path" | awk '{ print $1 }') || \
+        die "could not hash $relative"
+      [[ $actual_sha == "$expected_sha" ]] || \
+        die "$relative checksum mismatch: expected $expected_sha, got $actual_sha"
+      continue
+    fi
     description=$(file -b "$path") || die "could not inspect $relative"
     [[ $description == *Mach-O* && $description == *arm64* ]] || \
       die "published runtime contains a non-arm64 image: $relative"
@@ -504,4 +567,4 @@ fi
 publish_dir=
 
 log "Prepared $runtime_dir"
-log "Runtime is self-contained, targets macOS 15.0, and contains ${#runtime_files[@]} pinned Mach-O images"
+log "Runtime is self-contained, targets macOS 15.0, and contains ${#runtime_images[@]} pinned Mach-O images and the pinned EDK2 AArch64 firmware"

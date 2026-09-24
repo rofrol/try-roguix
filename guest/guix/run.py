@@ -14,7 +14,10 @@ import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[2]
-QEMU = ROOT / "macos/.build/qemu-gpu-runtime/bin/qemu-system-aarch64"
+RUNTIME = ROOT / "macos/.build/qemu-gpu-runtime"
+QEMU = RUNTIME / "bin/qemu-system-aarch64"
+# Pinned EDK2 build from the QEMU source, published by prepare-qemu-gpu-runtime.sh.
+FIRMWARE = RUNTIME / "share/qemu/edk2-aarch64-code.fd"
 
 
 def qemu_command(image, firmware):
@@ -45,14 +48,12 @@ def qemu_command(image, firmware):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--image", type=Path, default=ROOT / "dist/guix/image.raw")
-    parser.add_argument("--firmware", type=Path, required=True,
-                        help="trusted AArch64 UEFI firmware (not bundled with the runtime)")
     parser.add_argument("--dry-run", action="store_true",
                         help="print the command without opening the image or starting QEMU")
     args = parser.parse_args()
     # Absolute paths also prevent a caller's filename from becoming an option.
     image = args.image.absolute()
-    firmware = args.firmware.absolute()
+    firmware = FIRMWARE
     command = qemu_command(image, firmware)
     if args.dry_run:
         print(shlex.join(command))

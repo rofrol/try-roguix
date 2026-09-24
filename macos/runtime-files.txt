@@ -15,3 +15,5 @@ lib/libslirp.0.dylib
 lib/libusb-1.0.0.dylib
 lib/libvirglrenderer.1.dylib
 lib/libzstd.1.dylib
+share/qemu/edk2-aarch64-code.fd
+share/qemu/edk2-licenses.txt

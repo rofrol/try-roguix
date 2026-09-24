@@ -107,15 +107,13 @@ Build the existing runtime with `make runtime`. Copy the completed raw image
 from Linux to the Mac, dereferencing the Guix GC-root symlink. Then run:
 
 ```sh
-python3 guest/guix/run.py \
-  --image /absolute/path/to/image.raw \
-  --firmware /absolute/path/to/edk2-aarch64-code.fd
+python3 guest/guix/run.py --image /absolute/path/to/image.raw
 ```
 
-For an existing Homebrew QEMU installation, the firmware is normally at
-`$(brew --prefix qemu)/share/qemu/edk2-aarch64-code.fd`. Firmware is executable
-input: supply it from a trusted source. It is **not** bundled or downloaded by
-this development harness, and is not a new release dependency.
+The UEFI firmware is the runtime's own
+`share/qemu/edk2-aarch64-code.fd`: the EDK2 build committed in the pinned QEMU
+source, decompressed and SHA-256-pinned by `prepare-qemu-gpu-runtime.sh` (it is
+byte-identical to Homebrew QEMU's copy). No firmware is read from the system.
 
 `run.py` uses only the project's signed QEMU runtime, HVF, Virtio GPU with
 VirGL, and the Cocoa GLES/ANGLE path. It does not fall back to a system QEMU or
