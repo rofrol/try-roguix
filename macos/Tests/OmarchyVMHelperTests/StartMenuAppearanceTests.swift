@@ -37,7 +37,7 @@ struct StartMenuAppearanceTests {
 
         #expect(action.keyEquivalent == "\r")
         #expect(action.accessibilityLabel() == "Launch Roguix")
-        #expect(action.attributedTitle.string == "LAUNCH OMARCHY")
+        #expect(action.attributedTitle.string == "LAUNCH ROGUIX")
         #expect(action.focusRingType == .exterior)
         #expect(!action.isBordered)
 
