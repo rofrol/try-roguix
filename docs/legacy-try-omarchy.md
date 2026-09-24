@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="macos/OmarchyIcon.svg" width="128" height="128" alt="Try Omarchy logo">
+  <img src="../macos/TryGuixIcon.svg" width="128" height="128" alt="Try Omarchy logo">
 </p>
 
 <h1 align="center">Try Omarchy</h1>

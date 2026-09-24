@@ -220,7 +220,7 @@ genimage writes; later boots find nothing to fix.
 ## Running through the app
 
 ```sh
-make guix-app   # dist/app.noindex/Try Omarchy.app with the dist/guix guest
+make guix-app   # dist/app.noindex/Try Guix.app with the dist/guix guest
 make guix-run   # build it and open it like `make run`
 ```
 
