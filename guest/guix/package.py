@@ -24,7 +24,7 @@ ROOT = HERE.parents[1]
 ZSTD = ROOT / "macos/.build/qemu-gpu-runtime/bin/zstd"
 # The files that define the system; the same set the image installs under
 # /etc/try-guix (see try-guix-source? in system.scm).
-SYSTEM_FILES = ("system.scm", "hyprland.lua") + tuple(
+SYSTEM_FILES = ("system.scm",) + tuple(
     path.relative_to(HERE).as_posix()
     for path in sorted((HERE / "modules/try-guix").iterdir()) if path.is_file())
 

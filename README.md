@@ -4,8 +4,9 @@
 
 <h1 align="center">Try Guix</h1>
 
-Run a [Guix System](https://guix.gnu.org) desktop with Hyprland as a native,
-hardware-accelerated app on an Apple Silicon Mac.
+Run a [Guix System](https://guix.gnu.org) desktop with the
+[Omarchy](https://omarchy.org) 4 look (Hyprland, its Quickshell bar, menu and
+themes) as a native, hardware-accelerated app on an Apple Silicon Mac.
 
 Try Guix packages a Guix System ARM64 disk image, a QEMU runtime using Apple's
 Hypervisor Framework with VirGL/ANGLE-Metal graphics, and a small Swift/AppKit
@@ -23,7 +24,8 @@ while the Arch code is still in the repository.
   by ANGLE on Metal
 - Guix System booted through UEFI from a GPT disk, so `guix system
   reconfigure` and rollbacks work inside the VM; the disk grows on its own
-- Hyprland 0.56.1 that follows the window size and HiDPI scale
+- Hyprland 0.56.1 with Omarchy 4's configuration, shell and Tokyo Night theme,
+  following the window size and HiDPI scale
 - No password in the image: the first start asks for one, then the VM logs
   straight into the desktop
 - Two-way text and PNG clipboard, one shared Mac folder under its own name
@@ -53,9 +55,11 @@ On the first start the VM console asks for the password of the account
 `guest`, twice. The desktop then starts without it; `sudo` asks for it. Every
 later start goes straight to Hyprland.
 
-In the guest: **Super+Q** opens a Foot terminal, **Super+R** the Wofi launcher,
-**Super+C** closes a window, **Super+M** leaves Hyprland. Command acts as Super
-while the VM window is focused.
+The desktop is Omarchy's: **Super+Return** opens a terminal, **Super+Space**
+the Omarchy menu, **Super+Alt+Space** the app launcher, **Super+W** closes a
+window. Command acts as Super while the VM window is focused. Omarchy's menus
+for Arch packages and updates do nothing on Guix. A VM created before the
+Omarchy desktop keeps its old one; **Reset Guix** starts a new one.
 
 ## Using the Mac integrations
 

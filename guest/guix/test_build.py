@@ -175,6 +175,7 @@ class ProjectModuleTests(unittest.TestCase):
             ("camera-bridge", "native-overlay/usr/local/bin/omarchy-native-camera-bridge"),
             ("camera-modprobe.conf", "native-overlay/etc/modprobe.d/90-try-omarchy-camera.conf"),
             ("authentication-broker", "native-overlay/usr/local/lib/try-omarchy/native-authentication-broker"),
+            ("xdg-terminal-exec", "factory-overlay/usr/local/bin/xdg-terminal-exec"),
             ("pipewire-quantum.conf", "native-overlay/usr/share/pipewire/pipewire.conf.d/90-try-omarchy-quantum.conf"),
         ]:
             with self.subTest(copy=copy):

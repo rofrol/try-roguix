@@ -12,6 +12,7 @@
 (define-module (try-guix packages)
   #:use-module (guix packages)
   #:use-module (guix download)
+  #:use-module (guix git-download)
   #:use-module (guix gexp)
   #:use-module (guix build-system copy)
   #:use-module ((guix licenses) #:prefix license:)
@@ -29,7 +30,8 @@
             wayland-protocols-1.49
             aquamarine-0.14
             hyprland-0.56
-            try-guix-display-sync))
+            try-guix-display-sync
+            quickshell-0.3))
 
 ;; Hyprland 0.56 requires hyprutils >= 0.14.0; the Arch guest uses 0.14.2.
 (define hyprutils-0.14
@@ -167,7 +169,7 @@
 ;; EDID. This helper (byte-identical to the Arch guest's
 ;; omarchy-native-display-sync, see test_build.py) parses the fresh EDID and
 ;; applies a complete modeline through hyprctl on every DRM hotplug change.
-;; It runs as a child of the Hyprland session, started from hyprland.lua.
+;; It runs as a child of the Hyprland session, started from hypr-vm.lua.
 (define try-guix-display-sync
   (package
     (name "try-guix-display-sync")
@@ -195,3 +197,19 @@
     (synopsis "Keep Hyprland's mode in sync with the QEMU window")
     (description "Apply the virtio-gpu EDID's preferred mode to Hyprland.")
     (license license:expat)))
+
+;; The Omarchy 4 shell is a Quickshell application; the Arch guest runs it on
+;; Quickshell 0.3.1 (guest/packages.lock.json), one release after Guix's.
+(define quickshell-0.3
+  (package
+    (inherit quickshell)
+    (version "0.3.1")
+    (source (origin
+              (inherit (package-source quickshell))
+              (uri (git-reference
+                    (url "https://git.outfoxxed.me/quickshell/quickshell")
+                    (commit (string-append "v" version))))
+              (file-name (git-file-name "quickshell" version))
+              (sha256
+               (base32
+                "1mhpgy7zcyqmqj6h1b0fhbriimkp2563lkgcdj5ipr32krkgdd88"))))))

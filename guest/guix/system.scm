@@ -3,6 +3,7 @@
              (gnu system linux-initrd)
              (srfi srfi-1)
              (try-guix integrations)
+             (try-guix omarchy)
              (try-guix packages)
              (try-guix services))
 (use-service-modules desktop sddm sound ssh xorg)
@@ -11,7 +12,7 @@
 ;; Files that define this system; build and test tooling is left out.
 (define (try-guix-source? file stat)
   (or (eq? 'directory (stat:type stat))
-      (member (basename file) '("system.scm" "hyprland.lua"))
+      (member (basename file) '("system.scm"))
       (string-contains file "/modules/try-guix/")))
 
 (operating-system
@@ -78,9 +79,9 @@
                              ,(local-file "." "try-guix-sources"
                                           #:recursive? #t
                                           #:select? try-guix-source?))))
-          (simple-service 'try-guix-hyprland account-service-type
-                          `((".config/hypr/hyprland.lua"
-                             ,(local-file "hyprland.lua"))))
+          ;; Omarchy 4's desktop: its Hyprland configuration and Quickshell
+          ;; shell, seeded into the account at the first desktop login.
+          (service try-guix-omarchy-service-type)
           (service try-guix-grow-root-service-type)
           (service try-guix-first-boot-service-type)
           (service try-guix-host-settings-service-type)

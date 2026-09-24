@@ -267,6 +267,47 @@ a manual VT switch away and back released it. tty1 is already the active VT
 at boot, so the prompt no longer switches VTs; two fresh first starts since
 went straight to the desktop.
 
+## The Omarchy 4 desktop
+
+`modules/try-guix/omarchy.scm` gives the desktop account the same Omarchy 4
+("Quattro") desktop as the Arch guest, from the same pinned upstream commit
+(`346e69e1`, tree `24ff1b25`):
+
+- **Omarchy itself** is a package: the upstream tree under
+  `share/omarchy`, its commands in `bin/`, and `/usr/share/omarchy` (the
+  default `OMARCHY_PATH`) linked to it. Quickshell 0.3.1 (the Arch guest's
+  version, `packages.scm`) runs its shell; JetBrainsMono Nerd Font 3.5.1, the
+  `omarchy` glyph font, Liberation and Yaru provide its fonts and icons.
+- **Arch assumptions** are replaced by `try-guix-omarchy-compat`: `uwsm-app`
+  and `systemd-cat` run the command directly, `systemctl --user` succeeds
+  without doing anything, `busctl` covers Omarchy's notification and UPower
+  calls through gdbus (`test_busctl.py`), and `xdg-terminal-exec` is the Arch
+  guest's (byte-identical copy).
+- **The account** is seeded once, at the first desktop login, by
+  `try-guix-omarchy-seed`: Omarchy's `config/` into `~/.config` (never
+  overwriting), its applications, Hyprland toggles and fontconfig aliases;
+  `OMARCHY_THEME_HEADLESS=1 omarchy-theme-set "Tokyo Night"`; first-run,
+  user provisioning and shipped migrations marked done, since they install
+  Arch packages and systemd units. An account from the pre-Omarchy image gets
+  its old Try Guix `hyprland.lua` replaced.
+- **The VM additions** live in `/etc/try-guix-hypr-vm.lua`, which the seed
+  appends to `~/.config/hypr/monitors.lua` as the Arch guest appends its QEMU
+  fragment: Hyprland's cursor is hidden when the launcher reports VirGL (Cocoa
+  draws the Mac's cursor), `try-guix-display-sync` follows the window, and the
+  host bridges and PipeWire start with the session.
+- **Lock screen:** the shell authenticates with the PAM service
+  `omarchy-lock-password`, defined with `pam_unix`.
+
+Menus that manage Arch packages or systemd timers (updates, installing apps,
+reminders) do nothing here. `gum` and `libvips` are not in this Guix, so gum
+dialogs and background-picker thumbnails are missing.
+
+Verified 2026-09-24 on a fresh image: the shell's bar (workspaces, clock,
+weather, network, audio, display), the Tokyo Night background, Foot with the
+theme's colours and border on Super+Return, and Omarchy's menu on
+Super+Space; the full integration run through the launcher passed on the
+same image.
+
 ## macOS integrations
 
 `modules/try-guix/integrations.scm` ports the guest side of the launcher's

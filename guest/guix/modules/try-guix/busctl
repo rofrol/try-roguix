@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""The part of systemd's busctl that Omarchy's scripts use, over gdbus.
+
+Omarchy (written for Arch/systemd) calls:
+
+  busctl [--user] [--] call DEST PATH IFACE METHOD [SIGNATURE ARGS...]
+  busctl [--user] get-property DEST PATH IFACE PROPERTY
+
+for desktop notifications (Notify with signature susssasa{sv}i, and
+GetServerInformation) and UPower's OnBattery. This translates those into a
+`gdbus call` and prints the reply in busctl's `TYPE VALUE` form, which
+omarchy-notification-send parses (`u <id>`). Anything else fails loudly.
+"""
+
+import re
+import subprocess
+import sys
+
+GDBUS = "gdbus"
+
+
+class Usage(Exception):
+    pass
+
+
+def gvariant_string(value):
+    return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def encode(signature, values):
+    """Encode busctl's flat argument list for SIGNATURE as gdbus arguments."""
+    out = []
+    values = list(values)
+
+    def take():
+        if not values:
+            raise Usage("too few arguments for the signature")
+        return values.pop(0)
+
+    index = 0
+    while index < len(signature):
+        code = signature[index]
+        if code == "s":
+            out.append(gvariant_string(take()))
+        elif code in "ui":
+            number = take()
+            if not re.fullmatch(r"-?[0-9]+", number):
+                raise Usage(f"not an integer: {number!r}")
+            out.append(("uint32 " if code == "u" else "int32 ") + number)
+        elif signature.startswith("as", index):
+            count = int(take())
+            out.append("@as [" + ", ".join(gvariant_string(take()) for _ in range(count)) + "]")
+            index += 1
+        elif signature.startswith("a{sv}", index):
+            count = int(take())
+            entries = []
+            for _ in range(count):
+                key, kind, value = take(), take(), take()
+                if kind != "s":
+                    raise Usage(f"unsupported variant type {kind!r}")
+                entries.append(f"{gvariant_string(key)}: <{gvariant_string(value)}>")
+            out.append("@a{sv} {" + ", ".join(entries) + "}")
+            index += 4
+        else:
+            raise Usage(f"unsupported signature {signature!r}")
+        index += 1
+    if values:
+        raise Usage("too many arguments for the signature")
+    return out
+
+
+def busctl_reply(text):
+    """Turn gdbus's `(uint32 7,)` / `(<true>,)` reply into `u 7` / `b true`."""
+    text = text.strip()
+    match = re.fullmatch(r"\((.*),\)", text)
+    body = match.group(1).strip() if match else text
+    if body.startswith("<") and body.endswith(">"):
+        body = body[1:-1].strip()
+    for prefix, code in (("uint32 ", "u"), ("int32 ", "i")):
+        if body.startswith(prefix):
+            return f"{code} {body[len(prefix):]}"
+    if body in ("true", "false"):
+        return f"b {body}"
+    if re.fullmatch(r"-?[0-9]+", body):
+        return f"i {body}"
+    return body
+
+
+def command(argv):
+    bus = "--system"
+    arguments = []
+    positional = False
+    for argument in argv:
+        if positional or not argument.startswith("-"):
+            arguments.append(argument)
+            # Options come before the verb; everything after it is data.
+            positional = True
+        elif argument == "--user":
+            bus = "--session"
+        elif argument == "--system":
+            bus = "--system"
+        elif argument == "--":
+            positional = True
+        else:
+            raise Usage(f"unsupported option {argument}")
+    if not arguments:
+        raise Usage("no verb")
+    verb, rest = arguments[0], arguments[1:]
+    if verb == "call" and len(rest) >= 4:
+        dest, path, interface, method = rest[:4]
+        signature, values = (rest[4], rest[5:]) if len(rest) > 4 else ("", [])
+        return [GDBUS, "call", bus, "--dest", dest, "--object-path", path,
+                "--method", f"{interface}.{method}", *encode(signature, values)]
+    if verb == "get-property" and len(rest) == 4:
+        dest, path, interface, prop = rest
+        return [GDBUS, "call", bus, "--dest", dest, "--object-path", path,
+                "--method", "org.freedesktop.DBus.Properties.Get",
+                gvariant_string(interface), gvariant_string(prop)]
+    raise Usage(f"unsupported busctl invocation: {' '.join(argv)}")
+
+
+def main(argv):
+    try:
+        gdbus = command(argv)
+    except (Usage, ValueError) as error:
+        print(f"busctl (Try Guix): {error}", file=sys.stderr)
+        return 64
+    result = subprocess.run(gdbus, capture_output=True, text=True)
+    if result.returncode != 0:
+        sys.stderr.write(result.stderr)
+        return result.returncode
+    reply = busctl_reply(result.stdout)
+    if reply and reply != "()":
+        print(reply)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
