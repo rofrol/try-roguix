@@ -123,7 +123,7 @@ def main(argv):
     try:
         gdbus = command(argv)
     except (Usage, ValueError) as error:
-        print(f"busctl (Try Guix): {error}", file=sys.stderr)
+        print(f"busctl (Roguix): {error}", file=sys.stderr)
         return 64
     result = subprocess.run(gdbus, capture_output=True, text=True)
     if result.returncode != 0:

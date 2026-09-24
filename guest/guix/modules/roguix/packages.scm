@@ -1,4 +1,4 @@
-;;; Try Guix — compositor packages newer than the pinned Guix checkout.
+;;; Roguix — compositor packages newer than the pinned Guix checkout.
 ;;;
 ;;; The pinned checkout ships Hyprland 0.55.4 with Aquamarine 0.12.1, which
 ;;; cannot switch to a larger mode on virtio-gpu (see guest/guix/README.md).
@@ -9,7 +9,7 @@
 ;;; This file is project code, not part of the authenticated Guix channel: it is
 ;;; reviewed and committed like any other source. The build passes this
 ;;; directory with -L; the image also installs it for in-guest reconfigure.
-(define-module (try-guix packages)
+(define-module (roguix packages)
   #:use-module (guix packages)
   #:use-module (guix download)
   #:use-module (guix git-download)
@@ -30,7 +30,7 @@
             wayland-protocols-1.49
             aquamarine-0.14
             hyprland-0.56
-            try-guix-display-sync
+            roguix-display-sync
             quickshell-0.3))
 
 ;; Hyprland 0.56 requires hyprutils >= 0.14.0; the Arch guest uses 0.14.2.
@@ -170,21 +170,21 @@
 ;; omarchy-native-display-sync, see test_build.py) parses the fresh EDID and
 ;; applies a complete modeline through hyprctl on every DRM hotplug change.
 ;; It runs as a child of the Hyprland session, started from hypr-vm.lua.
-(define try-guix-display-sync
+(define roguix-display-sync
   (package
-    (name "try-guix-display-sync")
+    (name "roguix-display-sync")
     (version "1")
     (source (local-file "display-sync"))
     (build-system copy-build-system)
     (arguments
      (list
-      #:install-plan #~'(("display-sync" "bin/try-guix-display-sync"))
+      #:install-plan #~'(("display-sync" "bin/roguix-display-sync"))
       #:phases
       #~(modify-phases %standard-phases
           (add-after 'install 'wrap
             (lambda* (#:key inputs #:allow-other-keys)
               (let ((program (string-append #$output
-                                            "/bin/try-guix-display-sync")))
+                                            "/bin/roguix-display-sync")))
                 (chmod program #o555)
                 (wrap-program program
                   `("PATH" ":" prefix

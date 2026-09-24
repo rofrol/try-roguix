@@ -1,16 +1,16 @@
-;;; Try Guix — services for the launcher's persistent UEFI/GPT disk and the
+;;; Roguix — services for the launcher's persistent UEFI/GPT disk and the
 ;;; first start of a new VM.
 ;;;
-;;; try-guix-grow-root: the host grows a VM disk only by extending the file.
+;;; roguix-grow-root: the host grows a VM disk only by extending the file.
 ;;; At boot this service moves the backup GPT to the new end of the disk,
 ;;; extends the root partition over the free space and grows its ext4 file
 ;;; system online. It keeps the partition's start, type, GUID and name.
 ;;;
-;;; try-guix-first-boot: the image carries no password. The account is
+;;; roguix-first-boot: the image carries no password. The account is
 ;;; declared locked, and on the first start this service asks for its password
 ;;; on tty1 before the console logs in automatically. Account activation keeps
 ;;; a password set this way across reboots and reconfigures.
-(define-module (try-guix services)
+(define-module (roguix services)
   #:use-module (gnu packages admin)
   #:use-module (gnu packages base)
   #:use-module (gnu packages glib)
@@ -18,14 +18,14 @@
   #:use-module (gnu services)
   #:use-module (gnu services shepherd)
   #:use-module (guix gexp)
-  #:export (%try-guix-account
-            try-guix-grow-root-service-type
-            try-guix-first-boot-service-type
-            try-guix-session-script))
+  #:export (%roguix-account
+            roguix-grow-root-service-type
+            roguix-first-boot-service-type
+            roguix-session-script))
 
 ;; The single desktop account: uid 1000, which the launcher's shared-folder
 ;; mapping also assumes.
-(define %try-guix-account "guest")
+(define %roguix-account "guest")
 
 ;; Also the root file system label in system.scm; `guix system image` gives the
 ;; root partition and its ext4 this label.
@@ -33,7 +33,7 @@
 
 (define grow-root-program
   (program-file
-   "try-guix-grow-root"
+   "roguix-grow-root"
    #~(begin
        (use-modules (ice-9 popen) (ice-9 rdelim) (ice-9 regex))
 
@@ -77,16 +77,16 @@
 
 (define (grow-root-shepherd-service _)
   (list (shepherd-service
-         (provision '(try-guix-grow-root))
+         (provision '(roguix-grow-root))
          (requirement '(file-systems udev))
          (one-shot? #t)
          (documentation "Grow the root partition and file system to the disk.")
          (start #~(lambda _
                     (zero? (system* #$grow-root-program)))))))
 
-(define try-guix-grow-root-service-type
+(define roguix-grow-root-service-type
   (service-type
-   (name 'try-guix-grow-root)
+   (name 'roguix-grow-root)
    (extensions (list (service-extension shepherd-root-service-type
                                         grow-root-shepherd-service)))
    (default-value #f)
@@ -94,12 +94,12 @@
 
 (define first-boot-program
   (program-file
-   "try-guix-first-boot"
+   "roguix-first-boot"
    #~(begin
        (use-modules (ice-9 popen) (ice-9 rdelim))
 
        (define tty "/dev/tty1")
-       (define prefix (string-append #$%try-guix-account ":"))
+       (define prefix (string-append #$%roguix-account ":"))
 
        (define (locked?)
          ;; Declared with the locked password "!"; anything else was set here
@@ -135,8 +135,8 @@
                (stty "echo")
                (say "\n")
                (if (eof-object? line) "" line)))
-           (say "\n\nTry Guix: first start\n\n"
-                "Choose the password of the account '" #$%try-guix-account "'.\n"
+           (say "\n\nRoguix: first start\n\n"
+                "Choose the password of the account '" #$%roguix-account "'.\n"
                 "The desktop starts without it; sudo asks for it.\n\n")
            (let loop ()
              (let ((password (ask "New password: ")))
@@ -158,32 +158,32 @@
 
 (define (first-boot-shepherd-service _)
   (list (shepherd-service
-         (provision '(try-guix-first-boot))
+         (provision '(roguix-first-boot))
          (requirement '(file-systems))
          (one-shot? #t)
          (documentation "Ask for the account password on the first start.")
          (start #~(lambda _
                     (zero? (system* #$first-boot-program)))))))
 
-(define try-guix-first-boot-service-type
+(define roguix-first-boot-service-type
   (service-type
-   (name 'try-guix-first-boot)
+   (name 'roguix-first-boot)
    (extensions (list (service-extension shepherd-root-service-type
                                         first-boot-shepherd-service)))
    (default-value #f)
    (description "Ask for the desktop account's password on the first start.")))
 
 ;; For etc-profile-d-service-type: the auto-login console seeds Omarchy's
-;; user files once (try-guix-omarchy-seed) and runs the compositor inside its
+;; user files once (roguix-omarchy-seed) and runs the compositor inside its
 ;; own D-Bus session bus (PipeWire's WirePlumber and desktop
 ;; programs expect one); other consoles, the serial console and SSH get an
 ;; ordinary shell.
-(define try-guix-session-script
-  (mixed-text-file "try-guix-session.sh" "\
+(define roguix-session-script
+  (mixed-text-file "roguix-session.sh" "\
 if [ \"$(tty)\" = /dev/tty1 ] && [ -z \"$WAYLAND_DISPLAY\" ] \\
-   && [ \"$(id -un)\" = " %try-guix-account " ]; then
+   && [ \"$(id -un)\" = " %roguix-account " ]; then
   # Omarchy's per-user files; a failure still starts the desktop.
-  try-guix-omarchy-seed || echo 'try-guix: seeding Omarchy failed' >&2
+  roguix-omarchy-seed || echo 'roguix: seeding Omarchy failed' >&2
   exec " (file-append dbus "/bin/dbus-run-session") " start-hyprland
 fi
 "))

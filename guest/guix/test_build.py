@@ -163,7 +163,7 @@ class ProjectModuleTests(unittest.TestCase):
     """The self-contained module directory is also installed into the guest."""
 
     GUEST = Path(__file__).resolve().parents[1]
-    MODULES = Path(__file__).resolve().parent / "modules" / "try-guix"
+    MODULES = Path(__file__).resolve().parent / "modules" / "roguix"
 
     def test_copies_match_the_reviewed_arch_guest_files(self):
         for copy, original in [
@@ -205,7 +205,7 @@ class ProjectModuleTests(unittest.TestCase):
 
     def test_guest_source_selection_covers_every_module_file(self):
         system = (self.MODULES / "system.scm").read_text()
-        self.assertIn('(string-contains file "/modules/try-guix/")', system)
+        self.assertIn('(string-contains file "/modules/roguix/")', system)
 
 
 if __name__ == "__main__":

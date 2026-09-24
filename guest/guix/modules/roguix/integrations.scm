@@ -1,4 +1,4 @@
-;;; Try Guix — guest side of the launcher's macOS integrations.
+;;; Roguix — guest side of the launcher's macOS integrations.
 ;;;
 ;;; The host side and its wire protocols are the Arch guest's, unchanged. The
 ;;; guest programs are byte-identical copies of the Arch guest's reviewed
@@ -8,9 +8,9 @@
 ;;; The Arch guest reads launcher settings from its kernel command line. A
 ;;; UEFI guest boots its own GRUB, so the launcher passes the same
 ;;; `name=value' arguments as SMBIOS OEM strings (type 11) instead, and
-;;; try-guix-host-settings writes them to %try-guix-host-settings-file in the
+;;; roguix-host-settings writes them to %roguix-host-settings-file in the
 ;;; command line's format. That file lives in /run: settings last one boot.
-(define-module (try-guix integrations)
+(define-module (roguix integrations)
   #:use-module (guix packages)
   #:use-module (guix gexp)
   #:use-module (guix build-system copy)
@@ -29,26 +29,26 @@
   #:use-module (gnu services shepherd)
   #:use-module (gnu services ssh)
   #:use-module (gnu system pam)
-  #:export (%try-guix-host-settings-file
-            try-guix-host-settings-service-type
-            try-guix-mac-share
-            try-guix-mac-share-service-type
-            try-guix-agent
-            try-guix-clipboard-bridge
-            try-guix-clipboard-service-type
-            try-guix-audio-bridge
-            try-guix-audio-service-type
-            try-guix-camera-bridge
-            try-guix-camera-service-type
-            try-guix-touch-id
-            try-guix-touch-id-service-type
-            try-guix-ssh-access-service-type))
+  #:export (%roguix-host-settings-file
+            roguix-host-settings-service-type
+            roguix-mac-share
+            roguix-mac-share-service-type
+            roguix-agent
+            roguix-clipboard-bridge
+            roguix-clipboard-service-type
+            roguix-audio-bridge
+            roguix-audio-service-type
+            roguix-camera-bridge
+            roguix-camera-service-type
+            roguix-touch-id
+            roguix-touch-id-service-type
+            roguix-ssh-access-service-type))
 
-(define %try-guix-host-settings-file "/run/try-guix/host-settings")
+(define %roguix-host-settings-file "/run/roguix/host-settings")
 
 (define host-settings-program
   (program-file
-   "try-guix-host-settings"
+   "roguix-host-settings"
    #~(begin
        (use-modules (ice-9 binary-ports) (ice-9 ftw) (ice-9 iconv) (ice-9 regex)
                     (rnrs bytevectors) (srfi srfi-1))
@@ -88,11 +88,11 @@
                                      '()))))
            (lambda (key . arguments)
              (format (current-error-port)
-                     "try-guix-host-settings: ignoring SMBIOS: ~a ~s~%"
+                     "roguix-host-settings: ignoring SMBIOS: ~a ~s~%"
                      key arguments)
              '())))
 
-       (define target #$%try-guix-host-settings-file)
+       (define target #$%roguix-host-settings-file)
        (define staging (string-append target ".new"))
        (unless (file-exists? (dirname target))
          (mkdir (dirname target) #o755))
@@ -105,42 +105,42 @@
 
 (define (host-settings-shepherd-service _)
   (list (shepherd-service
-         (provision '(try-guix-host-settings))
+         (provision '(roguix-host-settings))
          (requirement '(file-systems))
          (one-shot? #t)
          (documentation "Record the launcher's settings for this boot.")
          (start #~(lambda _
                     (zero? (system* #$host-settings-program)))))))
 
-(define try-guix-host-settings-service-type
+(define roguix-host-settings-service-type
   (service-type
-   (name 'try-guix-host-settings)
+   (name 'roguix-host-settings)
    (extensions (list (service-extension shepherd-root-service-type
                                         host-settings-shepherd-service)))
    (default-value #f)
-   (description "Write the launcher's SMBIOS OEM settings to /run/try-guix.")))
+   (description "Write the launcher's SMBIOS OEM settings to /run/roguix.")))
 
 ;;; Shared folder: the launcher attaches virtio-9p with mount tag `mac' and
 ;;; passes the folder's name as omarchy.shared_folder_name. The mount runs as
 ;;; root before tty1 logs in; each login of the desktop account links ~/<name>.
 
-(define try-guix-mac-share
+(define roguix-mac-share
   (package
-    (name "try-guix-mac-share")
+    (name "roguix-mac-share")
     (version "1")
     (source (local-file "mac-share"))
     (build-system copy-build-system)
     (arguments
      (list
-      #:install-plan #~'(("mac-share" "bin/try-guix-mac-share"))
+      #:install-plan #~'(("mac-share" "bin/roguix-mac-share"))
       #:phases
       #~(modify-phases %standard-phases
           (add-after 'install 'wrap
             (lambda* (#:key inputs #:allow-other-keys)
-              (let ((program (string-append #$output "/bin/try-guix-mac-share")))
+              (let ((program (string-append #$output "/bin/roguix-mac-share")))
                 (chmod program #o555)
                 (wrap-program program
-                  `("OMARCHY_MAC_SHARE_CMDLINE" = (#$%try-guix-host-settings-file))
+                  `("OMARCHY_MAC_SHARE_CMDLINE" = (#$%roguix-host-settings-file))
                   `("PATH" ":" prefix
                     ,(map (lambda (command)
                             (dirname (search-input-file inputs command)))
@@ -154,13 +154,13 @@ home directory under the Mac folder's own name.")
     (license license:expat)))
 
 (define mac-share-program
-  (file-append try-guix-mac-share "/bin/try-guix-mac-share"))
+  (file-append roguix-mac-share "/bin/roguix-mac-share"))
 
 (define (mac-share-shepherd-service _)
   (list (shepherd-service
-         (provision '(try-guix-mac-share))
+         (provision '(roguix-mac-share))
          (requirement '(file-systems udev kernel-module-loader
-                        try-guix-host-settings))
+                        roguix-host-settings))
          (documentation "Mount the Mac folder shared by the launcher.")
          ;; tty1's session waits for this service; a failed mount is logged
          ;; by the script and must not keep the desktop from starting.
@@ -174,13 +174,13 @@ home directory under the Mac folder's own name.")
 ;; Sourced by every login shell; it links for the desktop account only and
 ;; is idempotent, so the serial console and SSH logins are harmless.
 (define mac-share-link-script
-  (mixed-text-file "try-guix-mac-share-link.sh"
+  (mixed-text-file "roguix-mac-share-link.sh"
                    "if [ \"$(id -u)\" = 1000 ]; then\n  "
                    mac-share-program " --link 2>/dev/null || true\nfi\n"))
 
-(define try-guix-mac-share-service-type
+(define roguix-mac-share-service-type
   (service-type
-   (name 'try-guix-mac-share)
+   (name 'roguix-mac-share)
    (extensions
     (list (service-extension shepherd-root-service-type
                              mac-share-shepherd-service)
@@ -193,14 +193,14 @@ home directory under the Mac folder's own name.")
 
 
 ;;; Session agents: the Arch guest runs its bridges as systemd user units
-;;; with Restart=. Hyprland starts each one here through try-guix-agent, which
+;;; with Restart=. Hyprland starts each one here through roguix-agent, which
 ;;; runs it while this compositor's socket and the bridge's virtio port exist,
 ;;; and restarts it 2 s after it exits (the bridges exit when the host side
 ;;; disconnects). Agents therefore end with the session.
 
-(define try-guix-agent
+(define roguix-agent
   (package
-    (name "try-guix-agent")
+    (name "roguix-agent")
     (version "1")
     (source #f)
     (build-system trivial-build-system)
@@ -210,13 +210,13 @@ home directory under the Mac folder's own name.")
       #:builder
       #~(begin
           (use-modules (guix build utils))
-          (let ((program (string-append #$output "/bin/try-guix-agent")))
+          (let ((program (string-append #$output "/bin/roguix-agent")))
             (mkdir-p (dirname program))
             (call-with-output-file program
               (lambda (port)
                 (format port "#!~a
-# try-guix-agent PORT PROGRAM...: keep PROGRAM running for this session.
-[ -n \"$WAYLAND_DISPLAY\" ] || { echo 'try-guix-agent: no Wayland session' >&2; exit 1; }
+# roguix-agent PORT PROGRAM...: keep PROGRAM running for this session.
+[ -n \"$WAYLAND_DISPLAY\" ] || { echo 'roguix-agent: no Wayland session' >&2; exit 1; }
 socket=\"$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY\"
 port=$1
 shift
@@ -227,7 +227,7 @@ done
 " #$(file-append bash-minimal "/bin/sh"))))
             (chmod program #o555)))))
     (home-page "https://github.com/omacom/try-omarchy")
-    (synopsis "Restart a Try Guix bridge for the life of the session")
+    (synopsis "Restart a Roguix bridge for the life of the session")
     (description "Run a host bridge while the Wayland session and its virtio
 port exist, restarting it after it exits.")
     (license license:expat)))
@@ -266,25 +266,25 @@ port exist, restarting it after it exits.")
 ;;; Clipboard: JSON lines on dev.tryomarchy.clipboard; wl-clipboard's
 ;;; data-control protocol observes and replaces the Hyprland selection.
 
-(define try-guix-clipboard-bridge
-  (arch-guest-python-script "try-guix-clipboard-bridge" "clipboard-bridge"
+(define roguix-clipboard-bridge
+  (arch-guest-python-script "roguix-clipboard-bridge" "clipboard-bridge"
                             (local-file "clipboard-bridge")
                             #:tools '("bin/wl-paste")
                             #:inputs (list wl-clipboard)
                             #:synopsis "Share the Wayland clipboard with macOS"))
 
-(define try-guix-clipboard-service-type
+(define roguix-clipboard-service-type
   (service-type
-   (name 'try-guix-clipboard)
+   (name 'roguix-clipboard)
    (extensions
     (list (service-extension udev-service-type
                              (const
                               (list (udev-rule
-                                     "92-try-guix-clipboard.rules"
+                                     "92-roguix-clipboard.rules"
                                      "SUBSYSTEM==\"virtio-ports\", ATTR{name}==\"dev.tryomarchy.clipboard\", GROUP=\"users\", MODE=\"0660\"\n"))))
           (service-extension profile-service-type
-                             (const (list try-guix-agent
-                                          try-guix-clipboard-bridge
+                             (const (list roguix-agent
+                                          roguix-clipboard-bridge
                                           wl-clipboard)))))
    (default-value #f)
    (description "Install the clipboard bridge and its port permissions.")))
@@ -296,14 +296,14 @@ port exist, restarting it after it exits.")
 
 (define (ssh-access-shepherd-service _)
   (list (shepherd-service
-         (provision '(try-guix-ssh-access))
-         (requirement '(try-guix-host-settings))
+         (provision '(roguix-ssh-access))
+         (requirement '(roguix-host-settings))
          (one-shot? #t)
          (documentation "Start sshd when the launcher forwards SSH.")
          (start #~(lambda _
                     (let ((settings
                            (false-if-exception
-                            (call-with-input-file #$%try-guix-host-settings-file
+                            (call-with-input-file #$%roguix-host-settings-file
                               (@ (ice-9 rdelim) read-line)))))
                       (when (and (string? settings)
                                  (member "tryomarchy.ssh_access=1"
@@ -311,9 +311,9 @@ port exist, restarting it after it exits.")
                         (start-service (lookup-service 'ssh-daemon)))
                       #t))))))
 
-(define try-guix-ssh-access-service-type
+(define roguix-ssh-access-service-type
   (service-type
-   (name 'try-guix-ssh-access)
+   (name 'roguix-ssh-access)
    (extensions
     (list (service-extension shepherd-root-service-type
                              ssh-access-shepherd-service)))
@@ -326,21 +326,21 @@ port exist, restarting it after it exits.")
 ;;; WirePlumber and pipewire-pulse run per session like the bridges; the
 ;;; Arch guest's graph quantum setting for the emulated HDA is installed as is.
 
-(define try-guix-audio-bridge
-  (arch-guest-python-script "try-guix-audio-bridge" "audio-bridge"
+(define roguix-audio-bridge
+  (arch-guest-python-script "roguix-audio-bridge" "audio-bridge"
                             (local-file "audio-bridge")
                             #:tools '("bin/pactl")
                             #:inputs (list pulseaudio)
                             #:synopsis "Expose macOS audio devices to PipeWire"))
 
-(define try-guix-audio-service-type
+(define roguix-audio-service-type
   (service-type
-   (name 'try-guix-audio)
+   (name 'roguix-audio)
    (extensions
     (list (service-extension udev-service-type
                              (const
                               (list (udev-rule
-                                     "91-try-guix-audio.rules"
+                                     "91-roguix-audio.rules"
                                      "SUBSYSTEM==\"virtio-ports\", ATTR{name}==\"dev.tryomarchy.audio\", GROUP=\"audio\", MODE=\"0660\"\n"))))
           (service-extension etc-service-type
                              (const
@@ -348,8 +348,8 @@ port exist, restarting it after it exits.")
                                  ,(local-file "pipewire-quantum.conf")))))
           (service-extension profile-service-type
                              (const (list pipewire wireplumber pulseaudio
-                                          try-guix-agent
-                                          try-guix-audio-bridge)))))
+                                          roguix-agent
+                                          roguix-audio-bridge)))))
    (default-value #f)
    (description "Run PipeWire per session with the macOS audio bridge.")))
 
@@ -358,14 +358,14 @@ port exist, restarting it after it exits.")
 ;;; v4l2loopback device (operating-system kernel-loadable-modules must list
 ;;; v4l2loopback-linux-module). Module options are the Arch guest's.
 
-(define try-guix-camera-bridge
-  (arch-guest-python-script "try-guix-camera-bridge" "camera-bridge"
+(define roguix-camera-bridge
+  (arch-guest-python-script "roguix-camera-bridge" "camera-bridge"
                             (local-file "camera-bridge")
                             #:synopsis "Expose the macOS camera as /dev/video42"))
 
-(define try-guix-camera-service-type
+(define roguix-camera-service-type
   (service-type
-   (name 'try-guix-camera)
+   (name 'roguix-camera)
    (extensions
     (list (service-extension kernel-module-loader-service-type
                              (const '("v4l2loopback")))
@@ -376,12 +376,12 @@ port exist, restarting it after it exits.")
           (service-extension udev-service-type
                              (const
                               (list (udev-rule
-                                     "94-try-guix-camera.rules"
+                                     "94-roguix-camera.rules"
                                      "SUBSYSTEM==\"virtio-ports\", ATTR{name}==\"dev.tryomarchy.camera\", GROUP=\"video\", MODE=\"0660\"
 KERNEL==\"video42\", SUBSYSTEM==\"video4linux\", GROUP=\"video\", MODE=\"0660\"\n"))))
           (service-extension profile-service-type
-                             (const (list try-guix-agent
-                                          try-guix-camera-bridge)))))
+                             (const (list roguix-agent
+                                          roguix-camera-bridge)))))
    (default-value #f)
    (description "Load v4l2loopback and install the macOS camera bridge.")))
 
@@ -392,24 +392,24 @@ KERNEL==\"video42\", SUBSYSTEM==\"video4linux\", GROUP=\"video\", MODE=\"0660\"\
 ;;;
 ;;; The Arch guest edits /etc/pam.d/sudo when the owner opts in. Guix generates
 ;;; /etc/pam.d, so sudo always carries one `sufficient' pam_exec rule, and its
-;;; gate fails at once unless try-guix-touch-id-control has enrolled with the
+;;; gate fails at once unless roguix-touch-id-control has enrolled with the
 ;;; host and written %touch-id-marker. Until then the rule changes nothing;
 ;;; afterwards any failure still falls back to the password. Enrollment comes
 ;;; before the marker and disabling removes the marker first, as in the Arch
 ;;; control script.
 
-(define %touch-id-marker "/var/lib/try-guix/touch-id-enabled")
+(define %touch-id-marker "/var/lib/roguix/touch-id-enabled")
 
-(define try-guix-touch-id
+(define roguix-touch-id
   (package
-    (name "try-guix-touch-id")
+    (name "roguix-touch-id")
     (version "1")
     (source (local-file "authentication-broker"))
     (build-system copy-build-system)
     (arguments
      (list
       #:install-plan
-      #~'(("authentication-broker" "libexec/try-guix/authentication-broker"))
+      #~'(("authentication-broker" "libexec/roguix/authentication-broker"))
       #:phases
       #~(modify-phases %standard-phases
           (add-after 'unpack 'use-store-openssl
@@ -423,12 +423,12 @@ KERNEL==\"video42\", SUBSYSTEM==\"video4linux\", GROUP=\"video\", MODE=\"0660\"\
           (add-after 'install 'install-commands
             (lambda _
               (let* ((broker (string-append
-                              #$output "/libexec/try-guix/authentication-broker"))
+                              #$output "/libexec/roguix/authentication-broker"))
                      (sh #$(file-append bash-minimal "/bin/sh"))
                      (sudo "/run/privileged/bin/sudo")
-                     (gate (string-append #$output "/libexec/try-guix/touch-id-gate"))
-                     (control (string-append #$output "/sbin/try-guix-touch-id-control"))
-                     (user (string-append #$output "/bin/try-guix-touch-id")))
+                     (gate (string-append #$output "/libexec/roguix/touch-id-gate"))
+                     (control (string-append #$output "/sbin/roguix-touch-id-control"))
+                     (user (string-append #$output "/bin/roguix-touch-id")))
                 (define (script file text)
                   (mkdir-p (dirname file))
                   (call-with-output-file file
@@ -443,7 +443,7 @@ exec " broker " pam
                 (script control (string-append "\
 set -eu
 marker=" #$%touch-id-marker "
-[ \"$(id -u)\" = 0 ] || { echo 'try-guix-touch-id-control: run as root' >&2; exit 1; }
+[ \"$(id -u)\" = 0 ] || { echo 'roguix-touch-id-control: run as root' >&2; exit 1; }
 case \"${1:-}\" in
   enable)
     " broker " enroll
@@ -459,7 +459,7 @@ case \"${1:-}\" in
     \"$0\" disable
     \"$0\" enable ;;
   *)
-    echo 'Usage: try-guix-touch-id-control enable|disable|repair' >&2
+    echo 'Usage: roguix-touch-id-control enable|disable|repair' >&2
     exit 64 ;;
 esac
 "))
@@ -475,7 +475,7 @@ Secure Enclave signature, with the password as fallback.")
     (license license:expat)))
 
 (define touch-id-gate
-  (file-append try-guix-touch-id "/libexec/try-guix/touch-id-gate"))
+  (file-append roguix-touch-id "/libexec/roguix/touch-id-gate"))
 
 (define (touch-id-pam-extension _)
   (list (pam-extension
@@ -493,17 +493,17 @@ Secure Enclave signature, with the password as fallback.")
                              (pam-service-auth service))))
                 service))))))
 
-(define try-guix-touch-id-service-type
+(define roguix-touch-id-service-type
   (service-type
-   (name 'try-guix-touch-id)
+   (name 'roguix-touch-id)
    (extensions
     (list (service-extension pam-root-service-type touch-id-pam-extension)
           (service-extension udev-service-type
                              (const
                               (list (udev-rule
-                                     "93-try-guix-authentication.rules"
+                                     "93-roguix-authentication.rules"
                                      "SUBSYSTEM==\"virtio-ports\", ATTR{name}==\"dev.tryomarchy.authentication\", OWNER=\"root\", GROUP=\"root\", MODE=\"0600\"\n"))))
           (service-extension profile-service-type
-                             (const (list try-guix-touch-id)))))
+                             (const (list roguix-touch-id)))))
    (default-value #f)
    (description "Offer Touch ID approval for sudo, inert until enabled.")))

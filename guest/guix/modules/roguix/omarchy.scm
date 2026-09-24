@@ -1,4 +1,4 @@
-;;; Try Guix — the Omarchy 4 desktop on Guix System.
+;;; Roguix — the Omarchy 4 desktop on Guix System.
 ;;;
 ;;; Omarchy 4 ("Quattro") is installed like the Arch guest installs it: the
 ;;; pinned upstream tree as a package at /usr/share/omarchy (OMARCHY_PATH's
@@ -12,7 +12,7 @@
 ;;; commands, busctl's notification calls go through gdbus, and nothing from
 ;;; its installer, package manager or systemd units runs. Menus that manage
 ;;; Arch packages or systemd timers therefore do nothing here.
-(define-module (try-guix omarchy)
+(define-module (roguix omarchy)
   #:use-module (guix packages)
   #:use-module (guix gexp)
   #:use-module (guix download)
@@ -43,11 +43,11 @@
   #:use-module (gnu packages xdisorg)
   #:use-module (gnu services)
   #:use-module (gnu system pam)
-  #:use-module (try-guix packages)
+  #:use-module (roguix packages)
   #:export (omarchy
             font-jetbrains-mono-nerd
-            try-guix-omarchy-compat
-            try-guix-omarchy-service-type))
+            roguix-omarchy-compat
+            roguix-omarchy-service-type))
 
 ;; guest/spec.json upstream: basecamp/omarchy 4.0.2, tree 24ff1b25.
 (define omarchy
@@ -75,7 +75,7 @@
             ;; Programs come from Guix and /etc/config.scm, never pacman or
             ;; the AUR: the menu's Install, Remove and Update entries are
             ;; Guix's (omarchy-menu.py), Omarchy's package helpers call
-            ;; try-guix-pkg, and its Arch-only package commands are gone.
+            ;; roguix-pkg, and its Arch-only package commands are gone.
             (lambda* (#:key native-inputs inputs #:allow-other-keys)
               (let* ((omarchy (string-append #$output "/share/omarchy"))
                      (bin (string-append omarchy "/bin"))
@@ -92,30 +92,30 @@
                    (let ((file (string-append bin "/" (car helper))))
                      (call-with-output-file file
                        (lambda (port)
-                         (format port "#!/bin/bash~%# Try Guix: ~a~%~a~%"
+                         (format port "#!/bin/bash~%# Roguix: ~a~%~a~%"
                                  (cadr helper) (caddr helper))))
                      (chmod file #o555)))
                  '(("omarchy-pkg-add" "add Guix packages to /etc/config.scm"
-                    "exec sudo try-guix-pkg add \"$@\"")
+                    "exec sudo roguix-pkg add \"$@\"")
                    ("omarchy-pkg-drop" "remove Guix packages from /etc/config.scm"
-                    "exec sudo try-guix-pkg remove \"$@\"")
+                    "exec sudo roguix-pkg remove \"$@\"")
                    ("omarchy-pkg-present" "all of these Guix packages are installed"
-                    "exec try-guix-pkg present \"$@\"")
+                    "exec roguix-pkg present \"$@\"")
                    ("omarchy-pkg-missing" "some of these Guix packages are missing"
-                    "! try-guix-pkg present \"$@\"")
+                    "! roguix-pkg present \"$@\"")
                    ("omarchy-pkg-install" "choose Guix packages to install"
-                    "exec try-guix-pkg pick-add")
+                    "exec roguix-pkg pick-add")
                    ("omarchy-pkg-remove" "choose Guix packages to remove"
-                    "exec try-guix-pkg pick-remove")))
+                    "exec roguix-pkg pick-remove")))
                 ;; The menu decides what is installed from pacman's database.
                 (substitute* (string-append omarchy "/shell/plugins/menu/MenuModel.js")
-                  (("pacman -Qq; LC_ALL=C pacman -Qi") "try-guix-pkg list; true")
-                  (("pacman -Q \"[$]1\"") "try-guix-pkg present \"$1\"")))))
-          (add-after 'install 'use-guix-logo
+                  (("pacman -Qq; LC_ALL=C pacman -Qi") "roguix-pkg list; true")
+                  (("pacman -Q \"[$]1\"") "roguix-pkg present \"$1\"")))))
+          (add-after 'install 'use-roguix-logo
             ;; omarchy-show-logo and friends print logo.txt: say GUIX, in
             ;; Omarchy's own block lettering, instead of OMARCHY.
             (lambda _
-              (copy-file #$(local-file "guix-logo.txt")
+              (copy-file #$(local-file "roguix-logo.txt")
                          (string-append #$output "/share/omarchy/logo.txt"))))
           (add-after 'use-guix-packages 'link-commands
             ;; The Arch package installs each command in /usr/bin.
@@ -158,25 +158,25 @@ configuration, Quickshell desktop shell, themes and helper commands.")
 ;;; Compatibility commands for Omarchy's Arch assumptions, plus the Arch
 ;;; guest's xdg-terminal-exec (byte-identical copy) and the per-user seed.
 
-(define try-guix-omarchy-compat
+(define roguix-omarchy-compat
   (package
-    (name "try-guix-omarchy-compat")
+    (name "roguix-omarchy-compat")
     (version "1")
-    (source (local-file "." "try-guix-omarchy-compat-source"
+    (source (local-file "." "roguix-omarchy-compat-source"
                         #:recursive? #t
                         #:select? (lambda (file stat)
                                     (or (eq? 'directory (stat:type stat))
                                         (member (basename file)
                                                 '("busctl" "xdg-terminal-exec"
-                                                  "omarchy-seed" "guix-pkg"))))))
+                                                  "omarchy-seed" "roguix-pkg"))))))
     (build-system copy-build-system)
     (arguments
      (list
       #:install-plan
       #~'(("busctl" "bin/")
-          ("guix-pkg" "bin/try-guix-pkg")
+          ("roguix-pkg" "bin/roguix-pkg")
           ("xdg-terminal-exec" "bin/")
-          ("omarchy-seed" "bin/try-guix-omarchy-seed"))
+          ("omarchy-seed" "bin/roguix-omarchy-seed"))
       #:phases
       #~(modify-phases %standard-phases
           (add-after 'install 'install-shims
@@ -241,16 +241,16 @@ setsid sh -c 'sleep \"$0\"; exec \"$@\"' \"$delay\" \"$@\" </dev/null >/dev/null
 exit 0
 ")
               ;; Apply /etc/config.scm with the Guix that built this system
-              ;; (see (try-guix system)), which only fetches what was added.
-              (shim "try-guix-reconfigure" "\
+              ;; (see (roguix system)), which only fetches what was added.
+              (shim "roguix-reconfigure" "\
 [ \"$(id -u)\" = 0 ] || exec sudo \"$0\" \"$@\"
-exec /var/guix/gcroots/try-guix-guix/bin/guix system reconfigure \\
-  -L /etc/try-guix/modules /etc/config.scm \"$@\"
+exec /var/guix/gcroots/roguix-guix/bin/guix system reconfigure \\
+  -L /etc/roguix/modules /etc/config.scm \"$@\"
 ")
               (for-each (lambda (program)
                           (chmod (string-append #$output "/bin/" program) #o555))
-                        '("busctl" "try-guix-pkg" "xdg-terminal-exec"
-                          "try-guix-omarchy-seed"))
+                        '("busctl" "roguix-pkg" "xdg-terminal-exec"
+                          "roguix-omarchy-seed"))
               (wrap-program (string-append #$output "/bin/busctl")
                 `("PATH" ":" prefix
                   (,(dirname (search-input-file inputs "bin/gdbus"))))))))))
@@ -268,9 +268,9 @@ calls, a busctl subset over gdbus, and the Omarchy per-user seed.")
 ;; the host bridges and the per-session sound server (see integrations.scm).
 (define hypr-vm-lua
   (plain-file "hypr-vm.lua" "\
--- Try Guix VM integration, loaded from ~/.config/hypr/monitors.lua.
+-- Roguix VM integration, loaded from ~/.config/hypr/monitors.lua.
 local function host_setting(expected)
-  local file = io.open(\"/run/try-guix/host-settings\", \"r\")
+  local file = io.open(\"/run/roguix/host-settings\", \"r\")
   if not file then return false end
   local settings = file:read(\"*a\") or \"\"
   file:close()
@@ -285,13 +285,13 @@ if host_setting(\"omarchy.qemu_virgl=1\") then
 end
 
 hl.on(\"hyprland.start\", function()
-  hl.exec_cmd(\"try-guix-display-sync\")
-  hl.exec_cmd(\"try-guix-agent /dev/snd/controlC0 pipewire\")
-  hl.exec_cmd(\"try-guix-agent /dev/snd/controlC0 wireplumber\")
-  hl.exec_cmd(\"try-guix-agent /dev/snd/controlC0 pipewire-pulse\")
-  hl.exec_cmd(\"try-guix-agent /dev/virtio-ports/dev.tryomarchy.clipboard try-guix-clipboard-bridge\")
-  hl.exec_cmd(\"try-guix-agent /dev/virtio-ports/dev.tryomarchy.audio try-guix-audio-bridge\")
-  hl.exec_cmd(\"try-guix-agent /dev/virtio-ports/dev.tryomarchy.camera try-guix-camera-bridge\")
+  hl.exec_cmd(\"roguix-display-sync\")
+  hl.exec_cmd(\"roguix-agent /dev/snd/controlC0 pipewire\")
+  hl.exec_cmd(\"roguix-agent /dev/snd/controlC0 wireplumber\")
+  hl.exec_cmd(\"roguix-agent /dev/snd/controlC0 pipewire-pulse\")
+  hl.exec_cmd(\"roguix-agent /dev/virtio-ports/dev.tryomarchy.clipboard roguix-clipboard-bridge\")
+  hl.exec_cmd(\"roguix-agent /dev/virtio-ports/dev.tryomarchy.audio roguix-audio-bridge\")
+  hl.exec_cmd(\"roguix-agent /dev/virtio-ports/dev.tryomarchy.camera roguix-camera-bridge\")
 end)
 "))
 
@@ -300,19 +300,19 @@ end)
 (define (omarchy-pam-services _)
   (list (unix-pam-service "omarchy-lock-password")))
 
-(define try-guix-omarchy-service-type
+(define roguix-omarchy-service-type
   (service-type
-   (name 'try-guix-omarchy)
+   (name 'roguix-omarchy)
    (extensions
     (list (service-extension special-files-service-type
                              (const `(("/usr/share/omarchy"
                                        ,(file-append omarchy "/share/omarchy")))))
           (service-extension etc-service-type
-                             (const `(("try-guix-hypr-vm.lua" ,hypr-vm-lua))))
+                             (const `(("roguix-hypr-vm.lua" ,hypr-vm-lua))))
           (service-extension pam-root-service-type omarchy-pam-services)
           (service-extension profile-service-type
                              (const
-                              (list omarchy try-guix-omarchy-compat quickshell-0.3
+                              (list omarchy roguix-omarchy-compat quickshell-0.3
                                     foot jq socat inotify-tools hyprsunset ncurses
                                     fzf
                                     fontconfig procps gawk util-linux curl

@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""try-guix-pkg: the programs of this Guix system, for people and Omarchy.
+"""roguix-pkg: the programs of this Guix system, for people and Omarchy.
 
-  try-guix-pkg add NAME...      add to /etc/config.scm and reconfigure (root)
-  try-guix-pkg remove NAME...   remove from /etc/config.scm and reconfigure
-  try-guix-pkg present NAME...  exit 0 when every NAME is installed
-  try-guix-pkg list             the installed package names
-  try-guix-pkg pick-add         choose from all Guix packages, then add
-  try-guix-pkg pick-remove      choose from /etc/config.scm, then remove
+  roguix-pkg add NAME...      add to /etc/config.scm and reconfigure (root)
+  roguix-pkg remove NAME...   remove from /etc/config.scm and reconfigure
+  roguix-pkg present NAME...  exit 0 when every NAME is installed
+  roguix-pkg list             the installed package names
+  roguix-pkg pick-add         choose from all Guix packages, then add
+  roguix-pkg pick-remove      choose from /etc/config.scm, then remove
 
 NAME is a Guix package name (`guix search' finds them). Every program is part
 of the declarative system configuration: `add' edits the package list in
-/etc/config.scm and applies it with try-guix-reconfigure (`guix system
+/etc/config.scm and applies it with roguix-reconfigure (`guix system
 reconfigure' with the Guix that built this system). Omarchy's package helpers
 and its Install and Remove menus use this; a name Guix does not package is
 refused.
@@ -22,11 +22,11 @@ import subprocess
 import sys
 
 CONFIG = "/etc/config.scm"
-BEGIN = ";; BEGIN try-guix packages"
-END = ";; END try-guix packages"
+BEGIN = ";; BEGIN roguix packages"
+END = ";; END roguix packages"
 PROFILE_MANIFEST = "/run/current-system/profile/manifest"
-GUIX = "/var/guix/gcroots/try-guix-guix/bin/guix"
-RECONFIGURE = "/run/current-system/profile/bin/try-guix-reconfigure"
+GUIX = "/var/guix/gcroots/roguix-guix/bin/guix"
+RECONFIGURE = "/run/current-system/profile/bin/roguix-reconfigure"
 
 
 class Failure(Exception):
@@ -176,10 +176,10 @@ def main(argv):
             return pick_add()
         if command == "pick-remove" and not names:
             return pick_remove()
-        raise Failure("usage: try-guix-pkg add|remove|present NAME... "
+        raise Failure("usage: roguix-pkg add|remove|present NAME... "
                       "| list | pick-add | pick-remove")
     except Failure as error:
-        print(f"\033[31mtry-guix-pkg: {error}\033[0m", file=sys.stderr)
+        print(f"\033[31mroguix-pkg: {error}\033[0m", file=sys.stderr)
         return 1
 
 

@@ -986,7 +986,7 @@ assert_eq "$QEMU_SELECTED_DISK" "$uefi_root/guix/disks/current/disk.raw"
 assert_eq "$QEMU_SELECTED_KERNEL" ''
 assert_eq "$QEMU_PERSISTENT_STORAGE_NEEDS_BOOT_RECOVERY" 0
 assert_eq "$(/usr/bin/stat -f '%z' "$QEMU_SELECTED_DISK")" "$uefi_working_bytes"
-assert grep -Fq '"kind":"try-guix-qemu-persistent-disk"' "$uefi_root/guix/disks/current/metadata.json"
+assert grep -Fq '"kind":"roguix-qemu-persistent-disk"' "$uefi_root/guix/disks/current/metadata.json"
 printf 'guix-persistence' | dd of="$QEMU_SELECTED_DISK" bs=1 seek="$gpt_bytes" conv=notrunc >/dev/null 2>&1
 qemu_persistent_storage_release_lock
 qemu_persistent_storage_select_existing "$identity_uefi"

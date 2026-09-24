@@ -7,13 +7,13 @@ set -euo pipefail
 
 omarchy=${OMARCHY_PATH:-/usr/share/omarchy}
 state=$HOME/.local/state/omarchy
-marker=$state/done/try-guix-seed
+marker=$state/done/roguix-seed
 [[ -e $marker ]] && exit 0
 
 mkdir -p "$HOME/.config" "$state/done" "$state/toggles/hypr" \
   "$HOME/.local/share/applications" "$HOME/.config/fontconfig/conf.d"
 
-# The pre-Omarchy Try Guix image gave every account its own small
+# The pre-Omarchy Roguix image gave every account its own small
 # hyprland.lua; replace only that file, never one the owner wrote.
 if grep -qs "A small native Guix session" "$HOME/.config/hypr/hyprland.lua"; then
   rm -f "$HOME/.config/hypr/hyprland.lua"
@@ -30,9 +30,9 @@ copy_missing "$omarchy/default/fontconfig/conf.avail/50-omarchy.conf" \
   "$HOME/.config/fontconfig/conf.d/50-omarchy.conf"
 
 # The VM integration, where the Arch guest appends its QEMU fragment.
-include='dofile("/etc/try-guix-hypr-vm.lua")'
+include='dofile("/etc/roguix-hypr-vm.lua")'
 if ! grep -qsF "$include" "$HOME/.config/hypr/monitors.lua"; then
-  printf '\n-- Try Guix: cursor, display size and host bridges for this VM.\n%s\n' \
+  printf '\n-- Roguix: cursor, display size and host bridges for this VM.\n%s\n' \
     "$include" >>"$HOME/.config/hypr/monitors.lua"
 fi
 
