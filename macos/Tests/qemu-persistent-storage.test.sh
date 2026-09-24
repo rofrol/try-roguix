@@ -947,4 +947,67 @@ assert_fails _qps_validate_kernel_command_line \
 assert_fails _qps_validate_kernel_command_line \
   "$valid_command_line tryomarchy.export_boot=1"
 
+# A UEFI (Guix) guest keeps its GPT disk in a `guix` subdirectory of the same
+# state root, needs no boot kit, and leaves an Arch VM beside it untouched.
+uefi_root="$test_root/uefi-state"
+export OMARCHY_QEMU_GPU_STATE_ROOT=$uefi_root
+export OMARCHY_QEMU_GPU_DEVELOPMENT_MULTI_DISK=0
+qemu_persistent_storage_configure_guest direct
+qemu_persistent_storage_select \
+  persistent "$identity_a" "$source_disk" "$source_sha" "$source_bytes" '' \
+  "$source_bytes" "$kernel_a" "$initramfs_a" "$kernel_command_line_a"
+arch_disk=$QEMU_SELECTED_DISK
+qemu_persistent_storage_release_lock
+
+gpt_disk="$test_root/source.gpt"
+dd if=/dev/zero of="$gpt_disk" bs=4096 count=2 >/dev/null 2>&1
+printf 'EFI PART' | dd of="$gpt_disk" bs=1 seek=512 conv=notrunc >/dev/null 2>&1
+gpt_bytes=$(/usr/bin/stat -f '%z' "$gpt_disk")
+gpt_sha=$(shasum -a 256 "$gpt_disk" | awk '{print $1}')
+identity_uefi=$(printf 'bundle-uefi' | shasum -a 256 | awk '{print $1}')
+assert_fails qemu_persistent_storage_configure_guest bios
+qemu_persistent_storage_configure_guest uefi
+
+# An ext4 payload under a UEFI identity is refused before it is published.
+assert_fails qemu_persistent_storage_materialize_source \
+  "$identity_uefi" "$source_disk" "$source_bytes" "$source_sha" "$source_bytes" "$zstd_test"
+assert test ! -e "$uefi_root/guix/images/$identity_uefi.raw"
+qemu_persistent_storage_materialize_source \
+  "$identity_uefi" "$gpt_disk" "$gpt_bytes" "$gpt_sha" "$gpt_bytes" "$zstd_test"
+assert_eq "$QEMU_IMMUTABLE_SOURCE_DISK" "$uefi_root/guix/images/$identity_uefi.raw"
+uefi_source=$QEMU_IMMUTABLE_SOURCE_DISK
+
+assert_status "$QEMU_PERSISTENT_STORAGE_MISSING_STATUS" \
+  qemu_persistent_storage_select_existing "$identity_uefi"
+uefi_working_bytes=$((gpt_bytes + 8192))
+qemu_persistent_storage_select \
+  persistent "$identity_uefi" "$uefi_source" "$gpt_sha" "$gpt_bytes" '' "$uefi_working_bytes"
+assert_eq "$QEMU_SELECTED_DISK" "$uefi_root/guix/disks/current/disk.raw"
+assert_eq "$QEMU_SELECTED_KERNEL" ''
+assert_eq "$QEMU_PERSISTENT_STORAGE_NEEDS_BOOT_RECOVERY" 0
+assert_eq "$(/usr/bin/stat -f '%z' "$QEMU_SELECTED_DISK")" "$uefi_working_bytes"
+assert grep -Fq '"kind":"try-guix-qemu-persistent-disk"' "$uefi_root/guix/disks/current/metadata.json"
+printf 'guix-persistence' | dd of="$QEMU_SELECTED_DISK" bs=1 seek="$gpt_bytes" conv=notrunc >/dev/null 2>&1
+qemu_persistent_storage_release_lock
+qemu_persistent_storage_select_existing "$identity_uefi"
+assert_eq "$(dd if="$QEMU_SELECTED_DISK" bs=1 skip="$gpt_bytes" count=16 2>/dev/null)" guix-persistence
+assert_eq "$QEMU_PERSISTENT_STORAGE_NEEDS_BOOT_RECOVERY" 0
+qemu_persistent_storage_release_lock
+assert_eq "$(find "$uefi_root/guix/boot" -mindepth 1 | wc -l | tr -d ' ')" 0
+
+# Resetting the Guix VM discards only its own workspace.
+qemu_persistent_storage_select \
+  reset "$identity_uefi" "$uefi_source" "$gpt_sha" "$gpt_bytes" '' "$uefi_working_bytes"
+assert_eq "$(dd if="$QEMU_SELECTED_DISK" bs=1 skip="$gpt_bytes" count=16 2>/dev/null | tr -d '\0')" ''
+qemu_persistent_storage_release_lock
+assert cmp -s "$arch_disk" "$source_disk"
+assert test -f "$uefi_root/disks/current/rootfs.ext4"
+
+uefi_work="$test_root/uefi-ephemeral"
+mkdir -m 700 "$uefi_work"
+qemu_persistent_storage_select \
+  ephemeral "$identity_uefi" "$uefi_source" "$gpt_sha" "$gpt_bytes" "$uefi_work" "$uefi_working_bytes"
+assert_eq "$QEMU_SELECTED_DISK" "$uefi_work/disk.raw"
+qemu_persistent_storage_configure_guest direct
+
 printf 'qemu-persistent-storage.test: PASS\n'
