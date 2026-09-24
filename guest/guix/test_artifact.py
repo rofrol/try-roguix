@@ -119,6 +119,17 @@ class InspectDiskTests(unittest.TestCase):
             artifact.inspect_disk(self.path)
 
 
+class SystemFilesTests(unittest.TestCase):
+    def test_digest_covers_exactly_the_files_the_image_installs(self):
+        import re
+        text = (HERE / "system.scm").read_text()
+        listed = re.search(r"\(member name '\(([^)]*)\)", text).group(1)
+        installed = set(re.findall(r'"([^"]+)"', listed))
+        self.assertEqual({Path(name).name for name in package.SYSTEM_FILES}, installed)
+        for name in package.SYSTEM_FILES:
+            self.assertTrue((HERE / name).is_file(), name)
+
+
 @unittest.skipUnless(shutil.which("zstd") or package.ZSTD.is_file(), "needs zstd")
 class PackageTests(unittest.TestCase):
     def setUp(self):

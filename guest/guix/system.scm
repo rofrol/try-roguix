@@ -3,7 +3,8 @@
              (gnu system linux-initrd)
              (ice-9 regex)
              (srfi srfi-1)
-             (try-guix packages))
+             (try-guix packages)
+             (try-guix services))
 (use-service-modules desktop sddm xorg)
 (use-package-modules fonts gl linux terminals window-management xdisorg)
 
@@ -22,8 +23,8 @@
 (define (try-guix-source? file stat)
   (let ((name (basename file)))
     (or (eq? 'directory (stat:type stat))
-        (member name '("system.scm" "hyprland.lua" "packages.scm" "display-sync"
-                       "hyprland-rounded-border-coverage.patch")))))
+        (member name '("system.scm" "hyprland.lua" "packages.scm" "services.scm"
+                       "display-sync" "hyprland-rounded-border-coverage.patch")))))
 
 (operating-system
   (host-name "try-guix")
@@ -36,15 +37,19 @@
                          (base-initrd-modules linux-libre)))
   (kernel-arguments (cons "console=hvc0" %default-kernel-arguments))
 
-  ;; Native Guix image first; the launcher needs a reviewed Guix boot contract
-  ;; before this can replace its unpartitioned Arch factory disk.
+  ;; The launcher boots EDK2 with -bios, which keeps no UEFI variables, so
+  ;; GRUB must live at the removable-media path EFI/BOOT/BOOTAA64.EFI; every
+  ;; reconfigure reinstalls it there.
   (bootloader (bootloader-configuration
-                (bootloader grub-efi-bootloader)
+                (bootloader grub-efi-removable-bootloader)
                 (targets '("/boot/efi"))))
+  ;; The image itself mounts / by a UUID that `guix system image` derives; this
+  ;; label is what that partition's ext4 carries, so an in-guest reconfigure
+  ;; of this file finds the same root.
   (file-systems
    (cons* (file-system
             (mount-point "/")
-            (device (file-system-label "guix-root"))
+            (device (file-system-label "Guix_image"))
             (type "ext4"))
           (file-system
             (mount-point "/boot/efi")
@@ -84,6 +89,7 @@
           (simple-service 'try-guix-hyprland account-service-type
                           `((".config/hypr/hyprland.lua"
                              ,(local-file "hyprland.lua"))))
+          (service try-guix-grow-root-service-type)
           (service sddm-service-type)
           (remove (lambda (service)
                     (memq (service-kind service)

@@ -191,6 +191,30 @@ and with `AQ_NO_ATOMIC=1` the log showed `drmModeSetCrtc failed: No space left
 on device`, i.e. a modeset with the old, smaller framebuffer. Runtime rules and
 config reloads did not help. Cursor handling is still unverified.
 
+## Guest side of the persistent disk
+
+The launcher will keep a VM's writes on its own copy of the disk and grow it
+by extending the file. The guest cooperates without launcher-specific kernel
+arguments:
+
+- GRUB is installed with `grub-efi-removable-bootloader` at
+  `EFI/BOOT/BOOTAA64.EFI`. EDK2 started with `-bios` keeps no UEFI variables,
+  so this is the path it boots, and every `guix system reconfigure`
+  reinstalls it there.
+- `/` is declared by the label `Guix_image`, which the partition's ext4
+  carries. The image mounts it by a derived UUID; an in-guest reconfigure of
+  `/etc/try-guix/system.scm` mounts the same file system by label.
+- The one-shot Shepherd service `try-guix-grow-root`
+  (`modules/try-guix/services.scm`) runs after `file-systems` and `udev`. If
+  more than 1 MiB lies after partition 2 of `/dev/vdX`, it relocates the
+  backup GPT (`sfdisk --relocate gpt-bak-std`), extends partition 2 in place
+  (`sfdisk -N 2`, keeping start, type, GUID and name), tells the kernel
+  (`partx --update`) and runs `resize2fs` online. `resize2fs` runs on every
+  boot, so a growth interrupted after `sfdisk` completes on the next boot.
+
+On the first boot, `fsck.fat` repairs `.`/`..` entries in the ESP that
+genimage writes; later boots find nothing to fix.
+
 ## Not connected to the launcher yet
 
 `make guest`, `make build` and the app still use the original Arch pipeline.
