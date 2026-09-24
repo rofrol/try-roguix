@@ -15,7 +15,7 @@ PACKAGE_NOTARY_PROFILE ?= $(RELEASE_NOTARY_PROFILE)
 FORCE ?= 0
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor test guest runtime app build run run-ephemeral reset update-omarchy version-preflight package package-preflight release release-preflight clean clean-all clean-guest
+.PHONY: help doctor test guest guix-package runtime app build run run-ephemeral reset update-omarchy version-preflight package package-preflight release release-preflight clean clean-all clean-guest
 
 help:
 	@printf '%s\n' \
@@ -37,6 +37,8 @@ help:
 	  '  make guest          Ensure dist/guest is current (Docker)' \
 	  '  make runtime        Ensure macos/.build/qemu-gpu-runtime is current' \
 	  '  make app            Ensure both artifacts and the app are current' \
+	  '  make guix-package GUIX_IMAGE=/path/image.raw' \
+	  '                      Package a built Guix EFI image into dist/guix' \
 	  '' \
 	  'Storage:' \
 	  '  make run-ephemeral  Run without retaining VM changes' \
@@ -65,6 +67,7 @@ test:
 	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/tests/test-pack-app-icon.py"
 	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/guest/guix/test_build.py"
 	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/guest/guix/test_run.py"
+	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/guest/guix/test_artifact.py"
 	@$(ROOT)/guest/test
 	@$(ROOT)/macos/Tests/macos-compatibility.test.sh
 	@$(ROOT)/macos/Tests/runtime-relocation.test.sh
@@ -84,6 +87,10 @@ guest:
 	@OMARCHY_FORCE_BUILD="$(FORCE)" "$(BUILD_CACHE)" \
 	  --root "$(ROOT)" --state-dir "$(BUILD_STATE)" guest -- \
 	  "$(ROOT)/guest/build-container.sh" --output "$(GUEST_DIST)"
+
+guix-package: runtime
+	@test -n "$(GUIX_IMAGE)" || { echo 'Set GUIX_IMAGE to a raw image from guest/guix/build.py' >&2; exit 64; }
+	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/guest/guix/package.py" --image "$(GUIX_IMAGE)"
 
 runtime:
 	@OMARCHY_FORCE_BUILD="$(FORCE)" "$(BUILD_CACHE)" \

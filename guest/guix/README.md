@@ -101,6 +101,32 @@ guest pair, built without systemd/UWSM like the upstream package. Notes:
   installs a copy under `/etc/try-guix` so an in-guest `guix system
   reconfigure` keeps these versions instead of reverting to 0.55.4.
 
+## Package the launcher artifact
+
+```sh
+make guix-package GUIX_IMAGE=/absolute/path/to/image.raw
+```
+
+`package.py` accepts only the exact `efi-raw` layout: a protective MBR,
+identical primary and backup GPT headers with valid CRCs, partition 1 an EFI
+system partition (FAT) at LBA 2048 and partition 2 an ext4 root labelled
+`Guix_image`, nothing else. It writes `dist/guix/` with exactly:
+
+- `disk.raw.zst`: the disk, compressed with the runtime's pinned `zstd`;
+- `guix-manifest.json`: kind `try-guix-guest-artifacts`, boot ABI
+  `uefi-gpt-v1`, the recorded partition layout, raw and compressed sizes and
+  SHA-256 values, the Guix commit, a digest of the system definition files, and
+  the credentials profile;
+- `SHA256SUMS` for the other two files.
+
+The directory is staged beside its target and renamed into place only after
+`artifact.validate_artifacts` passes, including a full decompression that
+must reproduce the raw SHA-256. An existing output is never replaced.
+`systemFilesSHA256` records the definition present when packaging; the image
+itself is not re-derived. The credentials profile is `development-password`
+while the image bakes a password hash; release packaging needs first-boot
+account creation instead.
+
 ## Ephemeral graphics smoke test on macOS
 
 Build the existing runtime with `make runtime`. Copy the completed raw image
