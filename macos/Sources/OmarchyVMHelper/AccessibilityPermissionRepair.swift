@@ -1,7 +1,7 @@
 import Foundation
 
 enum AccessibilityPermissionRepair {
-    static let bundleIdentifier = "dev.tryomarchy.native"
+    static let bundleIdentifier = "dev.tryguix.native"
 
     /// Remove only this app's Accessibility decision before asking macOS to
     /// register the currently installed code. This repairs TCC records left

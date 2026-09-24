@@ -38,7 +38,7 @@ final class NetworkEditor: NSObject {
         self.didClose = didClose
         super.init()
         alert.messageText = "Networking"
-        alert.informativeText = "Changes apply the next time you start Omarchy."
+        alert.informativeText = "Changes apply the next time you start Guix."
         alert.addButton(withTitle: "Save")
         alert.addButton(withTitle: "Cancel")
         mode.addItems(withTitles: ["Shared connection (NAT)", "Bridged, own LAN address"])
@@ -104,7 +104,7 @@ final class NetworkEditor: NSObject {
             isWiFi: interfaces[interface.indexOfSelectedItem].isWiFi,
             supported: VMNetworkPolicy.supportsWiFiCompatibility)
         explanation.stringValue = compatibilityRequired
-            ? "Wi-Fi bridging on this Mac temporarily adjusts DHCP handling for all bridged VMs, including other virtualization apps. The previous setting is restored when Omarchy stops. Saving this choice enables that handling automatically."
+            ? "Wi-Fi bridging on this Mac temporarily adjusts DHCP handling for all bridged VMs, including other virtualization apps. The previous setting is restored when Guix stops. Saving this choice enables that handling automatically."
             : "The networking helper is approved once through macOS. Subsequent bridged launches do not ask for your password."
         copyMAC.isEnabled = !serviceBusy && !currentMAC.isEmpty
         regenerateMAC.isEnabled = !serviceBusy && !currentMAC.isEmpty && canReplaceMAC
@@ -112,8 +112,8 @@ final class NetworkEditor: NSObject {
         alert.buttons.first?.isEnabled = !serviceBusy && (!bridged || valid || !savedPreferences.interface.isEmpty)
         detail.stringValue = bridged
             ? "Bridging requires one-time helper approval in System Settings. Services listening on the guest network interface can be reached from the LAN. Saved port-forwarding rules are inactive."
-            : "Omarchy uses your Mac’s network connection. No additional setup is needed. Saved port-forwarding rules apply in this mode."
-        if bridged && !valid { detail.stringValue = "The selected adapter is unavailable. Omarchy will start offline and connect automatically when this adapter returns." }
+            : "Guix uses your Mac’s network connection. No additional setup is needed. Saved port-forwarding rules apply in this mode."
+        if bridged && !valid { detail.stringValue = "The selected adapter is unavailable. Guix will start offline and connect automatically when this adapter returns." }
         stack.layoutSubtreeIfNeeded()
         stack.setFrameSize(NSSize(width: 430, height: stack.fittingSize.height))
         alert.layout()
@@ -191,7 +191,7 @@ final class NetworkEditor: NSObject {
         guard !serviceBusy else { return }
         let confirmation = NSAlert()
         confirmation.messageText = "Remove the networking helper?"
-        confirmation.informativeText = "This stops networking for any active bridged Omarchy VM. Shut those VMs down first. You can set up the helper again later."
+        confirmation.informativeText = "This stops networking for any active bridged Guix VM. Shut those VMs down first. You can set up the helper again later."
         confirmation.addButton(withTitle: "Remove Helper")
         confirmation.addButton(withTitle: "Cancel")
         guard confirmation.runModal() == .alertFirstButtonReturn else { return }

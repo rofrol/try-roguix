@@ -53,22 +53,22 @@ macos_major=$(sw_vers -productVersion | cut -d. -f1)
 macos_dir=$(cd "$(dirname "$0")" && pwd)
 repo_dir=$(cd "$macos_dir/.." && pwd -P)
 helper="$macos_dir/.build/release/omarchy-vm-helper"
-legacy_app="$repo_dir/dist/Try Omarchy.app"
-app="$repo_dir/dist/app.noindex/Try Omarchy.app"
+legacy_app="$repo_dir/dist/Try Guix.app"
+app="$repo_dir/dist/app.noindex/Try Guix.app"
 contents="$app/Contents"
-bundled_qemu="$contents/Resources/runtime/bin/Try Omarchy"
+bundled_qemu="$contents/Resources/runtime/bin/Try Guix"
 module_cache="$macos_dir/.build/module-cache"
 runtime_source="$macos_dir/.build/qemu-gpu-runtime"
 guest_dir=${guest_dir:-"$repo_dir/dist/guest"}
 dependency_bundler="$macos_dir/bundle-macho-dependencies.sh"
 compatibility_verifier="$macos_dir/verify-macos-compatibility.sh"
 package_dmg="$macos_dir/package-dmg.sh"
-app_icon_source="$macos_dir/OmarchyIcon.svg"
+app_icon_source="$macos_dir/TryGuixIcon.svg"
 app_icon_renderer_source="$macos_dir/render-app-icon.swift"
 app_icon_packer="$macos_dir/pack-app-icon.py"
 icon_renderer="$macos_dir/.build/app-icon-renderer"
-iconset="$macos_dir/.build/TryOmarchy.iconset"
-generated_icon="$macos_dir/.build/TryOmarchy.icns"
+iconset="$macos_dir/.build/TryGuix.iconset"
+generated_icon="$macos_dir/.build/TryGuix.icns"
 
 [[ -d $runtime_source && ! -L $runtime_source ]] || {
   echo "build-app: missing staged QEMU runtime; run build-qemu-gpu-runtime.sh first" >&2
@@ -171,12 +171,12 @@ mkdir -p \
   "$contents/Resources/scripts"
 bash "$macos_dir/network-helper/build.sh" "$contents/Resources/network"
 mkdir -p "$contents/Library/LaunchDaemons"
-install -m 0644 "$macos_dir/network-helper/dev.tryomarchy.network.plist" "$contents/Library/LaunchDaemons/dev.tryomarchy.network.plist"
-python3 - "$contents/Library/LaunchDaemons/dev.tryomarchy.network.plist" <<'PYTHON'
+install -m 0644 "$macos_dir/network-helper/dev.tryguix.network.plist" "$contents/Library/LaunchDaemons/dev.tryguix.network.plist"
+python3 - "$contents/Library/LaunchDaemons/dev.tryguix.network.plist" <<'PYTHON'
 import os, plistlib, sys
 from pathlib import Path
 path = Path(sys.argv[1])
-service = os.environ.get("OMARCHY_NETWORK_SERVICE_NAME", "dev.tryomarchy.network")
+service = os.environ.get("OMARCHY_NETWORK_SERVICE_NAME", "dev.tryguix.network")
 value = plistlib.loads(path.read_bytes())
 value["Label"] = service
 value["MachServices"] = {service: True}
@@ -189,7 +189,7 @@ python3 "$repo_dir/scripts/app_version.py" \
   --root "$repo_dir" --plist "$contents/Info.plist"
 install -m 0644 "$macos_dir/Credits.rtf" "$contents/Resources/Credits.rtf"
 install -m 0644 "$repo_dir/LICENSE" "$contents/Resources/LICENSE"
-install -m 0644 "$generated_icon" "$contents/Resources/TryOmarchy.icns"
+install -m 0644 "$generated_icon" "$contents/Resources/TryGuix.icns"
 ditto "$runtime_source" "$contents/Resources/runtime"
 install -m 0755 "$macos_dir/run-qemu-gpu.sh" "$contents/Resources/scripts/run-qemu-gpu.sh"
 install -m 0755 "$repo_dir/guest/native-overlay/usr/local/sbin/try-omarchy-migrate-alacritty" \
@@ -252,8 +252,8 @@ sign_options=(--force --sign "$sign_identity")
 if [[ $sign_identity != - ]]; then
   sign_options+=(--options runtime --timestamp)
 fi
-app_sign_options=("${sign_options[@]}" --identifier dev.tryomarchy.native)
-qemu_sign_options=("${sign_options[@]}" --identifier dev.tryomarchy.native)
+app_sign_options=("${sign_options[@]}" --identifier dev.tryguix.native)
+qemu_sign_options=("${sign_options[@]}" --identifier dev.tryguix.native)
 for library in "$contents/Resources/runtime/lib"/*.dylib; do
   codesign "${sign_options[@]}" "$library"
 done
@@ -297,7 +297,7 @@ codesign --verify --deep --strict --verbose=2 "$app"
 
 echo "[native] Built $app"
 if (( build_dmg )); then
-  dmg="$repo_dir/dist/TryOmarchy.dmg"
+  dmg="$repo_dir/dist/TryGuix.dmg"
   rm -f "$dmg"
   package_options=()
   if [[ $sign_identity != - ]]; then

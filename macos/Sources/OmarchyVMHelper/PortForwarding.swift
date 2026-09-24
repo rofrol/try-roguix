@@ -35,7 +35,7 @@ enum PortForwardPolicyError: LocalizedError, Equatable {
         case .invalidHostPort(let port):
             "The Mac port must be between 1 and 65535 (received \(port))."
         case .invalidGuestPort(let port):
-            "The Omarchy port must be between 1 and 65535 (received \(port))."
+            "The Guix port must be between 1 and 65535 (received \(port))."
         case .duplicateHostPort(let transport, let port):
             "Mac \(transport.displayName) port \(port) is already mapped."
         case .tooManyMappings(let maximum):

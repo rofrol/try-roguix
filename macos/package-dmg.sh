@@ -84,7 +84,7 @@ ln -s /Applications "$staging/Applications"
 
 read_write_dmg="$work_dir/Omarchy-rw.dmg"
 hdiutil create \
-  -volname "Try Omarchy" \
+  -volname "Try Guix" \
   -srcfolder "$staging" \
   -fs APFS \
   -format UDRW \
@@ -113,7 +113,7 @@ hdiutil convert \
 if [[ -n $sign_identity ]]; then
   codesign \
     --sign "$sign_identity" \
-    --identifier dev.tryomarchy.native.disk-image \
+    --identifier dev.tryguix.native.disk-image \
     --timestamp \
     "$output"
   codesign --verify --strict --verbose=2 "$output"

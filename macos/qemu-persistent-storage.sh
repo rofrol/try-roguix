@@ -211,7 +211,7 @@ _qps_assert_source_disk() {
 # `df -P` names the device in its first field and `mount` keys its listing on
 # the same device, so matching on the device avoids parsing mount points. Those
 # routinely contain spaces, both for the default location under "Application
-# Support/Try Omarchy" and for anything under /Volumes.
+# Support/Try Guix" and for anything under /Volumes.
 _qps_volume_filesystem() {
   local qps_path=$1
   local qps_device=''
@@ -284,7 +284,7 @@ _qps_assert_free_space() {
     return 1
   }
   (( qps_available >= qps_required )) || {
-    _qps_fail "not enough free space for the Omarchy VM: $((qps_required / 1024 / 1024)) MiB required, $((qps_available / 1024 / 1024)) MiB available"
+    _qps_fail "not enough free space for the VM: $((qps_required / 1024 / 1024)) MiB required, $((qps_available / 1024 / 1024)) MiB available"
     return 1
   }
 }
@@ -336,7 +336,7 @@ _qps_prepare_state_root() {
       _qps_fail 'HOME is unavailable; cannot locate Application Support'
       return 1
     }
-    qps_configured_root="$HOME/Library/Application Support/Try Omarchy/VM/v1"
+    qps_configured_root="$HOME/Library/Application Support/Try Guix/VM/v1"
   fi
   if [[ -n $QPS_STATE_SUBDIRECTORY ]]; then
     qps_configured_root="${qps_configured_root%/}/$QPS_STATE_SUBDIRECTORY"
@@ -1594,7 +1594,7 @@ _qps_require_compatible_workspace() {
 
   if [[ $QPS_METADATA_SCHEMA != "$QEMU_PERSISTENT_STORAGE_SCHEMA" ]]; then
     _qps_incompatible \
-      'the saved VM uses an unsupported storage format; use Reset Omarchy to continue'
+      'the saved VM uses an unsupported storage format; use Reset Guix to continue'
     return $?
   fi
   if [[ $QPS_METADATA_IDENTITY != "$qps_identity" ]]; then
@@ -1693,7 +1693,7 @@ _qps_migrate_legacy_single_workspace() {
     if [[ $qps_mode == persistent ]] && \
       _qps_has_recognized_legacy_workspace; then
       _qps_incompatible \
-        'multiple saved VMs were found; use Reset Omarchy to return to one supported disk'
+        'multiple saved VMs were found; use Reset Guix to return to one supported disk'
       return $?
     fi
     return 0
@@ -1744,13 +1744,13 @@ _qps_migrate_legacy_single_workspace() {
   }
   if [[ $qps_mode == persistent && $qps_valid_count -gt 1 ]]; then
     _qps_incompatible \
-      'multiple saved VMs were found; use Reset Omarchy to return to one supported disk'
+      'multiple saved VMs were found; use Reset Guix to return to one supported disk'
     return $?
   fi
   [[ -n $qps_selected ]] || {
     if [[ $qps_mode == persistent && $qps_valid_count -gt 0 ]]; then
       _qps_incompatible \
-        'the saved VM uses an unsupported storage format; use Reset Omarchy to continue'
+        'the saved VM uses an unsupported storage format; use Reset Guix to continue'
       return $?
     fi
     _qps_fail 'legacy Omarchy disks were found, but none are safe to migrate or reset'
@@ -1795,7 +1795,7 @@ _qps_publish_recorded_selection() {
   _qps_validate_recorded_workspace "$qps_final" || return 1
   if [[ $QPS_METADATA_SCHEMA != "$QEMU_PERSISTENT_STORAGE_SCHEMA" ]]; then
     _qps_incompatible \
-      'the saved VM uses an unsupported storage format; use Reset Omarchy to continue'
+      'the saved VM uses an unsupported storage format; use Reset Guix to continue'
     return $?
   fi
   if [[ -n $qps_source ]] && \

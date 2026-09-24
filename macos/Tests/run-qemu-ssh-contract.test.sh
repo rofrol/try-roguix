@@ -51,7 +51,7 @@ esac
 stale_fixture=''
 trap '/bin/rm -rf "$test_root"; [[ -z "$stale_fixture" ]] || /bin/rm -rf "$stale_fixture"' EXIT HUP INT TERM
 
-app="$test_root/Try Omarchy.app"
+app="$test_root/Try Guix.app"
 contents="$app/Contents"
 resources="$contents/Resources"
 shim_dir="$test_root/bin"
@@ -126,10 +126,10 @@ exit 0
 SH
 chmod 755 "$contents/MacOS/omarchy-vm-helper"
 
-cat >"$resources/runtime/bin/Try Omarchy" <<'SH'
+cat >"$resources/runtime/bin/Try Guix" <<'SH'
 #!/bin/bash
 # Identity markers validated by the production launcher:
-# TryOmarchy.icns
+# TryGuix.icns
 # OMARCHY_SDL_AUDIO_CONTROL_DIRECTORY
 # OMARCHY_SDL_INPUT_DEVICE_NAME
 # OMARCHY_SDL_OUTPUT_DEVICE_NAME
@@ -181,7 +181,7 @@ import threading
 import time
 
 arguments = sys.argv[1:]
-is_recovery = "Try Omarchy Boot Recovery" in arguments
+is_recovery = "Try Guix Boot Recovery" in arguments
 log_variable = "FAKE_QEMU_RECOVERY_LOG" if is_recovery else "FAKE_QEMU_LOG"
 geometry = os.environ.get("TRYOMARCHY_KEYBOARD", "")
 Path(os.environ[log_variable]).write_text(
@@ -284,7 +284,7 @@ PY
     ;;
 esac
 SH
-chmod 755 "$resources/runtime/bin/Try Omarchy"
+chmod 755 "$resources/runtime/bin/Try Guix"
 
 cat >"$resources/scripts/qemu-persistent-storage.sh" <<'SH'
 #!/bin/bash

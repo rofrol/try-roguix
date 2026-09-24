@@ -3,8 +3,8 @@ SHELL := /bin/bash
 override ROOT := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
 override DIST := $(ROOT)/dist
 override GUEST_DIST := $(DIST)/guest
-override APP := $(DIST)/app.noindex/Try Omarchy.app
-override DMG := $(DIST)/TryOmarchy.dmg
+override APP := $(DIST)/app.noindex/Try Guix.app
+override DMG := $(DIST)/TryGuix.dmg
 override BUILD_CACHE := $(ROOT)/scripts/build-cache.py
 override BUILD_STATE := $(ROOT)/.build/state
 RELEASE_SIGN_IDENTITY ?= Developer ID Application: Eduardo Martinez (RZC79MPD34)
@@ -19,7 +19,7 @@ FORCE ?= 0
 
 help:
 	@printf '%s\n' \
-	  'Try Omarchy — native macOS build commands' \
+	  'Try Guix — native macOS build commands' \
 	  '' \
 	  '  make doctor         Check the local toolchain' \
 	  '  make test           Run native and guest contract tests' \
@@ -181,16 +181,16 @@ clean:
 	    [[ -z "$$volume" ]] || docker volume rm "$$volume" >/dev/null; \
 	  done < <(docker volume ls -q --filter label=dev.tryomarchy.role=guest-work); \
 	  docker image rm -f try-omarchy-guest-builder >/dev/null 2>&1 || true; \
-	  echo 'Removed Try Omarchy Docker builder image and guest-work volumes.'; \
+	  echo 'Removed Try Guix Docker builder image and guest-work volumes.'; \
 	else \
 	  echo 'Docker is unavailable; skipped project Docker cache cleanup.' >&2; \
 	fi
 
 clean-all:
 	@[[ "$$(uname -s)" == Darwin ]] || { echo 'error: make clean-all requires macOS' >&2; exit 1; }
-	@pgrep -f 'omarchy-[q]emu|omarchy-[d]mg|Try Omarchy[.]app/Contents/' >/dev/null 2>&1; status=$$?; \
+	@pgrep -f 'omarchy-[q]emu|omarchy-[d]mg|Try Guix[.]app/Contents/' >/dev/null 2>&1; status=$$?; \
 	if (( status == 0 )); then \
-	  echo 'error: Try Omarchy or one of its build tools is running; close it before make clean-all' >&2; \
+	  echo 'error: Try Guix or one of its build tools is running; close it before make clean-all' >&2; \
 	  exit 1; \
 	elif (( status != 1 )); then \
 	  echo 'error: could not safely inspect running processes' >&2; \
@@ -199,7 +199,7 @@ clean-all:
 	@confirmation=''; \
 	if ! { \
 	  printf '%s\n%s' \
-	    'This permanently deletes all Try Omarchy builds, caches, VM disks, and app state.' \
+	    'This permanently deletes all Try Guix builds, caches, VM disks, and app state.' \
 	    'Type clean-all to continue: ' >/dev/tty && \
 	  IFS= read -r confirmation </dev/tty; \
 	}; then \
@@ -210,10 +210,10 @@ clean-all:
 	@$(MAKE) --no-print-directory clean
 	@user_home=$$(python3 -c 'import os,pwd; print(pwd.getpwuid(os.getuid()).pw_dir)'); \
 	  [[ "$$user_home" == /* && "$$user_home" != / ]] || { echo 'error: could not resolve a safe user home' >&2; exit 1; }; \
-	  app_support="$$user_home/Library/Application Support/Try Omarchy"; \
-	  cache="$$user_home/Library/Caches/dev.tryomarchy.native"; \
-	  preferences="$$user_home/Library/Preferences/dev.tryomarchy.native.plist"; \
-	  saved_state="$$user_home/Library/Saved Application State/dev.tryomarchy.native.savedState"; \
+	  app_support="$$user_home/Library/Application Support/Try Guix"; \
+	  cache="$$user_home/Library/Caches/dev.tryguix.native"; \
+	  preferences="$$user_home/Library/Preferences/dev.tryguix.native.plist"; \
+	  saved_state="$$user_home/Library/Saved Application State/dev.tryguix.native.savedState"; \
 	  echo "Removing persistent VM disks and app state from $$app_support..."; \
 	  rm -rf -- "$$app_support" "$$cache" "$$preferences" "$$saved_state"
 	@user_id=$$(id -u); \
@@ -232,7 +232,7 @@ clean-all:
 	       -o -name 'omarchy-audio-route-tests.*' \
 	       -o -name 'try-omarchy-space-estimate-*' \) \
 	    -exec rm -rf -- {} +
-	@echo 'Try Omarchy deep cleanup complete.'
+	@echo 'Try Guix deep cleanup complete.'
 
 clean-guest: clean
 	@echo 'make clean-guest is now an alias for make clean.'

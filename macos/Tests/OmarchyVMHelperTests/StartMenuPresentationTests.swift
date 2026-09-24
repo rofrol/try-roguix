@@ -9,7 +9,7 @@ struct StartMenuPresentationTests {
         #expect(detail.contains("storage or boot format"))
         #expect(detail.contains("multiple saved VMs"))
         #expect(detail.contains("permanently erases"))
-        #expect(!detail.contains("different Try Omarchy build"))
+        #expect(!detail.contains("different Try Guix build"))
     }
 
     @Test("boot recovery notice promises preservation and no automatic upgrade")
@@ -20,7 +20,7 @@ struct StartMenuPresentationTests {
         #expect(detail.contains("data remain intact"))
         #expect(detail.contains("factory image"))
         #expect(detail.contains("does not reset"))
-        #expect(detail.contains("upgrade Omarchy"))
+        #expect(detail.contains("upgrade Guix"))
     }
 
     @Test("continuing the one-time prompt grants consent for only that launch")
@@ -201,7 +201,7 @@ struct StartMenuPresentationTests {
         #expect(!disabled.isGranted)
         #expect(disabled.compactDetailLines == [
             "Mac folder: ~/Projects/demo",
-            "In Omarchy: Off",
+            "In Guix: Off",
         ])
         #expect(disabled.toggleActionTitle == "Turn On")
 
@@ -216,7 +216,7 @@ struct StartMenuPresentationTests {
         #expect(enabled.isGranted)
         #expect(enabled.compactDetailLines == [
             "Mac folder: ~/Projects/demo",
-            "In Omarchy: ~/demo",
+            "In Guix: ~/demo",
         ])
         #expect(enabled.toggleActionTitle == "Turn Off")
 
@@ -247,7 +247,7 @@ struct StartMenuPresentationTests {
         #expect(single.grantedStatusLabel == "●  1 Port")
         #expect(single.compactDetailLines == [
             "Mac: localhost:2222",
-            "Omarchy: port 22 · TCP",
+            "Guix: port 22 · TCP",
         ])
 
         let multiple = StartMenuPresentation.portForwarding(mappings: [
@@ -265,9 +265,9 @@ struct StartMenuPresentationTests {
     @Test("immersive guidance distinguishes windowed and fullscreen launch")
     func immersiveGuidance() {
         #expect(StartMenuPresentation.immersiveDetail(isEnabled: true)
-            == "Omarchy opens Full Screen with the Mac menu bar and Dock hidden.")
+            == "Guix opens Full Screen with the Mac menu bar and Dock hidden.")
         #expect(StartMenuPresentation.immersiveDetail(isEnabled: false)
-            == "Omarchy opens in a window with the Mac menu bar and Dock available.")
+            == "Guix opens in a window with the Mac menu bar and Dock available.")
     }
 
     @Test("language presentation distinguishes the system default from a chosen locale")

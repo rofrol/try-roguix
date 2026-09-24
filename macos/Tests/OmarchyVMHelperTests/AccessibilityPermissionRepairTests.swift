@@ -24,6 +24,6 @@ struct AccessibilityPermissionRepairTests {
 
     @Test("the repair is permanently scoped to this app")
     func fixedBundleIdentifier() {
-        #expect(AccessibilityPermissionRepair.bundleIdentifier == "dev.tryomarchy.native")
+        #expect(AccessibilityPermissionRepair.bundleIdentifier == "dev.tryguix.native")
     }
 }
