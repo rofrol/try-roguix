@@ -173,14 +173,17 @@
    (default-value #f)
    (description "Ask for the desktop account's password on the first start.")))
 
-;; For etc-profile-d-service-type: the auto-login console runs the compositor
-;; inside its own D-Bus session bus (PipeWire's WirePlumber and desktop
+;; For etc-profile-d-service-type: the auto-login console seeds Omarchy's
+;; user files once (try-guix-omarchy-seed) and runs the compositor inside its
+;; own D-Bus session bus (PipeWire's WirePlumber and desktop
 ;; programs expect one); other consoles, the serial console and SSH get an
 ;; ordinary shell.
 (define try-guix-session-script
   (mixed-text-file "try-guix-session.sh" "\
 if [ \"$(tty)\" = /dev/tty1 ] && [ -z \"$WAYLAND_DISPLAY\" ] \\
    && [ \"$(id -un)\" = " %try-guix-account " ]; then
+  # Omarchy's per-user files; a failure still starts the desktop.
+  try-guix-omarchy-seed || echo 'try-guix: seeding Omarchy failed' >&2
   exec " (file-append dbus "/bin/dbus-run-session") " start-hyprland
 fi
 "))

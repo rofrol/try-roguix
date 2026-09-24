@@ -70,6 +70,7 @@ test:
 	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/guest/guix/test_build.py"
 	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/guest/guix/test_run.py"
 	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/guest/guix/test_artifact.py"
+	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/guest/guix/test_busctl.py"
 	@$(ROOT)/guest/test
 	@$(ROOT)/macos/Tests/macos-compatibility.test.sh
 	@$(ROOT)/macos/Tests/runtime-relocation.test.sh
