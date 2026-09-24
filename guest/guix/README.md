@@ -279,10 +279,13 @@ went straight to the desktop.
   version, `packages.scm`) runs its shell; JetBrainsMono Nerd Font 3.5.1, the
   `omarchy` glyph font, Liberation and Yaru provide its fonts and icons.
 - **Arch assumptions** are replaced by `try-guix-omarchy-compat`: `uwsm-app`
-  and `systemd-cat` run the command directly, `systemctl --user` succeeds
-  without doing anything, `busctl` covers Omarchy's notification and UPower
-  calls through gdbus (`test_busctl.py`), and `xdg-terminal-exec` is the Arch
-  guest's (byte-identical copy).
+  and `systemd-cat` run the command directly; `systemd-run` runs it detached
+  after `--on-active`'s delay; `systemctl` sends `poweroff`, `reboot`,
+  `suspend` and `hibernate` to elogind's `loginctl` and accepts everything
+  else as an empty success; `uwsm stop` (Logout) exits Hyprland, and tty1
+  logs in again; `busctl` covers Omarchy's notification and UPower calls
+  through gdbus (`test_busctl.py`); `xdg-terminal-exec` is the Arch guest's
+  (byte-identical copy).
 - **The account** is seeded once, at the first desktop login, by
   `try-guix-omarchy-seed`: Omarchy's `config/` into `~/.config` (never
   overwriting), its applications, Hyprland toggles and fontconfig aliases;
@@ -332,7 +335,8 @@ and is part of the system configuration:
 Measured 2026-09-24 on a fresh image with the Mac's network: the first
 `try-guix-pkg add alacritty` took 20 minutes, mostly downloading about 900 MB
 of other outputs (`debug`, `doc`, `jdk`) of grafted packages that grafting
-needs; the next, `add helix`, took 3 minutes and 5.3 MB.
+needs; the next, `add helix`, took 3 minutes and 5.3 MB. Shutdown and Logout
+from the menu work.
 
 Verified 2026-09-24 on a fresh image: the shell's bar (workspaces, clock,
 weather, network, audio, display), the Tokyo Night background, Foot with the
