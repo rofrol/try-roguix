@@ -110,14 +110,23 @@
     (kernel-loadable-modules (list v4l2loopback-linux-module))
     (initrd-modules (cons* "virtio_gpu" "virtio_console"
                            (base-initrd-modules linux-libre)))
-    (kernel-arguments (cons "console=hvc0" %default-kernel-arguments))
+    ;; The VM's display is Retina-sized: the kernel's 8x16 console font is
+    ;; unreadably small there, so boot messages use its built-in Terminus
+    ;; 16x32 (see also console-font-service-type below).
+    (kernel-arguments (cons* "console=hvc0" "fbcon=font:TER16x32"
+                             %default-kernel-arguments))
 
     ;; The launcher boots EDK2 with -bios, which keeps no UEFI variables, so
     ;; GRUB must live at the removable-media path EFI/BOOT/BOOTAA64.EFI; every
     ;; reconfigure reinstalls it there.
     (bootloader (bootloader-configuration
                   (bootloader grub-efi-removable-bootloader)
-                  (targets '("/boot/efi"))))
+                  (targets '("/boot/efi"))
+                  ;; At the display's native size GRUB's text is tiny; QEMU
+                  ;; scales this mode up to the window.
+                  (theme (grub-theme
+                          (inherit (grub-theme))
+                          (gfxmode '("1024x768" "auto"))))))
     ;; The image itself mounts / by a UUID that `guix system image` derives; this
     ;; label is what that partition's ext4 carries, so an in-guest reconfigure
     ;; of this file finds the same root.
@@ -214,6 +223,14 @@
                config => (pulseaudio-configuration
                           (inherit config)
                           (client-conf '((autospawn . no)))))
+              ;; Terminus 32 px on the text consoles, as for boot messages.
+              (console-font-service-type
+               config => (map (lambda (tty)
+                                (cons (car tty)
+                                      (file-append
+                                       font-terminus
+                                       "/share/consolefonts/ter-v32n.psf.gz")))
+                              config))
               (mingetty-service-type
                config => (if (string=? (mingetty-configuration-tty config) "tty1")
                              (mingetty-configuration
