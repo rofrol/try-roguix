@@ -19,6 +19,7 @@
   #:use-module (gnu packages base)
   #:use-module (gnu packages bash)
   #:use-module (gnu packages linux)
+  #:use-module (gnu packages pulseaudio)
   #:use-module (gnu packages python)
   #:use-module (gnu packages xdisorg)
   #:use-module (gnu services)
@@ -33,6 +34,10 @@
             try-guix-agent
             try-guix-clipboard-bridge
             try-guix-clipboard-service-type
+            try-guix-audio-bridge
+            try-guix-audio-service-type
+            try-guix-camera-bridge
+            try-guix-camera-service-type
             try-guix-ssh-access-service-type))
 
 (define %try-guix-host-settings-file "/run/try-guix/host-settings")
@@ -310,3 +315,68 @@ port exist, restarting it after it exits.")
                              ssh-access-shepherd-service)))
    (default-value #f)
    (description "Start the SSH daemon only when the launcher forwards SSH.")))
+
+;;; Audio: sound itself flows through QEMU's intel-hda; the bridge only mirrors
+;;; the Mac's devices as PipeWire remap endpoints and relays the selection
+;;; over dev.tryomarchy.audio, driving pipewire-pulse through pactl. PipeWire,
+;;; WirePlumber and pipewire-pulse run per session like the bridges; the
+;;; Arch guest's graph quantum setting for the emulated HDA is installed as is.
+
+(define try-guix-audio-bridge
+  (arch-guest-python-script "try-guix-audio-bridge" "audio-bridge"
+                            (local-file "audio-bridge")
+                            #:tools '("bin/pactl")
+                            #:inputs (list pulseaudio)
+                            #:synopsis "Expose macOS audio devices to PipeWire"))
+
+(define try-guix-audio-service-type
+  (service-type
+   (name 'try-guix-audio)
+   (extensions
+    (list (service-extension udev-service-type
+                             (const
+                              (list (udev-rule
+                                     "91-try-guix-audio.rules"
+                                     "SUBSYSTEM==\"virtio-ports\", ATTR{name}==\"dev.tryomarchy.audio\", GROUP=\"audio\", MODE=\"0660\"\n"))))
+          (service-extension etc-service-type
+                             (const
+                              `(("pipewire/pipewire.conf.d/90-try-omarchy-quantum.conf"
+                                 ,(local-file "pipewire-quantum.conf")))))
+          (service-extension profile-service-type
+                             (const (list pipewire wireplumber pulseaudio
+                                          try-guix-agent
+                                          try-guix-audio-bridge)))))
+   (default-value #f)
+   (description "Run PipeWire per session with the macOS audio bridge.")))
+
+;;; Camera: the Mac camera streams 1280x720 NV12 frames over
+;;; dev.tryomarchy.camera only while a Linux program reads /dev/video42, a
+;;; v4l2loopback device (operating-system kernel-loadable-modules must list
+;;; v4l2loopback-linux-module). Module options are the Arch guest's.
+
+(define try-guix-camera-bridge
+  (arch-guest-python-script "try-guix-camera-bridge" "camera-bridge"
+                            (local-file "camera-bridge")
+                            #:synopsis "Expose the macOS camera as /dev/video42"))
+
+(define try-guix-camera-service-type
+  (service-type
+   (name 'try-guix-camera)
+   (extensions
+    (list (service-extension kernel-module-loader-service-type
+                             (const '("v4l2loopback")))
+          (service-extension etc-service-type
+                             (const
+                              `(("modprobe.d/90-try-omarchy-camera.conf"
+                                 ,(local-file "camera-modprobe.conf")))))
+          (service-extension udev-service-type
+                             (const
+                              (list (udev-rule
+                                     "94-try-guix-camera.rules"
+                                     "SUBSYSTEM==\"virtio-ports\", ATTR{name}==\"dev.tryomarchy.camera\", GROUP=\"video\", MODE=\"0660\"
+KERNEL==\"video42\", SUBSYSTEM==\"video4linux\", GROUP=\"video\", MODE=\"0660\"\n"))))
+          (service-extension profile-service-type
+                             (const (list try-guix-agent
+                                          try-guix-camera-bridge)))))
+   (default-value #f)
+   (description "Load v4l2loopback and install the macOS camera bridge.")))

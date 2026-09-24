@@ -9,6 +9,12 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("try-guix-display-sync")
     -- Host bridges, restarted for the life of this session (try-guix-agent).
     hl.exec_cmd("try-guix-agent /dev/virtio-ports/dev.tryomarchy.clipboard try-guix-clipboard-bridge")
+    -- The sound server, then the device-routing bridge that drives it.
+    hl.exec_cmd("try-guix-agent /dev/snd/controlC0 pipewire")
+    hl.exec_cmd("try-guix-agent /dev/snd/controlC0 wireplumber")
+    hl.exec_cmd("try-guix-agent /dev/snd/controlC0 pipewire-pulse")
+    hl.exec_cmd("try-guix-agent /dev/virtio-ports/dev.tryomarchy.audio try-guix-audio-bridge")
+    hl.exec_cmd("try-guix-agent /dev/virtio-ports/dev.tryomarchy.camera try-guix-camera-bridge")
     hl.exec_cmd("foot")
 end)
 

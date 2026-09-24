@@ -290,6 +290,18 @@ differs.
   the `dev.tryomarchy.clipboard` port exist and restarts it 2 s after it
   exits, as the Arch unit's `Restart=` does. A udev rule gives the port to the
   `users` group, mode 0660. `wl-clipboard` is installed system-wide.
+- **Audio.** Sound itself flows through QEMU's intel-hda. Hyprland starts
+  PipeWire, WirePlumber and pipewire-pulse under `try-guix-agent`, then
+  `audio-bridge`, which mirrors the Mac's devices as `omarchy_host_*` remap
+  endpoints through `pactl` and relays the selection. The Arch guest's graph
+  quantum file is installed as `/etc/pipewire/pipewire.conf.d/`
+  `90-try-omarchy-quantum.conf`, and PulseAudio's client `autospawn` is off so
+  `pactl` never starts a real PulseAudio daemon. The session runs inside
+  `dbus-run-session`.
+- **Camera.** `v4l2loopback-linux-module` is a loadable module, loaded at boot
+  with the Arch guest's options (`/dev/video42`, "Mac Camera",
+  `exclusive_caps`); `camera-bridge` runs under `try-guix-agent`. udev gives
+  the port and `video42` to the `video` group.
 - **SSH.** `sshd` is installed with auto-start off; `try-guix-ssh-access`
   starts it for the current boot only when the settings contain exactly
   `tryomarchy.ssh_access=1`. Root login is refused; host keys live on the
@@ -306,15 +318,18 @@ Through the app's launcher with a fresh state root, a shared Mac folder named
 settings file held all three launcher arguments; `~/Work Folder` pointed at
 `/mnt/mac`; a Mac file was readable in the guest and a file written by the
 guest appeared on the Mac; the Mac pasteboard reached `wl-paste` and a
-`wl-copy` in the guest reached `pbpaste`.
+`wl-copy` in the guest reached `pbpaste`. With audio and camera added, the
+same run found PipeWire, WirePlumber and pipewire-pulse running, the audio
+bridge exposing two Mac output and two Mac input endpoints, and `/dev/video42`
+named "Mac Camera" with its bridge running. Streaming the camera was not
+exercised: it would switch on the Mac's camera and needs macOS permission.
 
 ### Not done yet
 
 1. Cursor handling in the display contract.
 2. The Swift app still shows Omarchy names and reads Arch workspace metrics
    for its free-space guard; `resize-vm-disk.sh` handles only the Arch disk.
-3. Guest integrations still to port: audio device routing, camera and
-   Touch ID (shared folder, clipboard and SSH work, see above).
+3. Guest integrations still to port: Touch ID for sudo.
 4. Switch the default build to Guix and remove the Arch builder once the
    above covers the required behavior.
 
