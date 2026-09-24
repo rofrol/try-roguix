@@ -74,7 +74,7 @@ def read_icns(path: Path) -> list[tuple[bytes, bytes]]:
 class AppIconPackerTests(unittest.TestCase):
     @staticmethod
     def create_iconset(root: Path) -> Path:
-        iconset = root / "TryOmarchy.iconset"
+        iconset = root / "TryGuix.iconset"
         iconset.mkdir()
         for name, pixels, _ in REPRESENTATIONS:
             (iconset / name).write_bytes(solid_png(pixels, pixels))
@@ -116,7 +116,7 @@ class AppIconPackerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             iconset = self.create_iconset(root)
-            output = root / "TryOmarchy.icns"
+            output = root / "TryGuix.icns"
             result = self.invoke(iconset, output)
             self.assertEqual(0, result.returncode, result.stderr)
 
@@ -136,7 +136,7 @@ class AppIconPackerTests(unittest.TestCase):
             root = Path(temporary)
             iconset = self.create_iconset(root)
             (iconset / "icon_128x128@2x.png").unlink()
-            output = root / "TryOmarchy.icns"
+            output = root / "TryGuix.icns"
             output.write_bytes(b"keep existing output")
 
             result = self.invoke(iconset, output)
@@ -148,7 +148,7 @@ class AppIconPackerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             iconset = self.create_iconset(root)
-            output = root / "TryOmarchy.icns"
+            output = root / "TryGuix.icns"
             image = iconset / "icon_16x16.png"
 
             image.write_bytes(b"not a png")
@@ -182,7 +182,7 @@ class AppIconPackerTests(unittest.TestCase):
             root = Path(temporary)
             iconset = self.create_iconset(root)
             (iconset / "icon_32x32@2x.png").write_bytes(solid_png(63, 64))
-            output = root / "TryOmarchy.icns"
+            output = root / "TryGuix.icns"
 
             result = self.invoke(iconset, output)
             self.assertNotEqual(0, result.returncode)
@@ -196,7 +196,7 @@ class AppIconPackerTests(unittest.TestCase):
             root = Path(temporary)
             iconset = self.create_iconset(root)
             (iconset / "old-logo.png").write_bytes(solid_png(16, 16))
-            output = root / "TryOmarchy.icns"
+            output = root / "TryGuix.icns"
 
             result = self.invoke(iconset, output)
             self.assertNotEqual(0, result.returncode)

@@ -113,33 +113,33 @@ enum StorageLocationPolicyError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .notAbsolute:
-            "The Omarchy data folder must be an absolute path."
+            "The Guix data folder must be an absolute path."
         case .unsupportedCharacter:
             "That folder path contains a character the launcher cannot pass through."
         case .missing(let path):
             "That folder no longer exists: \(path)"
         case .symbolicLink(let path):
-            "The Omarchy data folder cannot be a symbolic link: \(path)"
+            "The Guix data folder cannot be a symbolic link: \(path)"
         case .notDirectory(let path):
             "Choose a folder rather than a file: \(path)"
         case .notOwned(let path):
-            "The Omarchy data folder must belong to you: \(path)"
+            "The Guix data folder must belong to you: \(path)"
         case .unsafeRoot(let path):
-            "That location is too broad to hold the Omarchy VM: \(path)"
+            "That location is too broad to hold the Guix VM: \(path)"
         case .isVolumeRoot(let path):
             "Choose a folder inside \(path), not the drive itself. For example, create a folder named \"\(StorageLocationPolicy.workspaceDirectoryName)\" there and pick that."
         case .notEmpty(let path):
-            "This folder already has files in it: \(path). Omarchy only uses an empty folder, so it never mixes its virtual machine with anything else stored there. Choose or create an empty folder instead."
+            "This folder already has files in it: \(path). Guix only uses an empty folder, so it never mixes its virtual machine with anything else stored there. Choose or create an empty folder instead."
         case .invalidWorkspaceMarker(let path):
-            "This folder looks like an Omarchy workspace, but its \"\(StorageLocationPolicy.rootMarkerName)\" file is damaged, so the VM here cannot be opened safely: \(path). Delete that file to reuse the folder as an empty one, or choose a different folder."
+            "This folder looks like a Guix workspace, but its \"\(StorageLocationPolicy.rootMarkerName)\" file is damaged, so the VM here cannot be opened safely: \(path). Delete that file to reuse the folder as an empty one, or choose a different folder."
         case .volumeUnreadable(let path):
-            "Try Omarchy could not read the disk that holds \(path)."
+            "Try Guix could not read the disk that holds \(path)."
         case .notLocalVolume(let volume):
-            "\(volume) is a network volume. Omarchy needs a local APFS disk so it can lock the VM safely."
+            "\(volume) is a network volume. Guix needs a local APFS disk so it can lock the VM safely."
         case .unsupportedFilesystem(let filesystem, let volume):
-            "\(volume) is formatted as \(filesystem.uppercased()). Omarchy needs an APFS disk: the VM disk grows as you use it, and other formats would claim its full size right away."
+            "\(volume) is formatted as \(filesystem.uppercased()). Guix needs an APFS disk: the VM disk grows as you use it, and other formats would claim its full size right away."
         case .insufficientSpace(let volume, let needed, let available):
-            "\(volume) has \(StorageLocationPolicy.format(bytes: available)) free. Omarchy needs at least \(StorageLocationPolicy.format(bytes: needed)) to create the VM."
+            "\(volume) has \(StorageLocationPolicy.format(bytes: available)) free. Guix needs at least \(StorageLocationPolicy.format(bytes: needed)) to create the VM."
         }
     }
 }
@@ -161,7 +161,7 @@ struct StorageLocationResolution: Equatable {
 /// recorded disk without materializing the current app's factory image.
 enum StorageLocationPolicy {
     static let environmentKey = "OMARCHY_QEMU_GPU_STATE_ROOT"
-    static let workspaceDirectoryName = "Try Omarchy"
+    static let workspaceDirectoryName = "Try Guix"
     static let rootMarkerName = ".omarchy-qemu-storage"
 
     /// The marker's only valid contents. Kept byte-identical to

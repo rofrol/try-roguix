@@ -148,7 +148,7 @@ struct PermissionWindowRestorerTests {
 
         StartMenuWindowChrome.apply(to: window)
 
-        #expect(window.title == "Try Omarchy")
+        #expect(window.title == "Try Guix")
         #expect(window.titleVisibility == .hidden)
         #expect(window.titlebarAppearsTransparent)
         #expect(window.isMovableByWindowBackground)

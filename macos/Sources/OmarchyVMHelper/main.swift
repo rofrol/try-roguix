@@ -118,7 +118,7 @@ do {
             source.resume()
             terminationSignalSources.append(source)
         }
-        fputs("[audio-bridge] Host audio devices are available inside Omarchy.\n", stderr)
+        fputs("[audio-bridge] Host audio devices are available inside Guix.\n", stderr)
         try bridge.run()
         exit(0)
     }
@@ -141,7 +141,7 @@ do {
             source.resume()
             terminationSignalSources.append(source)
         }
-        fputs("[clipboard-bridge] The Mac clipboard is shared with Omarchy.\n", stderr)
+        fputs("[clipboard-bridge] The Mac clipboard is shared with Guix.\n", stderr)
         try bridge.run()
         exit(0)
     }
@@ -164,7 +164,7 @@ do {
             source.resume()
             terminationSignalSources.append(source)
         }
-        fputs("[authentication-bridge] Signed Touch ID sudo authentication is available inside Omarchy.\n", stderr)
+        fputs("[authentication-bridge] Signed Touch ID sudo authentication is available inside Guix.\n", stderr)
         try bridge.run()
         exit(0)
     }
@@ -187,7 +187,7 @@ do {
             source.resume()
             terminationSignalSources.append(source)
         }
-        fputs("[camera-bridge] The Mac camera is available to Omarchy on demand.\n", stderr)
+        fputs("[camera-bridge] The Mac camera is available to Guix on demand.\n", stderr)
         try bridge.run()
         exit(0)
     }
@@ -270,7 +270,7 @@ do {
             )
             ApplicationPresentation.installMainMenu(
                 in: application,
-                applicationName: "Try Omarchy",
+                applicationName: "Try Guix",
                 updatesTarget: controller
             )
             application.delegate = controller

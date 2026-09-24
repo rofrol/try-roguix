@@ -24,13 +24,13 @@ struct ApplicationPresentationTests {
         let updatesTarget = NSObject()
         ApplicationPresentation.installMainMenu(
             in: application,
-            applicationName: "Try Omarchy",
+            applicationName: "Try Guix",
             updatesTarget: updatesTarget
         )
 
         let appMenu = try #require(application.mainMenu?.items.first?.submenu)
         let quit = try #require(appMenu.items.first(where: {
-            $0.title == "Quit Try Omarchy"
+            $0.title == "Quit Try Guix"
         }))
         #expect(quit.keyEquivalent == "q")
         #expect(quit.action == #selector(NSApplication.terminate(_:)))

@@ -117,7 +117,7 @@ struct NativeAudioRouteFileStore {
 }
 
 final class CoreAudioDeviceChangeMonitor {
-    private let queue = DispatchQueue(label: "dev.tryomarchy.native.audio-devices")
+    private let queue = DispatchQueue(label: "dev.tryguix.native.audio-devices")
     private var listeners: [(AudioObjectPropertyAddress, AudioObjectPropertyListenerBlock)] = []
 
     init(onChange: @escaping () -> Void) throws {
@@ -169,8 +169,8 @@ final class NativeAudioBridge {
     private let deviceProvider: HostAudioDeviceProviding
     private let preferenceStore: AudioRoutingPreferenceStore
     private let routeStore: NativeAudioRouteFileStore
-    private let stateQueue = DispatchQueue(label: "dev.tryomarchy.native.audio-bridge-state")
-    private let writeQueue = DispatchQueue(label: "dev.tryomarchy.native.audio-bridge-writes")
+    private let stateQueue = DispatchQueue(label: "dev.tryguix.native.audio-bridge-state")
+    private let writeQueue = DispatchQueue(label: "dev.tryguix.native.audio-bridge-writes")
     private let stopLock = NSLock()
     private var monitor: CoreAudioDeviceChangeMonitor?
     private var stopped = false

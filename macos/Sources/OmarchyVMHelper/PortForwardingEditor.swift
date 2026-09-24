@@ -74,7 +74,7 @@ final class PortForwardingEditor: NSObject, NSWindowDelegate, NSTextFieldDelegat
         title.font = .systemFont(ofSize: 21, weight: .bold)
 
         let explanation = NSTextField(
-            wrappingLabelWithString: "Mac → Omarchy mappings expose guest services on Mac localhost. For Omarchy → Mac, connect to \(PortForwardPolicy.guestToHostAddress)."
+            wrappingLabelWithString: "Mac → Guix mappings expose guest services on Mac localhost. For Guix → Mac, connect to \(PortForwardPolicy.guestToHostAddress)."
         )
         explanation.font = .systemFont(ofSize: 12.5)
         explanation.textColor = .secondaryLabelColor
@@ -122,7 +122,7 @@ final class PortForwardingEditor: NSObject, NSWindowDelegate, NSTextFieldDelegat
         addButton.target = self
         addButton.action = #selector(addPort)
         addButton.identifier = NSUserInterfaceItemIdentifier("port-forward-add")
-        addButton.setAccessibilityHelp("Adds another localhost-to-Omarchy port mapping")
+        addButton.setAccessibilityHelp("Adds another localhost-to-Guix port mapping")
 
         addSSHButton.title = "Add SSH"
         addSSHButton.image = NSImage(systemSymbolName: "terminal", accessibilityDescription: nil)
@@ -132,7 +132,7 @@ final class PortForwardingEditor: NSObject, NSWindowDelegate, NSTextFieldDelegat
         addSSHButton.target = self
         addSSHButton.action = #selector(addSSH)
         addSSHButton.identifier = NSUserInterfaceItemIdentifier("port-forward-add-ssh")
-        addSSHButton.setAccessibilityHelp("Adds localhost:2222 to Omarchy:22 over TCP")
+        addSSHButton.setAccessibilityHelp("Adds localhost:2222 to Guix:22 over TCP")
 
         validationLabel.font = .systemFont(ofSize: 11.5)
         validationLabel.maximumNumberOfLines = 2
@@ -275,7 +275,7 @@ final class PortForwardingEditor: NSObject, NSWindowDelegate, NSTextFieldDelegat
         let hostField = portField(value: draft.hostPort, index: index, kind: .host)
         let arrow = secondaryLabel("→")
         arrow.alignment = .center
-        let guest = secondaryLabel("Omarchy:")
+        let guest = secondaryLabel("Guix:")
         let guestField = portField(value: draft.guestPort, index: index, kind: .guest)
 
         let protocolPicker = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -336,7 +336,7 @@ final class PortForwardingEditor: NSObject, NSWindowDelegate, NSTextFieldDelegat
         field.setAccessibilityLabel(
             kind == .host
                 ? "Mac port for mapping \(index + 1)"
-                : "Omarchy port for mapping \(index + 1)"
+                : "Guix port for mapping \(index + 1)"
         )
         field.widthAnchor.constraint(equalToConstant: 72).isActive = true
         return field

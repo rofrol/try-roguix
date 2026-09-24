@@ -6,7 +6,7 @@ https://github.com/lima-vm/socket_vmnet, commit
 `vendor/LICENSE`. Only its server sources are bundled; QEMU connects using its
 existing Unix stream backend. Build with `bash build.sh OUTPUT_DIRECTORY`.
 
-The app registers `dev.tryomarchy.network` with `SMAppService`. macOS approves
+The app registers `dev.tryguix.network` with `SMAppService`. macOS approves
 this launch daemon once; it starts on demand for privileged XPC requests.
 The service remains registered until removed through the networking sheet.
 QEMU and the app remain unprivileged. Repair or removal interrupts an active
@@ -42,7 +42,7 @@ asserting. `vendor/stream.h` contains the added framing helpers.
 For isolated development builds, set `OMARCHY_NETWORK_SERVICE_NAME` to a distinct
 reverse-DNS name when running `macos/build-app.sh`. The build uses the same value
 for the launch-daemon label, Mach service, client, and daemon. The default is
-`dev.tryomarchy.network`. A separate name prevents test copies from sharing the
+`dev.tryguix.network`. A separate name prevents test copies from sharing the
 normal app's Service Management registration; it does not validate upgrades or
 relocation of an existing registration.
 
