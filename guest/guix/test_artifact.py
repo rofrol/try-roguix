@@ -154,6 +154,28 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(manifest["guest"]["credentials"], "development-password")
         self.assertEqual([p for p in self.root.iterdir() if p.name.startswith(".guix-package")], [])
 
+    def test_launch_record_matches_the_launcher_contract(self):
+        manifest = self.packaged()
+        fields = artifact.launch_record(self.output).split("\t")
+        self.assertEqual(len(fields), 6)
+        identity, raw_sha, raw_bytes, compressed_bytes, working_bytes, command_line = fields
+        self.assertEqual(identity, artifact.sha256_file(self.output / artifact.MANIFEST))
+        self.assertEqual((raw_sha, int(raw_bytes), int(compressed_bytes)),
+                         (manifest["disk"]["sha256"], manifest["disk"]["bytes"],
+                          manifest["disk"]["compressedBytes"]))
+        self.assertEqual(int(working_bytes), artifact.WORKING_DISK_BYTES)
+        self.assertEqual(command_line, "")
+        import subprocess
+        result = subprocess.run([sys.executable, str(HERE / "artifact.py"), "launch-record",
+                                 str(self.output)], capture_output=True, text=True)
+        self.assertEqual((result.returncode, result.stdout), (0, "\t".join(fields) + "\n"))
+        (self.output / artifact.SUMS).chmod(0o644)
+        (self.output / artifact.SUMS).write_text("tampered\n")
+        result = subprocess.run([sys.executable, str(HERE / "artifact.py"), "launch-record",
+                                 str(self.output)], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+
     def test_existing_output_is_never_replaced(self):
         self.output.mkdir(parents=True)
         with self.assertRaises(artifact.ArtifactError):
