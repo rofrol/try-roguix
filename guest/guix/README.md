@@ -215,28 +215,55 @@ arguments:
 On the first boot, `fsck.fat` repairs `.`/`..` entries in the ESP that
 genimage writes; later boots find nothing to fix.
 
-## Not connected to the launcher yet
+## Running through the app
 
-`make guest`, `make build` and the app still use the original Arch pipeline.
-**Do not put this image in `dist/guest` or rename it to `rootfs.ext4`.** The
-launcher currently checks an Omarchy-specific manifest and direct-boot ABI;
-its disk growth code assumes an unpartitioned ext4 filesystem. Disabling those
-checks or passing it a partitioned Guix disk would not be a safe migration.
+```sh
+make guix-app   # dist/app.noindex/Try Omarchy.app with the dist/guix guest
+make guix-run   # build it and open it like `make run`
+```
 
-Remaining slices:
+`build-app.sh` recognizes a Guix guest directory by `guix-manifest.json` and
+bundles exactly `disk.raw.zst`, `guix-manifest.json` and `SHA256SUMS`, plus
+`artifact.py` as `scripts/guix-artifact.py`. Its build-time validation writes
+`launch.plist` with `bootABI = uefi-gpt-v1` and no `kernelCommandLine`.
 
-1. Publish the display contract: resize and mode changes are verified above;
-   decide on and verify cursor handling.
-2. Integrate Guix's boot artifacts, provenance, validation and disk layout with
-   the host launcher/storage contract. Isolate Guix state from existing Arch
-   disks; do not migrate or delete user data implicitly.
-3. Port shared folders, clipboard, audio, camera, optional SSH and opt-in
-   Touch ID to Guix services while preserving their host protocols and
-   security policies. None is claimed functional by this initial definition.
-4. Switch the existing build entry points and remove the Arch builder,
-   Omarchy package pins, overlays and obsolete tests once the replacement
-   covers required behavior. Fold this temporary build entry point into the
-   normal `guest` build at that cutover; do not retain parallel guest support.
+`run-qemu-gpu.sh` takes the guest kind from those signed resources and checks
+each kind only against its own contract: a Guix bundle must declare the UEFI
+boot ABI and carry no kernel command line, and the Arch bundle must declare
+none. For Guix it:
+
+- validates the artifact (`guix-artifact.py launch-record`) when no
+  `launch.plist` exists;
+- selects `qemu_persistent_storage_configure_guest uefi`: the factory disk is
+  materialized once to `images/<identity>.raw`, re-hashed against the
+  manifest, APFS-cloned to `disks/current/disk.raw` and sparsely extended to
+  24 GiB (`WORKING_DISK_BYTES`), all under the state root's `guix/`
+  subdirectory, so an Arch VM in the same root is never read or reset;
+- boots with `-bios runtime/share/qemu/edk2-aarch64-code.fd` instead of
+  `-kernel/-initrd/-append`; there is no boot kit and no boot recovery;
+- keeps every other device and the window title `Try Guix`.
+
+### Verified 2026-09-24, Apple M1 Pro, through the app's launcher
+
+With a test state root: the first launch materialized and verified the
+12.0 GB factory disk, created the 24 GiB workspace, printed `Ready`, and the
+guest grew `/` to 24G. A file written before `sudo halt` was present after a
+second launch, which reused the workspace without materializing again.
+
+### Not done yet
+
+1. Cursor handling in the display contract.
+2. The Swift app still shows Omarchy names and reads Arch workspace metrics
+   for its free-space guard; `resize-vm-disk.sh` handles only the Arch disk.
+3. Guest integrations: shared folder, clipboard, audio, camera, SSH and
+   Touch ID. Their host devices are attached, but the Guix guest runs no
+   services for them yet, and it cannot receive the Arch guest's kernel
+   arguments (shared folder name, SSH activation).
+4. First-boot account creation instead of the baked development password;
+   an in-guest `guix system reconfigure` also needs that, since `system.scm`
+   reads `GUIX_GUEST_PASSWORD_HASH`.
+5. Switch the default build to Guix and remove the Arch builder once the
+   above covers the required behavior.
 
 ## Local checks
 

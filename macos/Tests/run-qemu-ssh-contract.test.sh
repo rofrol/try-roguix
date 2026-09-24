@@ -305,6 +305,9 @@ _qps_permissions() { /usr/bin/stat -f '%Lp' "$1"; }
 _qps_lstat_kind() { /usr/bin/stat -f '%HT' "$1"; }
 _qps_size() { /usr/bin/stat -f '%z' "$1"; }
 qemu_persistent_storage_release_lock() { :; }
+qemu_persistent_storage_configure_guest() {
+  printf 'configure %s\n' "$1" >>"$FAKE_STORAGE_LOG"
+}
 qemu_persistent_storage_materialize_source() {
   printf 'materialize\n' >>"$FAKE_STORAGE_LOG"
   return 1
@@ -372,18 +375,20 @@ qemu_persistent_storage_select() {
     printf 'create\n' >>"$FAKE_STORAGE_LOG"
   fi
   chmod 600 "$QEMU_SELECTED_DISK"
-  mkdir -p "$FAKE_PERSISTENT_ROOT/boot"
-  /bin/cp "$8" "$FAKE_PERSISTENT_ROOT/boot/kernel"
-  /bin/cp "$9" "$FAKE_PERSISTENT_ROOT/boot/initramfs"
-  printf '%s\n' "${10}" >"$FAKE_PERSISTENT_ROOT/boot/command-line"
   QEMU_SELECTED_STORAGE_MODE=persistent
   QEMU_PERSISTENT_STORAGE_DIRECTORY=$FAKE_PERSISTENT_ROOT
   QEMU_PERSISTENT_STORAGE_ROOT=$FAKE_PERSISTENT_ROOT
   QEMU_PERSISTENT_STORAGE_IDENTITY=${FAKE_SAVED_IDENTITY:-saved-vm}
+  QEMU_PERSISTENT_STORAGE_NEEDS_BOOT_RECOVERY=0
+  # A UEFI guest passes no boot kit.
+  [[ -n ${8:-} ]] || return 0
+  mkdir -p "$FAKE_PERSISTENT_ROOT/boot"
+  /bin/cp "$8" "$FAKE_PERSISTENT_ROOT/boot/kernel"
+  /bin/cp "$9" "$FAKE_PERSISTENT_ROOT/boot/initramfs"
+  printf '%s\n' "${10}" >"$FAKE_PERSISTENT_ROOT/boot/command-line"
   QEMU_SELECTED_KERNEL="$FAKE_PERSISTENT_ROOT/boot/kernel"
   QEMU_SELECTED_INITRAMFS="$FAKE_PERSISTENT_ROOT/boot/initramfs"
   QEMU_SELECTED_KERNEL_COMMAND_LINE=${10}
-  QEMU_PERSISTENT_STORAGE_NEEDS_BOOT_RECOVERY=0
 }
 SH
 chmod 644 "$resources/scripts/qemu-persistent-storage.sh"
@@ -1071,5 +1076,54 @@ run_scenario prebaked-keyboard 1 ''
 [[ ! -s $test_root/prebaked-keyboard/storage.log ]] || fail 'prebaked keyboard token touched storage'
 assert_contains "$(<"$test_root/prebaked-keyboard/stderr")" \
   'launcher-owned keyboard geometry argument'
+
+# A Guix guest boots the runtime's EDK2 firmware from its GPT disk: no
+# -kernel/-initrd/-append, a UEFI storage mode, and a launch.plist that
+# declares the boot ABI instead of a kernel command line.
+guix_guest="$resources/guix-guest"
+mkdir -p "$guix_guest" "$resources/runtime/share/qemu"
+printf 'firmware\n' >"$resources/runtime/share/qemu/edk2-aarch64-code.fd"
+printf '{}\n' >"$guix_guest/guix-manifest.json"
+printf 'factory\n' >"$guix_guest/disk.raw"
+/usr/bin/plutil -create xml1 "$guix_guest/launch.plist"
+/usr/bin/plutil -insert bundleIdentity -string "$(printf 'c%.0s' {1..64})" "$guix_guest/launch.plist"
+/usr/bin/plutil -insert sourceDiskSHA256 -string "$(printf 'd%.0s' {1..64})" "$guix_guest/launch.plist"
+/usr/bin/plutil -insert sourceDiskBytes -integer 8 "$guix_guest/launch.plist"
+/usr/bin/plutil -insert compressedDiskBytes -integer 4 "$guix_guest/launch.plist"
+/usr/bin/plutil -insert workingDiskBytes -integer 16 "$guix_guest/launch.plist"
+/usr/bin/plutil -insert bootABI -string uefi-gpt-v1 "$guix_guest/launch.plist"
+guix_root="$test_root/guix-persistent"
+run_scenario guix-uefi 0 "$guix_guest" FAKE_PERSISTENT_ROOT="$guix_root"
+guix_arguments=$(<"$test_root/guix-uefi/qemu.log")
+assert_line_pair "$test_root/guix-uefi/qemu.log" -bios \
+  "$resources/runtime/share/qemu/edk2-aarch64-code.fd"
+assert_line_pair "$test_root/guix-uefi/qemu.log" -name 'Try Guix'
+assert_contains "$guix_arguments" "file=$guix_root/rootfs.ext4"
+for option in -kernel -initrd -append; do
+  ! grep -Fxq -- "$option" "$test_root/guix-uefi/qemu.log" || fail "UEFI launch passed $option"
+done
+assert_contains "$(<"$test_root/guix-uefi/storage.log")" 'configure uefi'
+assert_contains "$(<"$test_root/disabled/storage.log")" 'configure direct'
+
+/usr/bin/plutil -insert kernelCommandLine -string 'root=/dev/vda rw' "$guix_guest/launch.plist"
+run_scenario guix-command-line 1 "$guix_guest" FAKE_PERSISTENT_ROOT="$guix_root"
+assert_contains "$(<"$test_root/guix-command-line/stderr")" 'must not carry a kernel command line'
+/usr/bin/plutil -remove kernelCommandLine "$guix_guest/launch.plist"
+/usr/bin/plutil -remove bootABI "$guix_guest/launch.plist"
+run_scenario guix-no-boot-abi 1 "$guix_guest" FAKE_PERSISTENT_ROOT="$guix_root"
+assert_contains "$(<"$test_root/guix-no-boot-abi/stderr")" 'does not declare the UEFI boot ABI'
+/usr/bin/plutil -insert bootABI -string uefi-gpt-v1 "$guix_guest/launch.plist"
+/bin/rm "$resources/runtime/share/qemu/edk2-aarch64-code.fd"
+run_scenario guix-no-firmware 1 "$guix_guest" FAKE_PERSISTENT_ROOT="$guix_root"
+assert_contains "$(<"$test_root/guix-no-firmware/stderr")" 'missing bundled UEFI firmware'
+for scenario in guix-command-line guix-no-boot-abi guix-no-firmware; do
+  [[ ! -e $test_root/$scenario/qemu.log ]] || fail "$scenario started QEMU"
+done
+
+# The Arch guest must never declare a UEFI boot ABI.
+/usr/bin/plutil -insert bootABI -string uefi-gpt-v1 "$guest/launch.plist"
+run_scenario arch-boot-abi 1 ''
+assert_contains "$(<"$test_root/arch-boot-abi/stderr")" 'must not declare a boot ABI'
+/usr/bin/plutil -remove bootABI "$guest/launch.plist"
 
 printf 'run-qemu-ssh-contract.test: PASS\n'

@@ -39,6 +39,10 @@ FILES = frozenset({DISK, MANIFEST, SUMS})
 # replaces this before release.
 CREDENTIALS = frozenset({"development-password"})
 ZSTD_MAGIC = bytes.fromhex("28b52ffd")
+# The persistent workspace the launcher creates; the guest grows its root
+# partition into the difference (try-guix-grow-root). Matches the Arch guest's
+# expandedSizeMiB.
+WORKING_DISK_BYTES = 24576 << 20
 CHUNK = 8 << 20
 
 
@@ -322,3 +326,30 @@ def validate_artifacts(directory, zstd=None):
         if decompressed_sha256(compressed, zstd) != (disk["sha256"], disk["bytes"]):
             raise ArtifactError("decompressed disk does not match its manifest record")
     return manifest
+
+
+def launch_record(directory):
+    """The tab-separated record run-qemu-gpu.sh consumes for this artifact.
+
+    Fields: bundle identity (SHA-256 of the manifest file), raw disk SHA-256,
+    raw bytes, compressed bytes, working-disk bytes, and an empty kernel
+    command line: firmware boots the disk's own GRUB. The launcher's
+    materialization re-hashes the decompressed disk against the raw SHA-256.
+    """
+    manifest = validate_artifacts(directory)
+    disk = manifest["disk"]
+    return "\t".join([
+        sha256_file(Path(directory) / MANIFEST), disk["sha256"], str(disk["bytes"]),
+        str(disk["compressedBytes"]), str(max(disk["bytes"], WORKING_DISK_BYTES)), "",
+    ])
+
+
+if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) != 3 or sys.argv[1] != "launch-record":
+        sys.exit("usage: artifact.py launch-record DIRECTORY")
+    try:
+        print(launch_record(sys.argv[2]))
+    except (OSError, ValueError) as error:
+        sys.exit(f"guix-artifact: {error}")

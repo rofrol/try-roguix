@@ -213,21 +213,31 @@ for relative in \
 done
 install -m 0644 "$macos_dir/network-identity.py" "$contents/Resources/scripts/network-identity.py"
 python3 "$repo_dir/integrations/build-bundle.py" "$contents/Resources/integrations"
-for guest_resource in \
-  LICENSE.omarchy \
-  SHA256SUMS \
-  build-spec.json \
-  guest-manifest.json \
-  initramfs-linux.img \
-  packages.lock.txt \
-  provenance.json \
-  rootfs.ext4.zst \
-  vmlinuz-linux; do
+# A Guix guest directory (guest/guix/package.py) holds exactly its manifest,
+# checksums and compressed UEFI disk; everything else is the Arch guest.
+if [[ -e $guest_dir/guix-manifest.json || -L $guest_dir/guix-manifest.json ]]; then
+  guest_resources=(SHA256SUMS disk.raw.zst guix-manifest.json)
+  install -m 0644 "$repo_dir/guest/guix/artifact.py" \
+    "$contents/Resources/scripts/guix-artifact.py"
+else
+  guest_resources=(
+    LICENSE.omarchy
+    SHA256SUMS
+    build-spec.json
+    guest-manifest.json
+    initramfs-linux.img
+    packages.lock.txt
+    provenance.json
+    rootfs.ext4.zst
+    vmlinuz-linux
+  )
+fi
+for guest_resource in "${guest_resources[@]}"; do
   [[ -f $guest_dir/$guest_resource && ! -L $guest_dir/$guest_resource ]] || {
     echo "build-app: factory guest resource is missing or unsafe: $guest_resource" >&2
     exit 1
   }
-  if [[ $guest_resource == rootfs.ext4.zst ]]; then
+  if [[ $guest_resource == *.zst ]]; then
     cp -c "$guest_dir/$guest_resource" "$contents/Resources/guest/$guest_resource"
   else
     cp "$guest_dir/$guest_resource" "$contents/Resources/guest/$guest_resource"
@@ -272,7 +282,12 @@ launch_configuration="$contents/Resources/guest/launch.plist"
 /usr/bin/plutil -insert sourceDiskBytes -integer "$source_disk_bytes" "$launch_configuration"
 /usr/bin/plutil -insert compressedDiskBytes -integer "$compressed_disk_bytes" "$launch_configuration"
 /usr/bin/plutil -insert workingDiskBytes -integer "$working_disk_bytes" "$launch_configuration"
-/usr/bin/plutil -insert kernelCommandLine -string "$kernel_command_line" "$launch_configuration"
+if [[ -n $kernel_command_line ]]; then
+  /usr/bin/plutil -insert kernelCommandLine -string "$kernel_command_line" "$launch_configuration"
+else
+  # Only the UEFI guest validates without a command line; firmware boots it.
+  /usr/bin/plutil -insert bootABI -string uefi-gpt-v1 "$launch_configuration"
+fi
 
 codesign "${app_sign_options[@]}" \
   --entitlements "$macos_dir/omarchy-vm-helper.entitlements" \

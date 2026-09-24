@@ -60,6 +60,18 @@ macos_major=$(sw_vers -productVersion | cut -d. -f1)
   fail "requires macOS 15 or newer"
 [[ -d $guest_input && ! -L $guest_input ]] || fail "ARM guest directory is missing or unsafe: $guest_input"
 guest_dir=$(cd "$guest_input" && pwd -P)
+# The Guix guest (guest/guix/package.py) is a UEFI/GPT disk booted by the
+# runtime's EDK2 firmware; the Arch guest boots its kernel directly. The kind
+# is fixed by the signed guest resources, and each path below validates only
+# its own artifact contract.
+guest_kind=omarchy
+if [[ -e $guest_dir/guix-manifest.json || -L $guest_dir/guix-manifest.json ]]; then
+  guest_kind=guix
+fi
+uefi_boot_abi=uefi-gpt-v1
+qemu_window_name='Try Omarchy'
+[[ $guest_kind == guix ]] && qemu_window_name='Try Guix'
+uefi_firmware="$resources_dir/runtime/share/qemu/edk2-aarch64-code.fd"
 
 for command in codesign file getconf id mktemp plutil ps sysctl; do
   command -v "$command" >/dev/null || fail "$command is required"
@@ -81,6 +93,11 @@ esac
 [[ -f $native_bridge && -x $native_bridge ]] || {
   fail "missing bundled native bridge at $native_bridge"
 }
+if [[ $guest_kind == guix ]]; then
+  [[ -f $uefi_firmware && ! -L $uefi_firmware ]] || {
+    fail "missing bundled UEFI firmware; run make runtime"
+  }
+fi
 file "$qemu_bin" | grep 'arm64' >/dev/null || fail "staged QEMU is not an ARM64 executable"
 LC_ALL=C grep -aFq 'TryOmarchy.icns' "$qemu_bin" || {
   fail "staged QEMU lacks the Try Omarchy macOS identity; run make runtime"
@@ -193,6 +210,7 @@ fi
 # resources, so a clean Mac does not need Python. Repo-local development
 # bundles can still validate directly when no launch configuration is present.
 launch_configuration="$guest_dir/launch.plist"
+launch_boot_abi=''
 if [[ -f $launch_configuration && ! -L $launch_configuration ]]; then
   plist_read() {
     /usr/libexec/PlistBuddy -c "Print :$1" "$launch_configuration" 2>/dev/null
@@ -204,6 +222,17 @@ if [[ -f $launch_configuration && ! -L $launch_configuration ]]; then
     "$(plist_read compressedDiskBytes)" \
     "$(plist_read workingDiskBytes)" \
     "$(plist_read kernelCommandLine)")
+  launch_boot_abi=$(plist_read bootABI || true)
+elif [[ $guest_kind == guix ]]; then
+  command -v python3 >/dev/null 2>&1 || {
+    fail "bundled launch configuration is missing and Python is unavailable for development validation"
+  }
+  # guix-artifact.py checks the exact file set, manifest, GPT layout record and
+  # every checksum, then prints the same record as the Arch validator.
+  bundle_validation=$(python3 "$script_dir/guix-artifact.py" launch-record "$guest_dir") || {
+    fail "the bundled Guix guest failed validation"
+  }
+  launch_boot_abi=$uefi_boot_abi
 else
   command -v python3 >/dev/null 2>&1 || {
     fail "bundled launch configuration is missing and Python is unavailable for development validation"
@@ -973,7 +1002,13 @@ IFS=$'\t' read -r bundle_identity source_disk_sha source_disk_bytes compressed_d
 [[ $compressed_disk_bytes =~ ^[1-9][0-9]*$ ]] || fail "validated compressed rootfs size is invalid"
 [[ $expanded_disk_bytes =~ ^[1-9][0-9]*$ ]] || fail "validated working-disk size is invalid"
 (( expanded_disk_bytes >= source_disk_bytes )) || fail "working disk cannot be smaller than its source"
-[[ -n $kernel_command_line ]] || fail "validated kernel command line is empty"
+if [[ $guest_kind == guix ]]; then
+  [[ $launch_boot_abi == "$uefi_boot_abi" ]] || fail "the Guix guest does not declare the UEFI boot ABI"
+  [[ -z $kernel_command_line ]] || fail "a UEFI guest must not carry a kernel command line"
+else
+  [[ -z $launch_boot_abi ]] || fail "the Arch guest must not declare a boot ABI"
+  [[ -n $kernel_command_line ]] || fail "validated kernel command line is empty"
+fi
 case " $kernel_command_line " in
   *' omarchy.virgl_dual_source='*)
     fail "validated kernel command line contains a launcher-owned VirGL capability argument"
@@ -1520,6 +1555,17 @@ mkdir -m 700 "$work_dir/audio-routes"
 
 bundled_kernel="$guest_dir/vmlinuz-linux"
 bundled_initramfs="$guest_dir/initramfs-linux.img"
+source_disk_name=rootfs.ext4
+if [[ $guest_kind == guix ]]; then
+  bundled_kernel=''
+  bundled_initramfs=''
+  source_disk_name=disk.raw
+fi
+if [[ $guest_kind == guix ]]; then
+  qemu_persistent_storage_configure_guest uefi || fail "could not select UEFI guest storage"
+else
+  qemu_persistent_storage_configure_guest direct || fail "could not select direct-boot guest storage"
+fi
 selected_existing=0
 if [[ $storage_mode == persistent ]]; then
   if qemu_persistent_storage_select_existing \
@@ -1542,11 +1588,11 @@ if (( selected_existing == 0 )); then
     (( disk_capacity_bytes >= expanded_disk_bytes )) || fail 'maximum disk size is below the factory capacity'
     expanded_disk_bytes=$disk_capacity_bytes
   fi
-  source_disk="$guest_dir/rootfs.ext4"
+  source_disk="$guest_dir/$source_disk_name"
   if [[ ! -e $source_disk && ! -L $source_disk ]]; then
     qemu_persistent_storage_materialize_source \
       "$bundle_identity" \
-      "$guest_dir/rootfs.ext4.zst" \
+      "$guest_dir/$source_disk_name.zst" \
       "$compressed_disk_bytes" \
       "$source_disk_sha" \
       "$source_disk_bytes" \
@@ -1590,17 +1636,26 @@ if (( QEMU_PERSISTENT_STORAGE_NEEDS_BOOT_RECOVERY )); then
   fi
   recover_persistent_boot_kit
 fi
-launch_kernel=$QEMU_SELECTED_KERNEL
-launch_initramfs=$QEMU_SELECTED_INITRAMFS
-launch_kernel_command_line=$QEMU_SELECTED_KERNEL_COMMAND_LINE
-[[ -n $launch_kernel && -n $launch_initramfs && -n $launch_kernel_command_line ]] || {
-  fail 'the selected VM has no complete boot kit'
-}
-case " $launch_kernel_command_line " in
-  *' omarchy.virgl_dual_source='*)
-    fail "selected kernel command line contains a launcher-owned VirGL capability argument"
-    ;;
-esac
+if [[ $guest_kind == guix ]]; then
+  boot_args=(-bios "$uefi_firmware")
+else
+  launch_kernel=$QEMU_SELECTED_KERNEL
+  launch_initramfs=$QEMU_SELECTED_INITRAMFS
+  launch_kernel_command_line=$QEMU_SELECTED_KERNEL_COMMAND_LINE
+  [[ -n $launch_kernel && -n $launch_initramfs && -n $launch_kernel_command_line ]] || {
+    fail 'the selected VM has no complete boot kit'
+  }
+  case " $launch_kernel_command_line " in
+    *' omarchy.virgl_dual_source='*)
+      fail "selected kernel command line contains a launcher-owned VirGL capability argument"
+      ;;
+  esac
+  boot_args=(
+    -kernel "$launch_kernel"
+    -initrd "$launch_initramfs"
+    -append "$launch_kernel_command_line omarchy.qemu_virgl=1 omarchy.virgl_dual_source=1$shared_folder_kernel_argument$ssh_kernel_argument$settings_kernel_argument$keyboard_kernel_argument$locale_kernel_argument"
+  )
+fi
 
 if ((reset_only)); then
   qemu_persistent_storage_release_lock
@@ -1695,7 +1750,7 @@ if [[ $QEMU_NETWORK_MODE == bridged ]]; then
 fi
 
 qemu_args=(
-  -name 'Try Omarchy'
+  -name "$qemu_window_name"
   "${qemu_virtualization_args[@]}"
   # HVF does not provide a usable guest PMU on Apple Silicon. Do not advertise
   # one: Linux otherwise probes the dead device and prints a misleading failure.
@@ -1713,9 +1768,7 @@ qemu_args=(
   -serial none
   -monitor none
   -qmp "unix:$qmp_socket,server=on,wait=off"
-  -kernel "$launch_kernel"
-  -initrd "$launch_initramfs"
-  -append "$launch_kernel_command_line omarchy.qemu_virgl=1 omarchy.virgl_dual_source=1$shared_folder_kernel_argument$ssh_kernel_argument$settings_kernel_argument$keyboard_kernel_argument$locale_kernel_argument"
+  "${boot_args[@]}"
   -drive "if=none,id=omarchy-root,file=$working_disk,format=raw,media=disk,cache=writeback"
   -device 'virtio-blk-pci,drive=omarchy-root,serial=omarchy-root'
   -device "$gpu_device"

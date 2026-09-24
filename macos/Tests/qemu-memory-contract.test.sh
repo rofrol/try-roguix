@@ -225,6 +225,7 @@ qemu_persistent_storage_release_lock() { :; }
 qemu_persistent_storage_grow_selected() {
   printf 'grow:%s\n' "$1" >>"$FAKE_STORAGE_LOG"
 }
+qemu_persistent_storage_configure_guest() { [[ $1 == direct ]]; }
 qemu_persistent_storage_materialize_source() {
   printf 'materialize\n' >>"$FAKE_STORAGE_LOG"
   return 1

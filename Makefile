@@ -15,7 +15,7 @@ PACKAGE_NOTARY_PROFILE ?= $(RELEASE_NOTARY_PROFILE)
 FORCE ?= 0
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor test guest guix-package runtime app build run run-ephemeral reset update-omarchy version-preflight package package-preflight release release-preflight clean clean-all clean-guest
+.PHONY: help doctor test guest guix-package guix-app guix-run runtime app build run run-ephemeral reset update-omarchy version-preflight package package-preflight release release-preflight clean clean-all clean-guest
 
 help:
 	@printf '%s\n' \
@@ -39,6 +39,8 @@ help:
 	  '  make app            Ensure both artifacts and the app are current' \
 	  '  make guix-package GUIX_IMAGE=/path/image.raw' \
 	  '                      Package a built Guix EFI image into dist/guix' \
+	  '  make guix-app       Build the app with the dist/guix guest' \
+	  '  make guix-run       Build that app and open it' \
 	  '' \
 	  'Storage:' \
 	  '  make run-ephemeral  Run without retaining VM changes' \
@@ -91,6 +93,14 @@ guest:
 guix-package: runtime
 	@test -n "$(GUIX_IMAGE)" || { echo 'Set GUIX_IMAGE to a raw image from guest/guix/build.py' >&2; exit 64; }
 	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/guest/guix/package.py" --image "$(GUIX_IMAGE)"
+
+# The Guix app bypasses the build cache, which tracks the Arch guest; the next
+# `make app` sees a different bundle and rebuilds it.
+guix-app: runtime
+	@"$(ROOT)/macos/build-app.sh" --guest-dir "$(ROOT)/dist/guix"
+
+guix-run: guix-app
+	@$(ROOT)/macos/open-qemu-gpu.sh
 
 runtime:
 	@OMARCHY_FORCE_BUILD="$(FORCE)" "$(BUILD_CACHE)" \
