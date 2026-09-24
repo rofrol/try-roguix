@@ -1833,6 +1833,17 @@ if [[ -n $shared_folder ]]; then
   )
 fi
 
+if [[ $launch_boot_abi == "$uefi_boot_abi" ]]; then
+  # UEFI has no virtio keyboard driver, so GRUB's menu reads a USB keyboard.
+  # QEMU sends each key to one keyboard; Linux drives both.
+  require_qemu_device qemu-xhci
+  require_qemu_device usb-kbd
+  qemu_args+=(
+    -device 'qemu-xhci,id=roguix-usb'
+    -device 'usb-kbd,bus=roguix-usb.0'
+  )
+fi
+
 # SDL2 has one legacy process-wide override that would collapse input and
 # output onto the same named device. The patched QEMU backend uses the two
 # direction-specific Omarchy variables instead; unset means live System Default.

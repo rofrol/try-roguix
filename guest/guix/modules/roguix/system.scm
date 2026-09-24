@@ -113,7 +113,11 @@
     ;; The VM's display is Retina-sized: the kernel's 8x16 console font is
     ;; unreadably small there, so boot messages use its built-in Terminus
     ;; 16x32 (see also console-font-service-type below).
+    ;; The launcher sizes the display to the window's Retina pixels; the text
+    ;; console keeps 1920x1080, which the window scales up. Hyprland sets
+    ;; its own mode from the window (roguix-display-sync).
     (kernel-arguments (cons* "console=hvc0" "fbcon=font:TER16x32"
+                             "video=Virtual-1:1920x1080"
                              %default-kernel-arguments))
 
     ;; The launcher boots EDK2 with -bios, which keeps no UEFI variables, so
