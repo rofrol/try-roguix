@@ -2001,6 +2001,36 @@ if [[ -f $resources_dir/integrations/manifest.json ]]; then
   integration_bridge_pid=$!
 fi
 
+# The loop below runs for the whole session. One ps call per poll reads every
+# supervised process's state, and the poll sleeps 0.5 s: a ps per process ten
+# times a second was a measurable share of the Mac's energy use. States come
+# from ps rather than kill -0 because an exited child stays a zombie (Z) until
+# it is waited for.
+supervised_states=''
+refresh_supervised_states() {
+  local pids=$qemu_pid
+  local pid
+  for pid in "$audio_bridge_pid" "$clipboard_bridge_pid" \
+    "$authentication_bridge_pid" "$camera_bridge_pid" \
+    "$battery_bridge_pid" "$integration_bridge_pid" "$timezone_bridge_pid"; do
+    [[ $pid =~ ^[0-9]+$ ]] && pids+=",$pid"
+  done
+  supervised_states=$(ps -o pid=,state= -p "$pids" 2>/dev/null || true)
+}
+# supervised_state PID VARIABLE: set VARIABLE to PID's state from the last
+# refresh, or to empty when it is gone. No subshell, so no extra process.
+supervised_state() {
+  local wanted=$1
+  local pid state
+  printf -v "$2" '%s' ''
+  while read -r pid state; do
+    if [[ $pid == "$wanted" ]]; then
+      printf -v "$2" '%s' "$state"
+      return 0
+    fi
+  done <<<"$supervised_states"
+}
+
 # Bash 3.2 has no `wait -n`. The native-audio bridge is required for the guest
 # transport, so watch it alongside QEMU and fail if it exits unexpectedly.
 qemu_is_running() {
@@ -2010,7 +2040,9 @@ qemu_is_running() {
 }
 
 while true; do
-  qemu_is_running || break
+  refresh_supervised_states
+  supervised_state "$qemu_pid" qemu_state
+  [[ -n $qemu_state && $qemu_state != *Z* ]] || break
 
   if [[ $QEMU_NETWORK_MODE == bridged && -f $QEMU_NETWORK_DIRECTORY/failed ]]; then
     cat "$QEMU_NETWORK_DIRECTORY/log" >&2
@@ -2019,7 +2051,7 @@ while true; do
   if [[ $QEMU_NETWORK_MODE == bridged && ( -f $QEMU_NETWORK_DIRECTORY/done || ! -d $QEMU_NETWORK_DIRECTORY ) ]]; then
     fail 'The networking session ended while Omarchy was running.'
   fi
-  audio_bridge_state=$(ps -p "$audio_bridge_pid" -o state= 2>/dev/null || true)
+  supervised_state "$audio_bridge_pid" audio_bridge_state
   if [[ -z $audio_bridge_state || $audio_bridge_state == *Z* ]]; then
     if wait "$audio_bridge_pid"; then
       audio_bridge_status=0
@@ -2041,7 +2073,7 @@ while true; do
   # Clipboard sharing is a convenience, not a transport the guest depends on.
   # Restart it a few times rather than stopping the whole virtual machine.
   if [[ $clipboard_bridge_pid =~ ^[0-9]+$ ]]; then
-    clipboard_bridge_state=$(ps -p "$clipboard_bridge_pid" -o state= 2>/dev/null || true)
+    supervised_state "$clipboard_bridge_pid" clipboard_bridge_state
     if [[ -z $clipboard_bridge_state || $clipboard_bridge_state == *Z* ]]; then
       if wait "$clipboard_bridge_pid"; then
         clipboard_bridge_status=0
@@ -2063,7 +2095,7 @@ while true; do
   # Touch ID sudo remains optional to VM availability: signed-response failure
   # falls back to the guest password. Reconnect a transiently failed helper.
   if [[ $authentication_bridge_pid =~ ^[0-9]+$ ]]; then
-    authentication_bridge_state=$(ps -p "$authentication_bridge_pid" -o state= 2>/dev/null || true)
+    supervised_state "$authentication_bridge_pid" authentication_bridge_state
     if [[ -z $authentication_bridge_state || $authentication_bridge_state == *Z* ]]; then
       if wait "$authentication_bridge_pid"; then
         authentication_bridge_status=0
@@ -2084,7 +2116,7 @@ while true; do
   # Camera sharing is optional. A failed capture backend must not stop the VM;
   # reconnect it so a transient device change can recover in this session.
   if [[ $camera_bridge_pid =~ ^[0-9]+$ ]]; then
-    camera_bridge_state=$(ps -p "$camera_bridge_pid" -o state= 2>/dev/null || true)
+    supervised_state "$camera_bridge_pid" camera_bridge_state
     if [[ -z $camera_bridge_state || $camera_bridge_state == *Z* ]]; then
       if wait "$camera_bridge_pid"; then
         camera_bridge_status=0
@@ -2106,7 +2138,7 @@ while true; do
   # Battery mirroring is optional. A failed IOKit backend must not stop the
   # VM; reconnect it so a transient failure can recover in this session.
   if [[ $battery_bridge_pid =~ ^[0-9]+$ ]]; then
-    battery_bridge_state=$(ps -p "$battery_bridge_pid" -o state= 2>/dev/null || true)
+    supervised_state "$battery_bridge_pid" battery_bridge_state
     if [[ -z $battery_bridge_state || $battery_bridge_state == *Z* ]]; then
       if wait "$battery_bridge_pid"; then
         battery_bridge_status=0
@@ -2125,7 +2157,7 @@ while true; do
     fi
   fi
   if [[ $timezone_bridge_pid =~ ^[0-9]+$ ]]; then
-    timezone_bridge_state=$(ps -p "$timezone_bridge_pid" -o state= 2>/dev/null || true)
+    supervised_state "$timezone_bridge_pid" timezone_bridge_state
     if [[ -z $timezone_bridge_state || $timezone_bridge_state == *Z* ]]; then
       if wait "$timezone_bridge_pid"; then timezone_bridge_status=0; else timezone_bridge_status=$?; fi
       timezone_bridge_pid=""
@@ -2139,7 +2171,7 @@ while true; do
       fi
     fi
   fi
-  sleep 0.1
+  sleep 0.5
 done
 
 if wait "$qemu_pid"; then
