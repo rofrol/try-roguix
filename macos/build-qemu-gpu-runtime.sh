@@ -684,6 +684,7 @@ log "Relocating, capability-gating, signing, and publishing the runtime"
   --source-qemu "$qemu_binary" \
   --source-slirp "$slirp_root/lib/libslirp.0.dylib" \
   --source-virgl "$virgl_root/lib/libvirglrenderer.1.dylib" \
+  --source-pc-bios "$source_dir/pc-bios" \
   --archive-dir "$archive_dir"
 
 log "Pinned patched runtime is ready; scratch source and archives will now be removed"

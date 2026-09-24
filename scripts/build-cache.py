@@ -43,7 +43,7 @@ def read_runtime_manifest(path: Path) -> frozenset[str]:
     if len(entries) != len(set(entries)):
         raise RuntimeError("runtime file manifest contains duplicate paths")
     for entry in entries:
-        if re.fullmatch(r"(?:bin|lib)/[A-Za-z0-9][A-Za-z0-9._+-]*", entry) is None:
+        if re.fullmatch(r"(?:bin|lib|share/qemu)/[A-Za-z0-9][A-Za-z0-9._+-]*", entry) is None:
             raise RuntimeError(f"runtime file manifest contains an unsafe path: {entry!r}")
     return frozenset(entries)
 
@@ -366,7 +366,7 @@ def validate_runtime(root: Path, previous: dict[str, Any] | None) -> dict[str, A
         if path.is_symlink():
             raise CacheError(f"runtime artifact contains an unsafe symlink: {relative}")
         if path.is_dir():
-            if relative not in {"bin", "lib"}:
+            if relative not in {"bin", "lib", "share", "share/qemu"}:
                 raise CacheError(
                     f"runtime artifact contains an unexpected directory: {relative}"
                 )
@@ -380,6 +380,10 @@ def validate_runtime(root: Path, previous: dict[str, Any] | None) -> dict[str, A
         path = directory / name
         if not path.is_file() or path.is_symlink() or path.stat().st_size <= 0:
             raise CacheError(f"runtime artifact is missing or unsafe: {name}")
+        # share/qemu data is checksum-pinned by prepare-qemu-gpu-runtime.sh and
+        # covered by the snapshot below; only Mach-O images carry signatures.
+        if name.startswith("share/"):
+            continue
         result = subprocess.run(
             ["codesign", "--verify", "--strict", str(path)],
             check=False,

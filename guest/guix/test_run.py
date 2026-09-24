@@ -26,6 +26,12 @@ class SmokeLauncherTests(unittest.TestCase):
         self.assertIn("cocoa,gl=es,", display)
         self.assertIn("full-grab=off", display)
 
+    def test_firmware_is_the_pinned_runtime_copy(self):
+        self.assertEqual(runner.FIRMWARE.parent.parent.parent, runner.RUNTIME)
+        manifest = runner.ROOT / "macos/runtime-files.txt"
+        listed = manifest.read_text(encoding="ascii").splitlines()
+        self.assertIn(runner.FIRMWARE.relative_to(runner.RUNTIME).as_posix(), listed)
+
     def test_disk_is_ephemeral_and_host_integrations_are_not_exposed(self):
         command = runner.qemu_command(Path("/image.raw"), Path("/uefi.fd"))
         self.assertIn("-snapshot", command)
@@ -50,9 +56,9 @@ class SmokeLauncherTests(unittest.TestCase):
         output = io.StringIO()
         with tempfile.TemporaryDirectory() as directory:
             image = Path(directory) / "not-created.raw"
-            argv = ["run.py", "--dry-run", "--image", str(image),
-                    "--firmware", str(Path(directory) / "not-created.fd")]
+            argv = ["run.py", "--dry-run", "--image", str(image)]
             with patch.object(sys, "argv", argv), \
+                 patch.object(runner, "FIRMWARE", Path(directory) / "not-created.fd"), \
                  patch.object(runner.os, "execv") as execute, \
                  patch.object(runner.subprocess, "run") as subprocess_run, \
                  contextlib.redirect_stdout(output):
@@ -68,9 +74,10 @@ class SmokeLauncherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "fixture"
             path.write_bytes(b"fixture")
-            argv = ["run.py", "--image", str(path), "--firmware", str(path)]
+            argv = ["run.py", "--image", str(path)]
             with patch.object(sys, "argv", argv), \
                  patch.object(runner, "QEMU", path), \
+                 patch.object(runner, "FIRMWARE", path), \
                  patch.object(runner.platform, "system", return_value="Darwin"), \
                  patch.object(runner.platform, "machine", return_value="arm64"), \
                  patch.object(runner.subprocess, "run", side_effect=subprocess.CalledProcessError(1, "codesign")), \

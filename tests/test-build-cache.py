@@ -151,7 +151,9 @@ class BuildCacheTests(unittest.TestCase):
         manifest = REPOSITORY / "macos/runtime-files.txt"
         expected = frozenset(manifest.read_text(encoding="ascii").splitlines())
         self.assertEqual(expected, build_cache.RUNTIME_FILES)
-        self.assertEqual(16, len(expected))
+        self.assertEqual(18, len(expected))
+        self.assertIn("share/qemu/edk2-aarch64-code.fd", expected)
+        self.assertIn("share/qemu/edk2-licenses.txt", expected)
         self.assertIn("bin/qemu-system-aarch64", expected)
         self.assertIn("bin/zstd", expected)
         self.assertIn("lib/libSDL3.dylib", expected)
@@ -164,6 +166,8 @@ class BuildCacheTests(unittest.TestCase):
                 "../outside\n",
                 "bin//tool\n",
                 "lib/nested/tool\n",
+                "share/tool\n",
+                "share/qemu/nested/firmware\n",
             ):
                 invalid.write_text(contents, encoding="ascii")
                 with self.assertRaises(RuntimeError):
