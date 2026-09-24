@@ -3,7 +3,7 @@ import ServiceManagement
 
 @MainActor
 enum NetworkService {
-    static let service = SMAppService.daemon(plistName: "dev.tryguix.network.plist")
+    static let service = SMAppService.daemon(plistName: "dev.tryroguix.network.plist")
 
     static var statusText: String {
         switch service.status {
@@ -17,7 +17,7 @@ enum NetworkService {
 
     static func prepare() throws {
         if service.status == .notRegistered || service.status == .notFound {
-            let plist = Bundle.main.bundleURL.appendingPathComponent("Contents/Library/LaunchDaemons/dev.tryguix.network.plist")
+            let plist = Bundle.main.bundleURL.appendingPathComponent("Contents/Library/LaunchDaemons/dev.tryroguix.network.plist")
             guard FileManager.default.fileExists(atPath: plist.path) else {
                 throw HelperError.io("Networking helper is missing from this app.")
             }
@@ -31,7 +31,7 @@ enum NetworkService {
         guard service.status == .enabled else {
             if service.status == .requiresApproval {
                 SMAppService.openSystemSettingsLoginItems()
-                throw HelperError.io("Approve Try Guix’s networking helper in System Settings → General → Login Items & Extensions, then launch again. This approval is needed once, not on every launch.")
+                throw HelperError.io("Approve Try Roguix’s networking helper in System Settings → General → Login Items & Extensions, then launch again. This approval is needed once, not on every launch.")
             }
             throw HelperError.io(statusText)
         }

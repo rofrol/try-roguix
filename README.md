@@ -1,14 +1,14 @@
 <p align="center">
-  <img src="macos/TryGuixIcon.svg" width="128" height="128" alt="Try Guix icon">
+  <img src="macos/TryRoguixIcon.svg" width="128" height="128" alt="Try Roguix icon">
 </p>
 
-<h1 align="center">Try Guix</h1>
+<h1 align="center">Try Roguix</h1>
 
 Run a [Guix System](https://guix.gnu.org) desktop with the
 [Omarchy](https://omarchy.org) 4 look (Hyprland, its Quickshell bar, menu and
 themes) as a native, hardware-accelerated app on an Apple Silicon Mac.
 
-Try Guix packages a Guix System ARM64 disk image, a QEMU runtime using Apple's
+Try Roguix packages a Guix System ARM64 disk image, a QEMU runtime using Apple's
 Hypervisor Framework with VirGL/ANGLE-Metal graphics, and a small Swift/AppKit
 launcher into one macOS app. The guest is built with `guix time-machine` from a
 pinned, signature-verified Guix commit. The macOS side comes from
@@ -51,7 +51,7 @@ and removing the Arch builder).
    [guest/guix/README.md](guest/guix/README.md#build)), copy the raw image to
    the Mac, and package it: `make guix-package GUIX_IMAGE=/path/to/image.raw`.
 3. Build and open the app: `make guix-run`. It is built as
-   `dist/app.noindex/Try Guix.app`.
+   `dist/app.noindex/Try Roguix.app`.
 
 On the first start the VM console asks for the password of the account
 `guest`, twice. The desktop then starts without it; `sudo` asks for it. Every
@@ -61,7 +61,7 @@ The desktop is Omarchy's: **Super+Return** opens a terminal, **Super+Space**
 the Omarchy menu, **Super+Alt+Space** the app launcher, **Super+W** closes a
 window. Command acts as Super while the VM window is focused. Omarchy's menus
 for Arch packages and updates do nothing on Guix. A VM created before the
-Omarchy desktop keeps its old one; **Reset Guix** starts a new one.
+Omarchy desktop keeps its old one; **Reset Roguix** starts a new one.
 
 ## Using the Mac integrations
 
@@ -85,9 +85,9 @@ corresponding sections of [docs/legacy-try-omarchy.md](docs/legacy-try-omarchy.m
 
 ## Data
 
-The VM lives in `~/Library/Application Support/Try Guix/VM/v1/guix/`: the
+The VM lives in `~/Library/Application Support/Try Roguix/VM/v1/guix/`: the
 verified factory image under `images/` and the VM's own disk under
-`disks/current/`. Updating the app never replaces an existing VM; **Reset Guix**
+`disks/current/`. Updating the app never replaces an existing VM; **Reset Roguix**
 on the start menu erases it and starts again from the factory image.
 
 ## The runtime
@@ -135,7 +135,7 @@ and nothing released it. The host resampled silence for the life of the VM.
 Microphone capture is stricter: its initial device open is deferred until an
 guest application actually records, and the device is closed again when the
 guest capture stream stops. The first recording may therefore take one device
-open longer to begin, but merely launching Try Guix does not activate the
+open longer to begin, but merely launching Try Roguix does not activate the
 Mac microphone.
 
 **An unconditional re-render every refresh tick.** The vendored

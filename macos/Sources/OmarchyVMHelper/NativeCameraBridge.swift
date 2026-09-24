@@ -60,9 +60,9 @@ enum NativeCameraSessionLifecycle {
 
 final class NativeCameraBridge: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, @unchecked Sendable {
     private let descriptor: Int32
-    private let sessionQueue = DispatchQueue(label: "dev.tryguix.native.camera-session")
+    private let sessionQueue = DispatchQueue(label: "dev.tryroguix.native.camera-session")
     private let videoQueue = DispatchQueue(
-        label: "dev.tryguix.native.camera-frames",
+        label: "dev.tryroguix.native.camera-frames",
         qos: .userInitiated
     )
     private let stateLock = NSLock()

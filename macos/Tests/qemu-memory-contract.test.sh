@@ -39,7 +39,7 @@ case "$test_root" in
 esac
 trap '/bin/rm -rf "$test_root"' EXIT HUP INT TERM
 
-app="$test_root/Try Guix.app"
+app="$test_root/Try Roguix.app"
 contents="$app/Contents"
 resources="$contents/Resources"
 shim_dir="$test_root/bin"
@@ -95,10 +95,10 @@ exit 0
 SH
 chmod 755 "$contents/MacOS/omarchy-vm-helper"
 
-cat >"$resources/runtime/bin/Try Guix" <<'SH'
+cat >"$resources/runtime/bin/Try Roguix" <<'SH'
 #!/bin/bash
 # Identity markers validated by the production launcher:
-# TryGuix.icns
+# TryRoguix.icns
 # OMARCHY_SDL_AUDIO_CONTROL_DIRECTORY
 # OMARCHY_SDL_INPUT_DEVICE_NAME
 # OMARCHY_SDL_OUTPUT_DEVICE_NAME
@@ -201,7 +201,7 @@ PY
     ;;
 esac
 SH
-chmod 755 "$resources/runtime/bin/Try Guix"
+chmod 755 "$resources/runtime/bin/Try Roguix"
 
 cat >"$resources/scripts/qemu-persistent-storage.sh" <<'SH'
 #!/bin/bash

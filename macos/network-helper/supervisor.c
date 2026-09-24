@@ -86,7 +86,7 @@ int main(int argc, char **argv) {
     lock = open("/private/var/run/try-omarchy-network.lock", O_RDWR | O_CREAT | O_NOFOLLOW, 0600);
     if (lock < 0 || fstat(lock, &statbuf) || !S_ISREG(statbuf.st_mode) || statbuf.st_uid != 0 ||
         statbuf.st_nlink != 1 || (statbuf.st_mode & 077) || flock(lock, LOCK_EX | LOCK_NB)) {
-        fprintf(stderr, "Another bridged Try Guix session is active, or its lock is unavailable.\n"); goto finish;
+        fprintf(stderr, "Another bridged Try Roguix session is active, or its lock is unavailable.\n"); goto finish;
     }
     /* Recover a pending restoration after an interrupted supervisor. */
     char pending[4] = {0};

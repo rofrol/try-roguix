@@ -51,7 +51,7 @@ esac
 stale_fixture=''
 trap '/bin/rm -rf "$test_root"; [[ -z "$stale_fixture" ]] || /bin/rm -rf "$stale_fixture"' EXIT HUP INT TERM
 
-app="$test_root/Try Guix.app"
+app="$test_root/Try Roguix.app"
 contents="$app/Contents"
 resources="$contents/Resources"
 shim_dir="$test_root/bin"
@@ -126,10 +126,10 @@ exit 0
 SH
 chmod 755 "$contents/MacOS/omarchy-vm-helper"
 
-cat >"$resources/runtime/bin/Try Guix" <<'SH'
+cat >"$resources/runtime/bin/Try Roguix" <<'SH'
 #!/bin/bash
 # Identity markers validated by the production launcher:
-# TryGuix.icns
+# TryRoguix.icns
 # OMARCHY_SDL_AUDIO_CONTROL_DIRECTORY
 # OMARCHY_SDL_INPUT_DEVICE_NAME
 # OMARCHY_SDL_OUTPUT_DEVICE_NAME
@@ -181,7 +181,7 @@ import threading
 import time
 
 arguments = sys.argv[1:]
-is_recovery = "Try Guix Boot Recovery" in arguments
+is_recovery = "Try Roguix Boot Recovery" in arguments
 log_variable = "FAKE_QEMU_RECOVERY_LOG" if is_recovery else "FAKE_QEMU_LOG"
 geometry = os.environ.get("TRYOMARCHY_KEYBOARD", "")
 Path(os.environ[log_variable]).write_text(
@@ -284,7 +284,7 @@ PY
     ;;
 esac
 SH
-chmod 755 "$resources/runtime/bin/Try Guix"
+chmod 755 "$resources/runtime/bin/Try Roguix"
 
 cat >"$resources/scripts/qemu-persistent-storage.sh" <<'SH'
 #!/bin/bash
@@ -1097,7 +1097,7 @@ run_scenario guix-uefi 0 "$guix_guest" FAKE_PERSISTENT_ROOT="$guix_root"
 guix_arguments=$(<"$test_root/guix-uefi/qemu.log")
 assert_line_pair "$test_root/guix-uefi/qemu.log" -bios \
   "$resources/runtime/share/qemu/edk2-aarch64-code.fd"
-assert_line_pair "$test_root/guix-uefi/qemu.log" -name 'Try Guix'
+assert_line_pair "$test_root/guix-uefi/qemu.log" -name 'Try Roguix'
 assert_contains "$guix_arguments" "file=$guix_root/rootfs.ext4"
 for option in -kernel -initrd -append; do
   ! grep -Fxq -- "$option" "$test_root/guix-uefi/qemu.log" || fail "UEFI launch passed $option"

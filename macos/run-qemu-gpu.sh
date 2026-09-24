@@ -48,7 +48,7 @@ resources_dir=$(cd "$script_dir/.." && pwd -P)
 contents_dir=$(cd "$resources_dir/.." && pwd -P)
 app_bundle=$(cd "$contents_dir/.." && pwd -P)
 guest_input=${1:-"$resources_dir/guest"}
-qemu_bin="$resources_dir/runtime/bin/Try Guix"
+qemu_bin="$resources_dir/runtime/bin/Try Roguix"
 native_bridge="$contents_dir/MacOS/omarchy-vm-helper"
 storage_library="$script_dir/qemu-persistent-storage.sh"
 port_forwarding_library="$script_dir/qemu-port-forwarding.sh"
@@ -69,8 +69,8 @@ if [[ -e $guest_dir/guix-manifest.json || -L $guest_dir/guix-manifest.json ]]; t
   guest_kind=guix
 fi
 uefi_boot_abi=uefi-gpt-v1
-qemu_window_name='Try Guix'
-[[ $guest_kind == guix ]] && qemu_window_name='Try Guix'
+qemu_window_name='Try Roguix'
+[[ $guest_kind == guix ]] && qemu_window_name='Try Roguix'
 uefi_firmware="$resources_dir/runtime/share/qemu/edk2-aarch64-code.fd"
 
 for command in codesign file getconf id mktemp plutil ps sysctl; do
@@ -99,8 +99,8 @@ if [[ $guest_kind == guix ]]; then
   }
 fi
 file "$qemu_bin" | grep 'arm64' >/dev/null || fail "staged QEMU is not an ARM64 executable"
-LC_ALL=C grep -aFq 'TryGuix.icns' "$qemu_bin" || {
-  fail "staged QEMU lacks the Try Guix macOS identity; run make runtime"
+LC_ALL=C grep -aFq 'TryRoguix.icns' "$qemu_bin" || {
+  fail "staged QEMU lacks the Try Roguix macOS identity; run make runtime"
 }
 for marker in \
   OMARCHY_SDL_AUDIO_CONTROL_DIRECTORY \
@@ -1433,7 +1433,7 @@ recover_persistent_boot_kit() {
   (
     unset TRYOMARCHY_KEYBOARD
     exec "$qemu_bin" \
-      -name 'Try Guix Boot Recovery' \
+      -name 'Try Roguix Boot Recovery' \
       -machine "$qemu_machine" \
       -cpu 'host,pmu=off' \
       -smp '2,sockets=1,cores=2,threads=1' \

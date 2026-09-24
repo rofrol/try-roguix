@@ -6,7 +6,7 @@ usage() {
   cat <<'EOF'
 Usage: macos/build-qemu-gpu-runtime.sh [--archive-dir DIR]
 
-Build the pinned QEMU/VirGL source stack for macOS 15.0 with Try Guix's Cocoa identity,
+Build the pinned QEMU/VirGL source stack for macOS 15.0 with Try Roguix's Cocoa identity,
 dynamic-display, immersive-mode, pause-ownership, pinch-zoom, and ISO
 keyboard patches, then relocate, sign, validate, and
 atomically stage it at:
@@ -70,7 +70,7 @@ qemu_sha256=7563781d7dec46f11509801e027f852597235d29ca7afa44a07ed9d8b108b8cd
 
 texture_patch_sha256=b20bdf9a7d7ccda5b86366ad9d09a3bf95308b98a06b1ece281344405bcc7ab9
 gpu_fix_patch_sha256=b554e1ef9910d0891d69ee0fe84e479559c057dc28291e36e1524031808fc69f
-identity_patch_sha256=bf3afe3938beebae3e4a06e1c45952cb32908d18e64fdb49602f1664bddf5c1a
+identity_patch_sha256=1aaa65d2801cc312b7610f7a3d4be8920bcfdfe995914b1481a0e142cc5844c5
 display_patch_sha256=1ce59350b6b8e6842bc0c9ca34c97f54cb75e85e2d7b35e5b483858654c4d693
 immersive_patch_sha256=2462463932f7db0d659f754f7f9c182884564dbcd7d4b8e523f1b57f0bd9fe5b
 full_grab_patch_sha256=d94aaa7b8b8b97eb25a5ace2b3a1268985e1b16e4e6201847b926b8ee709dbfb
@@ -392,32 +392,32 @@ mkdir -p "$source_dir/subprojects/keycodemapdb" "$source_dir/subprojects/dtc"
 tar -xzf "$keycodemap_archive" -C "$source_dir/subprojects/keycodemapdb" --strip-components=1
 tar -xzf "$dtc_archive" -C "$source_dir/subprojects/dtc" --strip-components=1
 
-verify_file_sha "Try Guix texture-borrowing patch" "$texture_patch" "$texture_patch_sha256"
-verify_file_sha "Try Guix GPU-resolution patch" "$gpu_fix_patch" "$gpu_fix_patch_sha256"
-verify_file_sha "Try Guix Cocoa product-identity patch" \
+verify_file_sha "Try Roguix texture-borrowing patch" "$texture_patch" "$texture_patch_sha256"
+verify_file_sha "Try Roguix GPU-resolution patch" "$gpu_fix_patch" "$gpu_fix_patch_sha256"
+verify_file_sha "Try Roguix Cocoa product-identity patch" \
   "$identity_patch" "$identity_patch_sha256"
-verify_file_sha "Try Guix dynamic-display patch" "$display_patch" "$display_patch_sha256"
-verify_file_sha "Try Guix Cocoa immersive-mode patch" \
+verify_file_sha "Try Roguix dynamic-display patch" "$display_patch" "$display_patch_sha256"
+verify_file_sha "Try Roguix Cocoa immersive-mode patch" \
   "$immersive_patch" "$immersive_patch_sha256"
-verify_file_sha "Try Guix Cocoa full-grab patch" \
+verify_file_sha "Try Roguix Cocoa full-grab patch" \
   "$full_grab_patch" "$full_grab_patch_sha256"
-verify_file_sha "Try Guix Cocoa full-grab re-enable patch" \
+verify_file_sha "Try Roguix Cocoa full-grab re-enable patch" \
   "$reenable_patch" "$reenable_patch_sha256"
-verify_file_sha "Try Guix Cocoa pause-ownership patch" \
+verify_file_sha "Try Roguix Cocoa pause-ownership patch" \
   "$pause_ownership_patch" "$pause_ownership_patch_sha256"
-verify_file_sha "Try Guix Cocoa pinch-zoom patch" \
+verify_file_sha "Try Roguix Cocoa pinch-zoom patch" \
   "$pinch_patch" "$pinch_patch_sha256"
-verify_file_sha "Try Guix Cocoa precise-scroll patch" \
+verify_file_sha "Try Roguix Cocoa precise-scroll patch" \
   "$precise_scroll_patch" "$precise_scroll_patch_sha256"
-verify_file_sha "Try Guix Cocoa ISO Section/Grave swap patch" \
+verify_file_sha "Try Roguix Cocoa ISO Section/Grave swap patch" \
   "$iso_swap_patch" "$iso_swap_patch_sha256"
-verify_file_sha "Try Guix SDL audio-device patch" \
+verify_file_sha "Try Roguix SDL audio-device patch" \
   "$audio_device_patch" "$audio_device_patch_sha256"
-verify_file_sha "Try Guix 9p shared-folder patch" \
+verify_file_sha "Try Roguix 9p shared-folder patch" \
   "$shared_folder_patch" "$shared_folder_patch_sha256"
-verify_file_sha "Try Guix HVF free-page reclaim patch" \
+verify_file_sha "Try Roguix HVF free-page reclaim patch" \
   "$memory_reclaim_patch" "$memory_reclaim_patch_sha256"
-verify_file_sha "Try Guix Darwin strchrnul compatibility patch" \
+verify_file_sha "Try Roguix Darwin strchrnul compatibility patch" \
   "$strchrnul_patch" "$strchrnul_patch_sha256"
 
 log "Applying the exact render, identity, display, immersive, pause-ownership, audio, folder, Darwin compatibility, memory reclaim, pinch, precise-scroll, and ISO keyboard patches"

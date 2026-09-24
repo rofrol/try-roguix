@@ -165,7 +165,7 @@ struct PortForwardingPreferenceStoreTests {
     }
 
     private final class DefaultsFixture {
-        let suiteName = "dev.tryguix.native.tests.\(UUID().uuidString)"
+        let suiteName = "dev.tryroguix.native.tests.\(UUID().uuidString)"
         let defaults: UserDefaults
         let store: PortForwardingPreferenceStore
 

@@ -13,7 +13,7 @@ Try Omarchy packages three pieces into one macOS app:
 3. An ARM64 Arch Linux image containing pinned upstream Omarchy source.
 
 ```text
-Try Guix.app
+Try Roguix.app
 └── Swift/AppKit launcher
     └── QEMU + Apple Hypervisor Framework
         └── project-built ARM64 Linux image
@@ -246,7 +246,7 @@ New VMs use the selected capacity when their factory clone is prepared.
 
 Nothing is overwritten while the app runs. The app bundle and packaged factory
 disk remain unchanged. Normal user launches use one private writable disk under
-`~/Library/Application Support/Try Guix/VM/v1`. The disk metadata retains
+`~/Library/Application Support/Try Roguix/VM/v1`. The disk metadata retains
 the identity of the factory that created it, and `boot/<identity>/` retains a
 validated copy of that VM's kernel, initramfs, and base command line. Normal
 launch selects those saved boot files instead of combining an older root

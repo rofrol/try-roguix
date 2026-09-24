@@ -8,7 +8,7 @@ python3 - "$contents" "$header_dir/network-build.h" <<'PY'
 import hashlib,json,os,re,subprocess,sys
 from pathlib import Path
 contents=Path(sys.argv[1])
-service=os.environ.get("OMARCHY_NETWORK_SERVICE_NAME", "dev.tryguix.network")
+service=os.environ.get("OMARCHY_NETWORK_SERVICE_NAME", "dev.tryroguix.network")
 if not re.fullmatch(r"[A-Za-z0-9]+(?:[.][A-Za-z0-9-]+)+", service): raise SystemExit("Invalid networking service name")
 values={"NETWORK_SERVICE_NAME": service}
 for key,path in [('CLIENT_REQUIREMENT',contents/'Resources/network/omarchy-network-client')]:

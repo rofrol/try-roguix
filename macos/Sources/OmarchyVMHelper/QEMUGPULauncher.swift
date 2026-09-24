@@ -79,7 +79,7 @@ enum QEMUGPUStorageSpaceEstimate {
             in: .userDomainMask
         ).first else { return nil }
         return applicationSupport
-            .appendingPathComponent("Try Guix", isDirectory: true)
+            .appendingPathComponent("Try Roguix", isDirectory: true)
             .standardizedFileURL
     }
 
@@ -598,7 +598,7 @@ struct QEMUGPULaunchRequest: Equatable {
 }
 
 enum QEMUGPULauncherPath {
-    static let appName = "Try Guix.app"
+    static let appName = "Try Roguix.app"
     static let launcherName = "run-qemu-gpu.sh"
 
     static func resolve(bundleURL: URL) throws -> URL {
@@ -607,7 +607,7 @@ enum QEMUGPULauncherPath {
         guard standardizedBundle.lastPathComponent == appName,
               Darwin.lstat(standardizedBundle.path, &bundleInformation) == 0,
               bundleInformation.st_mode & S_IFMT == S_IFDIR else {
-            throw HelperError.io("QEMU launch is available only from the built Guix app")
+            throw HelperError.io("QEMU launch is available only from the built Roguix app")
         }
 
         let canonicalBundle = standardizedBundle.resolvingSymlinksInPath()
@@ -658,7 +658,7 @@ struct AccessibilityLaunchDecision: Equatable {
         case .unavailable:
             Self(
                 allowsLaunch: true,
-                warning: "Accessibility is not active yet; Guix will start without Command-to-Super mapping. The mapping becomes available on a later launch after macOS recognizes the grant."
+                warning: "Accessibility is not active yet; Roguix will start without Command-to-Super mapping. The mapping becomes available on a later launch after macOS recognizes the grant."
             )
         }
     }
@@ -675,12 +675,12 @@ struct MicrophoneLaunchDecision: Equatable {
         case .denied:
             Self(
                 allowsLaunch: true,
-                warning: "Microphone access is denied. Audio playback will continue, but guest recording is unavailable. Enable Try Guix in System Settings > Privacy & Security > Microphone, then relaunch."
+                warning: "Microphone access is denied. Audio playback will continue, but guest recording is unavailable. Enable Try Roguix in System Settings > Privacy & Security > Microphone, then relaunch."
             )
         case .restricted:
             Self(
                 allowsLaunch: true,
-                warning: "Microphone access is restricted by macOS policy. Audio playback will continue, but guest recording is unavailable. Ask the Mac administrator to allow microphone access for Try Guix."
+                warning: "Microphone access is restricted by macOS policy. Audio playback will continue, but guest recording is unavailable. Ask the Mac administrator to allow microphone access for Try Roguix."
             )
         case .notDetermined:
             Self(
@@ -702,17 +702,17 @@ struct CameraLaunchDecision: Equatable {
         case .denied:
             Self(
                 allowsLaunch: true,
-                warning: "Camera access is denied. Guix will continue without the Mac camera. Enable Try Guix in System Settings > Privacy & Security > Camera, then relaunch."
+                warning: "Camera access is denied. Roguix will continue without the Mac camera. Enable Try Roguix in System Settings > Privacy & Security > Camera, then relaunch."
             )
         case .restricted:
             Self(
                 allowsLaunch: true,
-                warning: "Camera access is restricted by macOS policy. Guix will continue without the Mac camera. Ask the Mac administrator to allow camera access for Try Guix."
+                warning: "Camera access is restricted by macOS policy. Roguix will continue without the Mac camera. Ask the Mac administrator to allow camera access for Try Roguix."
             )
         case .notDetermined:
             Self(
                 allowsLaunch: true,
-                warning: "Camera access was not requested. Guix will continue without the Mac camera until access is enabled."
+                warning: "Camera access was not requested. Roguix will continue without the Mac camera until access is enabled."
             )
         }
     }

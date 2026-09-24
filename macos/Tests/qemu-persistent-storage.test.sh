@@ -803,7 +803,7 @@ assert test -d "$newline_stage"
 assert test -f "$newline_stage/$newline_entry"
 qemu_persistent_storage_release_lock
 
-# The production default is branded for Try Guix and never recreates the
+# The production default is branded for Try Roguix and never recreates the
 # former Omarchy-only Application Support path.
 saved_state_root=$OMARCHY_QEMU_GPU_STATE_ROOT
 saved_home=$HOME
@@ -811,13 +811,13 @@ saved_multi_disk=$OMARCHY_QEMU_GPU_DEVELOPMENT_MULTI_DISK
 default_home="$test_root/default-home"
 mkdir "$default_home"
 chmod 700 "$default_home"
-old_branded_root="$default_home/Library/Application Support/Try Guix/QEMU/v1"
+old_branded_root="$default_home/Library/Application Support/Try Roguix/QEMU/v1"
 mkdir -p "$old_branded_root"
 chmod 700 \
   "$default_home/Library" \
   "$default_home/Library/Application Support" \
-  "$default_home/Library/Application Support/Try Guix" \
-  "$default_home/Library/Application Support/Try Guix/QEMU" \
+  "$default_home/Library/Application Support/Try Roguix" \
+  "$default_home/Library/Application Support/Try Roguix/QEMU" \
   "$old_branded_root"
 printf 'leave old storage untouched\n' >"$old_branded_root/sentinel"
 chmod 600 "$old_branded_root/sentinel"
@@ -828,7 +828,7 @@ qemu_persistent_storage_select \
   persistent "$identity_a" "$source_disk" "$source_sha" "$source_bytes" ''
 assert_eq \
   "$QEMU_SELECTED_DISK" \
-  "$default_home/Library/Application Support/Try Guix/VM/v1/disks/current/rootfs.ext4"
+  "$default_home/Library/Application Support/Try Roguix/VM/v1/disks/current/rootfs.ext4"
 assert test -f "$old_branded_root/sentinel"
 assert test ! -e "$default_home/Library/Application Support/Omarchy"
 qemu_persistent_storage_release_lock

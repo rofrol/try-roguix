@@ -440,7 +440,7 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
             startMenuWindow?.resetDidFinish(errorMessage: nil)
         } else {
             startMenuWindow?.resetDidFinish(
-                errorMessage: "The VM disk could not be reset. Try again, or reinstall the latest Try Guix app."
+                errorMessage: "The VM disk could not be reset. Try again, or reinstall the latest Try Roguix app."
             )
         }
     }
@@ -694,7 +694,7 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
             "omarchy-vm-helper: host sleep control is unavailable: \(detail)\n",
             stderr
         )
-        pendingHostSleepControlFailure = "The virtual machine started, but Try Guix could not enable safe Mac sleep. Please close and reopen the app. (\(detail))"
+        pendingHostSleepControlFailure = "The virtual machine started, but Try Roguix could not enable safe Mac sleep. Please close and reopen the app. (\(detail))"
         lifecycle.requestQuit()
         supervisor.forward(signal: SIGTERM)
     }
@@ -846,7 +846,7 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
             startMenuWindow?.show()
             let alert = NSAlert()
             alert.alertStyle = .critical
-            alert.messageText = "Guix\u{2019}s data folder is unavailable"
+            alert.messageText = "Roguix\u{2019}s data folder is unavailable"
             alert.informativeText = """
                 \(error.localizedDescription)
 
@@ -951,10 +951,10 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.alertStyle = .critical
-        alert.messageText = "Guix is still paused"
-        alert.informativeText = "Try Guix could not reconnect after this Mac woke, so the VM remains paused to protect its state. Try again, or quit the app. (\(error.localizedDescription))"
+        alert.messageText = "Roguix is still paused"
+        alert.informativeText = "Try Roguix could not reconnect after this Mac woke, so the VM remains paused to protect its state. Try again, or quit the app. (\(error.localizedDescription))"
         alert.addButton(withTitle: "Try Again")
-        alert.addButton(withTitle: "Quit Try Guix")
+        alert.addButton(withTitle: "Quit Try Roguix")
 
         isPresentingBlockingAlert = true
         let response = alert.runModal()
@@ -973,7 +973,7 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
         guard root == mountPoint || root.hasPrefix(prefix) else { return }
 
         fputs(
-            "omarchy-vm-helper: the volume holding the Guix VM was unmounted; stopping\n",
+            "omarchy-vm-helper: the volume holding the Roguix VM was unmounted; stopping\n",
             stderr
         )
         lifecycle.requestQuit()
@@ -985,8 +985,8 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.alertStyle = .critical
-        alert.messageText = "The Guix disk was disconnected"
-        alert.informativeText = "The drive holding this VM was removed while it was running, so Guix is shutting down. Reconnect the drive before launching again. Removing the drive while the VM is running can damage it."
+        alert.messageText = "The Roguix disk was disconnected"
+        alert.informativeText = "The drive holding this VM was removed while it was running, so Roguix is shutting down. Reconnect the drive before launching again. Removing the drive while the VM is running can damage it."
         alert.addButton(withTitle: "OK")
 
         // The child's own completion callback can arrive and call finish()
@@ -1083,7 +1083,7 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
             ) {
             case .reportFailure:
                 startMenuWindow?.launchDidFail(
-                    errorMessage: "Try Guix could not complete the one-time boot-file pairing. The saved VM was not reset or upgraded. You can safely try again."
+                    errorMessage: "Try Roguix could not complete the one-time boot-file pairing. The saved VM was not reset or upgraded. You can safely try again."
                 )
                 return
             case .requestConfirmation:
@@ -1118,8 +1118,8 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
                 startMenuWindow = nil
                 let alert = NSAlert()
                 alert.alertStyle = .critical
-                alert.messageText = "Try Guix couldn’t start"
-                alert.informativeText = "The app’s virtual machine stopped during startup. Reinstall the latest Guix app and try again."
+                alert.messageText = "Try Roguix couldn’t start"
+                alert.informativeText = "The app’s virtual machine stopped during startup. Reinstall the latest Roguix app and try again."
                 alert.addButton(withTitle: "Close")
                 alert.runModal()
             }
