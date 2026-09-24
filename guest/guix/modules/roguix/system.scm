@@ -73,6 +73,10 @@
 ;; system as a GC root.
 (define %ungrafted-root "/var/guix/gcroots/roguix-ungrafted")
 
+;; Substitutes for Roguix's packages: guix publish on the author's server
+;; (docs/decisions/0002-roguix-substitute-server.md).
+(define %roguix-substitute-url "https://roguix.frolow.dev")
+
 ;; An operating system as a file-like object: its system derivation's output.
 (define-record-type <system-closure>
   (system-closure os)
@@ -191,6 +195,19 @@
                           (memq (service-kind service)
                                 (list gdm-service-type sddm-service-type)))
                         %desktop-services)
+              ;; Roguix's own packages (Hyprland, Quickshell, Omarchy, the
+              ;; VM agents) have no substitutes on Guix's servers; its server
+              ;; publishes them, signed with roguix.frolow.dev.pub, after
+              ;; Guix's own servers in the search order.
+              (guix-service-type
+               config => (guix-configuration
+                          (inherit config)
+                          (substitute-urls
+                           (append (guix-configuration-substitute-urls config)
+                                   (list %roguix-substitute-url)))
+                          (authorized-keys
+                           (cons (local-file "roguix.frolow.dev.pub")
+                                 (guix-configuration-authorized-keys config)))))
               ;; pipewire-pulse serves the PulseAudio socket; pactl (the audio
               ;; bridge's tool) must never start a real PulseAudio daemon.
               (pulseaudio-service-type

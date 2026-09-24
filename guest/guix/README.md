@@ -331,6 +331,11 @@ and is part of the system configuration:
   grafts* as `/var/guix/gcroots/roguix-ungrafted`: a reconfigure grafts
   again from those builds, and without them it would rebuild Hyprland and
   Quickshell, which have no substitutes, for hours.
+- **Substitutes for Roguix's own packages** come from
+  `https://roguix.frolow.dev` (`server/`, decision 0002), after Guix's servers;
+  the guest authorizes `modules/roguix/roguix.frolow.dev.pub`. Verified
+  2026-09-24 in a b12 guest: `guix weather --substitute-urls=https://roguix.frolow.dev`
+  finds Quickshell, Hyprland and Omarchy (3 of 3).
 
 Measured 2026-09-24 on a fresh image with the Mac's network: the first
 `roguix-pkg add alacritty` took 20 minutes, mostly downloading about 900 MB
