@@ -224,26 +224,20 @@ make app   # dist/app.noindex/Try Roguix.app with the dist/guix guest
 make run   # build it and open it
 ```
 
-`build-app.sh` recognizes a Guix guest directory by `guix-manifest.json` and
-bundles exactly `disk.raw.zst`, `guix-manifest.json` and `SHA256SUMS`, plus
-`artifact.py` as `scripts/guix-artifact.py`. Its build-time validation writes
-`launch.plist` with `bootABI = uefi-gpt-v1` and no `kernelCommandLine`.
+`build-app.sh` bundles exactly `disk.raw.zst`, `guix-manifest.json` and
+`SHA256SUMS`, plus `artifact.py` as `scripts/guix-artifact.py`. Its build-time
+validation writes `launch.plist` with `bootABI = uefi-gpt-v1`.
 
-`run-qemu-gpu.sh` takes the guest kind from those signed resources and checks
-each kind only against its own contract: a Guix bundle must declare the UEFI
-boot ABI and carry no kernel command line, and the Arch bundle must declare
-none. For Guix it:
+`run-qemu-gpu.sh`:
 
 - validates the artifact (`guix-artifact.py launch-record`) when no
-  `launch.plist` exists;
-- selects `qemu_persistent_storage_configure_guest uefi`: the factory disk is
-  materialized once to `images/<identity>.raw`, re-hashed against the
-  manifest, APFS-cloned to `disks/current/disk.raw` and sparsely extended to
-  24 GiB (`WORKING_DISK_BYTES`), all under the state root's `guix/`
-  subdirectory, so an Arch VM in the same root is never read or reset;
-- boots with `-bios runtime/share/qemu/edk2-aarch64-code.fd` instead of
-  `-kernel/-initrd/-append`; there is no boot kit and no boot recovery;
-- keeps every other device and the window title `Roguix`.
+  `launch.plist` exists, and requires the UEFI boot ABI;
+- materializes the factory disk once to `images/<identity>.raw`, re-hashed
+  against the manifest, APFS-clones it to `disks/current/disk.raw` and
+  sparsely extends it to 24 GiB (`WORKING_DISK_BYTES`), all under the state
+  root's `guix/` subdirectory;
+- boots with `-bios runtime/share/qemu/edk2-aarch64-code.fd`, passes its
+  settings as SMBIOS OEM strings, and adds a USB keyboard for GRUB's menu.
 
 ### Verified 2026-09-24, Apple M1 Pro, through the app's launcher
 

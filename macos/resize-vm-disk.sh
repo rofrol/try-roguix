@@ -8,10 +8,11 @@ Usage: macos/resize-vm-disk.sh --size-gib N [--state-root DIR] [--apply]
 
 Preview growing an existing, stopped VM to N GiB (whole number, at most 8192).
 Add --apply to retain a verified APFS clone backup and enlarge the disk.
-The root filesystem grows automatically on the next normal guest boot.
+The root partition and file system grow automatically on the next normal
+guest boot (roguix-grow-root).
 
 DIR is the VM state directory containing .omarchy-qemu-storage and disks/current.
-Default: ~/Library/Application Support/Try Roguix/VM/v1
+Default: ~/Library/Application Support/Try Roguix/VM/v1/guix
 Custom VM locations require --state-root; saved app preferences are not read.
 EOF
 }
@@ -22,7 +23,7 @@ fail() {
 }
 
 size_gib=''
-state_root="${HOME:?}/Library/Application Support/Try Roguix/VM/v1"
+state_root="${HOME:?}/Library/Application Support/Try Roguix/VM/v1/guix"
 apply=0
 while (($#)); do
   case "$1" in
@@ -59,7 +60,7 @@ state_root=$(cd "$state_root" && pwd -P)
 _qps_assert_safe_root_path "$state_root"
 _qps_assert_volume_supported "$state_root"
 _qps_validate_root_marker "$state_root/.omarchy-qemu-storage"
-for child in disks boot locks; do
+for child in disks locks; do
   _qps_assert_private_directory "$state_root/$child" "state $child directory"
 done
 QEMU_PERSISTENT_STORAGE_LOCKS_ROOT="$state_root/locks"
@@ -70,9 +71,7 @@ trap 'qemu_persistent_storage_release_lock' EXIT
 workspace="$state_root/disks/current"
 _qps_validate_recorded_workspace "$workspace"
 [[ $QPS_METADATA_SCHEMA == "$QEMU_PERSISTENT_STORAGE_SCHEMA" ]] || fail 'launch and shut down this VM with the current app before resizing'
-boot_kit="$state_root/boot/$QPS_METADATA_IDENTITY"
-_qps_validate_boot_kit_directory "$boot_kit" "$QPS_METADATA_IDENTITY"
-disk="$workspace/rootfs.ext4"
+disk="$workspace/$QPS_DISK_NAME"
 current_bytes=$QPS_RECORDED_EXISTING_BYTES
 target_bytes=$((size_gib * 1024 * 1024 * 1024))
 (( target_bytes >= current_bytes )) || fail 'shrinking a VM disk is not supported'
@@ -94,16 +93,13 @@ umask 077
 backup=$(mktemp -d "${state_root}.resize-backup.XXXXXX")
 printf 'Retaining backup: %s\n' "$backup"
 # Require cloning on this APFS volume; do not silently fall back to a full copy.
-/bin/cp -c "$disk" "$backup/rootfs.ext4"
+/bin/cp -c "$disk" "$backup/$QPS_DISK_NAME"
 /bin/cp -p "$workspace/metadata.json" "$backup/metadata.json"
-mkdir "$backup/boot"
-/bin/cp -cR "$boot_kit" "$backup/boot/$QPS_METADATA_IDENTITY"
-_qps_assert_private_regular_file "$backup/rootfs.ext4" 'backup root disk'
-[[ $(_qps_size "$backup/rootfs.ext4") == "$current_bytes" ]] || fail 'backup disk has the wrong size'
+_qps_assert_private_regular_file "$backup/$QPS_DISK_NAME" 'backup root disk'
+[[ $(_qps_size "$backup/$QPS_DISK_NAME") == "$current_bytes" ]] || fail 'backup disk has the wrong size'
 original_sha=$(_qps_sha256 "$disk")
-[[ $original_sha == "$(_qps_sha256 "$backup/rootfs.ext4")" ]] || fail 'backup disk checksum mismatch; original disk unchanged'
+[[ $original_sha == "$(_qps_sha256 "$backup/$QPS_DISK_NAME")" ]] || fail 'backup disk checksum mismatch; original disk unchanged'
 /usr/bin/cmp -s "$workspace/metadata.json" "$backup/metadata.json" || fail 'backup metadata mismatch'
-_qps_validate_boot_kit_directory "$backup/boot/$QPS_METADATA_IDENTITY" "$QPS_METADATA_IDENTITY"
 printf 'originalBytes=%s\ntargetBytes=%s\noriginalSha256=%s\n' \
   "$current_bytes" "$target_bytes" "$original_sha" >"$backup/resize.txt"
 _qps_fsync "$backup"
@@ -133,4 +129,4 @@ finally:
     os.close(fd)
 PY
 printf 'VM disk enlarged to %s GiB. Backup: %s\n' "$size_gib" "$backup"
-printf 'Launch normally, then verify inside Omarchy with: lsblk; df -h /\n'
+printf 'Launch normally, then verify inside Roguix with: lsblk; df -h /\n'
