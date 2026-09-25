@@ -26,15 +26,29 @@ is capped (one worker, `zstd:3`, `Nice=19`, idle I/O, one CPU, 700 MB).
 4. Authorize the builder's key: `guix archive --authorize <
    builder-signing-key.pub`.
 
-## Publishing a pin
+## Publishing
+
+Only ungrafted items: grafts are built with `#:substitutable? #f`
+(`guix/grafts.scm`), so a guest never asks a server for them and grafts
+locally, which copies without compiling.
 
 In the builder VM, with the pinned Guix:
 
 ```sh
-guix gc -R GRAFTED-SYSTEM UNGRAFTED-SYSTEM | sort -u > closure.txt
-# keep the items bordeaux.guix.gnu.org has no narinfo for: missing.txt
-guix archive --export -r $(cat missing.txt) | zstd -T4 -12 > roguix.nar.zst
+guix system build --no-grafts -L guest/guix/modules \
+  --root=/root/roguix-system-ungrafted guest/guix/system.scm
+guix gc -R /root/roguix-system-ungrafted > closure.txt
 ```
 
-On the VPS: `zstd -dc roguix.nar.zst | guix archive --import`, then
-`nice -n 19 ./roguix-prebake.sh HASHES` with the missing items' hashes.
+Split `closure.txt` by asking both servers for each item's `.narinfo`:
+items neither serves go to `publish.txt`, items only bordeaux serves to
+`vps-fetch.txt`. Then export and publish:
+
+```sh
+guix archive --export $(cat publish.txt) | zstd -T4 -12 > roguix.nar.zst
+server/publish.sh EXPORT_DIR      # on the Mac; SSH settings from .env
+```
+
+`publish.sh` has the VPS substitute `vps-fetch.txt` from bordeaux (an import
+needs every reference valid), import the archive, and bake the cache with
+`roguix-prebake.sh`, all under `nice` and idle I/O.

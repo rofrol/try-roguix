@@ -3,6 +3,7 @@ __pycache__/
 .pytest_cache/
 *.pem
 .env*
+!.env.example
 
 # Local secrets and Apple signing/notarization exports
 /.secrets/
