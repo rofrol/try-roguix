@@ -14,6 +14,7 @@
   #:use-module (guix packages)
   #:use-module (guix gexp)
   #:use-module (guix build-system copy)
+  #:use-module (guix build-system linux-module)
   #:use-module (guix build-system trivial)
   #:use-module ((guix licenses) #:prefix license:)
   #:use-module (gnu packages base)
@@ -40,6 +41,8 @@
             roguix-audio-service-type
             roguix-camera-bridge
             roguix-camera-service-type
+            roguix-battery-module
+            roguix-battery-service-type
             roguix-touch-id
             roguix-touch-id-service-type
             roguix-ssh-access-service-type))
@@ -384,6 +387,63 @@ KERNEL==\"video42\", SUBSYSTEM==\"video4linux\", GROUP=\"video\", MODE=\"0660\"\
                                           roguix-camera-bridge)))))
    (default-value #f)
    (description "Load v4l2loopback and install the macOS camera bridge.")))
+
+;;; Battery: the launcher mirrors the Mac's battery as JSON lines on
+;;; dev.tryomarchy.battery. Try Omarchy's kernel module publishes BAT0/ADP0
+;;; power_supply devices fed through its sysfs state file, which the root
+;;; agent writes; UPower and Omarchy's battery indicator read them as usual.
+
+(define roguix-battery-module
+  (package
+    (name "roguix-battery-module")
+    (version "1")
+    (source (local-file "battery-module" #:recursive? #t))
+    (build-system linux-module-build-system)
+    (arguments (list #:tests? #f))
+    (home-page "https://github.com/omacom/try-omarchy")
+    (synopsis "Mirror the macOS battery as a Linux power_supply")
+    (description "Kernel module exposing BAT0 and ADP0 whose state the
+Roguix battery agent sets from the host.")
+    (license license:gpl2)))
+
+(define roguix-battery-bridge
+  (guest-python-script "roguix-battery-bridge" "battery-bridge"
+                       (local-file "battery-bridge")
+                       #:synopsis "Mirror the macOS battery into the guest"))
+
+(define (battery-shepherd-service _)
+  (list (shepherd-service
+         (provision '(roguix-battery))
+         (requirement '(udev kernel-module-loader))
+         (respawn? #t)
+         (respawn-delay 1)
+         (documentation "Mirror the macOS battery into the guest.")
+         (start #~(lambda _
+                    ;; Both exist only in a launcher VM with the module
+                    ;; loaded; otherwise stay stopped.
+                    (and (file-exists? "/dev/virtio-ports/dev.tryomarchy.battery")
+                         (file-exists?
+                          "/sys/devices/platform/try-omarchy-battery/state")
+                         (fork+exec-command
+                          (list #$(file-append roguix-battery-bridge
+                                               "/bin/roguix-battery-bridge"))))))
+         (stop #~(make-kill-destructor)))))
+
+(define roguix-battery-service-type
+  (service-type
+   (name 'roguix-battery)
+   (extensions
+    (list (service-extension kernel-module-loader-service-type
+                             (const '("try_omarchy_battery")))
+          (service-extension udev-service-type
+                             (const
+                              (list (udev-rule
+                                     "95-roguix-battery.rules"
+                                     "SUBSYSTEM==\"virtio-ports\", ATTR{name}==\"dev.tryomarchy.battery\", MODE=\"0600\"\n"))))
+          (service-extension shepherd-root-service-type
+                             battery-shepherd-service)))
+   (default-value #f)
+   (description "Load the battery module and run the macOS battery agent.")))
 
 ;;; Touch ID for sudo: the Arch guest's broker (byte-identical copy; only its
 ;;; two /usr/bin OpenSSL references are pointed at the store below) asks the

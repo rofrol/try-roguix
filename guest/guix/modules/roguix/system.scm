@@ -106,8 +106,10 @@
     (keyboard-layout (keyboard-layout "us"))
     (kernel linux-libre)
     (firmware '())
-    ;; /dev/video42 for the Mac camera (roguix-camera-service-type).
-    (kernel-loadable-modules (list v4l2loopback-linux-module))
+    ;; /dev/video42 for the Mac camera (roguix-camera-service-type) and the
+    ;; mirrored Mac battery (roguix-battery-service-type).
+    (kernel-loadable-modules (list v4l2loopback-linux-module
+                                   roguix-battery-module))
     (initrd-modules (cons* "virtio_gpu" "virtio_console"
                            (base-initrd-modules linux-libre)))
     ;; The VM's display is Retina-sized: the kernel's 8x16 console font is
@@ -193,6 +195,7 @@
             (service roguix-clipboard-service-type)
             (service roguix-audio-service-type)
             (service roguix-camera-service-type)
+            (service roguix-battery-service-type)
             (service roguix-touch-id-service-type)
             ;; Installed but never auto-started: roguix-ssh-access starts it
             ;; for one boot when the launcher forwards SSH.
@@ -230,6 +233,14 @@
                                  (guix-configuration-authorized-keys config)))))
               ;; pipewire-pulse serves the PulseAudio socket; pactl (the audio
               ;; bridge's tool) must never start a real PulseAudio daemon.
+              ;; The Mac's own low-power handling is the only authority: UPower
+              ;; still warns, but its action threshold of 0% never suspends or
+              ;; powers off the VM (this UPower has no Ignore action).
+              (upower-service-type
+               config => (upower-configuration
+                          (inherit config)
+                          (use-percentage-for-policy? #t)
+                          (percentage-action 0)))
               (pulseaudio-service-type
                config => (pulseaudio-configuration
                           (inherit config)
