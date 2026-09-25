@@ -147,6 +147,14 @@ private final class PointingHandButton: NSButton {
 
 @MainActor
 final class StartMenuWindow: NSObject, NSWindowDelegate {
+    /// The launcher starts the integration bridge only when this bundle
+    /// exists (run-qemu-gpu.sh); the start menu follows the same rule.
+    static var bundlesIntegrationManager: Bool {
+        guard let resources = Bundle.main.resourceURL else { return false }
+        return FileManager.default.fileExists(
+            atPath: resources.appendingPathComponent("integrations/manifest.json").path)
+    }
+
     private(set) var window: NSWindow
     private let content = NSView()
     private let accessibilityStatus: () -> Bool
@@ -769,13 +777,17 @@ final class StartMenuWindow: NSObject, NSWindowDelegate {
             integrationRowViews.append(storageRow)
         }
         integrationRowViews.append(contentsOf: [resourceRow, networkingRow, portForwardingRow, immersiveRow, automaticStartSettingRow(), languageRow])
-        let integrationStatus = GuestIntegrationCache.read(integrationCacheURL())
-        integrationRowViews.insert(permissionRow(
-            symbolName: "arrow.triangle.2.circlepath", title: "VM integrations",
-            detail: "Last check: \(integrationStatus?.summary ?? "Not checked yet"). Checked again after each VM launch.",
-            granted: false, statusLabels: ("", ""),
-            actions: [("REVIEW…", #selector(reviewIntegrations))]
-        ), at: 0)
+        // Try Omarchy's integration manager updates Arch guests; the app ships
+        // it only with that bundle, which Roguix images have no use for.
+        if Self.bundlesIntegrationManager {
+            let integrationStatus = GuestIntegrationCache.read(integrationCacheURL())
+            integrationRowViews.insert(permissionRow(
+                symbolName: "arrow.triangle.2.circlepath", title: "VM integrations",
+                detail: "Last check: \(integrationStatus?.summary ?? "Not checked yet"). Checked again after each VM launch.",
+                granted: false, statusLabels: ("", ""),
+                actions: [("REVIEW…", #selector(reviewIntegrations))]
+            ), at: 0)
+        }
 
         var permissionRowsAndSeparators: [NSView] = []
         for (index, row) in permissionRowViews.enumerated() {
