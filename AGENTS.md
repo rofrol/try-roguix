@@ -365,6 +365,8 @@ Measure progress by reduced complexity and delivered behavior, not lines added.
   final design merely to split the work.
 - Keep commits coherent and arrange them so they tell the reasoning of the
   change. Do not fragment cohesive work to satisfy a commit-size metric.
+- Keep history linear. Integrate a branch by rebasing it onto its target and
+  merging with `git merge --ff-only`; never create merge commits.
 - If an unresolved material architectural choice prevents reviewable work,
   apply Stop and Ask to that choice.
 
