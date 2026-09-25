@@ -54,6 +54,12 @@ class OmarchyMenuTests(unittest.TestCase):
         self.assertIn("roguix-reconfigure", self.menu["update.system.apply"]["action"])
         self.assertEqual(self.menu["style.theme"]["action"], "https://example.org")
 
+    def test_setup_opens_mac_settings_when_the_port_exists(self):
+        entry = self.menu["setup.try-roguix"]
+        self.assertEqual(entry["action"], "roguix-settings")
+        self.assertEqual(entry["when"],
+                         "test -w /dev/virtio-ports/dev.tryomarchy.settings")
+
 
 class OmarchyPackageTests(unittest.TestCase):
     def test_menu_guard_asks_guix(self):

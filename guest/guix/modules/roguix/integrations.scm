@@ -19,6 +19,7 @@
   #:use-module ((guix licenses) #:prefix license:)
   #:use-module (gnu packages base)
   #:use-module (gnu packages bash)
+  #:use-module (gnu packages gnome)
   #:use-module (gnu packages linux)
   #:use-module (gnu packages pulseaudio)
   #:use-module (gnu packages tls)
@@ -43,6 +44,8 @@
             roguix-camera-service-type
             roguix-battery-module
             roguix-battery-service-type
+            roguix-settings
+            roguix-settings-service-type
             roguix-touch-id
             roguix-touch-id-service-type
             roguix-ssh-access-service-type))
@@ -444,6 +447,51 @@ Roguix battery agent sets from the host.")
                              battery-shepherd-service)))
    (default-value #f)
    (description "Load the battery module and run the macOS battery agent.")))
+
+;;; Settings: Omarchy's Setup menu (omarchy-menu.py) and the desktop entry
+;;; ask the Mac app to show its settings with one line on
+;;; dev.tryomarchy.settings; the account's group reaches the port.
+
+(define roguix-settings
+  (package
+    (name "roguix-settings")
+    (version "1")
+    (source (local-file "settings" #:recursive? #t))
+    (build-system copy-build-system)
+    (arguments
+     (list
+      #:install-plan
+      #~'(("roguix-settings" "bin/")
+          ("try-roguix-settings.desktop" "share/applications/"))
+      #:phases
+      #~(modify-phases %standard-phases
+          (add-after 'install 'wrap
+            (lambda* (#:key inputs #:allow-other-keys)
+              (let ((program (string-append #$output "/bin/roguix-settings")))
+                (chmod program #o555)
+                (wrap-program program
+                  `("PATH" ":" prefix
+                    (,(dirname (search-input-file inputs "bin/notify-send")))))))))))
+    (inputs (list bash-minimal python-minimal libnotify))
+    (home-page "https://github.com/omacom/try-omarchy")
+    (synopsis "Open the Try Roguix Mac app settings from the guest")
+    (description "Ask the Mac app over dev.tryomarchy.settings to show its
+settings window.")
+    (license license:expat)))
+
+(define roguix-settings-service-type
+  (service-type
+   (name 'roguix-settings)
+   (extensions
+    (list (service-extension udev-service-type
+                             (const
+                              (list (udev-rule
+                                     "92-roguix-settings.rules"
+                                     "SUBSYSTEM==\"virtio-ports\", ATTR{name}==\"dev.tryomarchy.settings\", GROUP=\"users\", MODE=\"0660\"\n"))))
+          (service-extension profile-service-type
+                             (const (list roguix-settings)))))
+   (default-value #f)
+   (description "Open the Mac app's settings from Omarchy's Setup menu.")))
 
 ;;; Touch ID for sudo: the Arch guest's broker (byte-identical copy; only its
 ;;; two /usr/bin OpenSSL references are pointed at the store below) asks the
