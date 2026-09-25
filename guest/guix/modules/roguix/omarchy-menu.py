@@ -71,6 +71,15 @@ def dropped(entry_id):
 
 def transform(menu):
     result = {key: value for key, value in menu.items() if not dropped(key)}
+    # Learn > Arch opens the Arch wiki; Roguix's own manual is Guix's, in
+    # the same place in the menu.
+    result = {
+        ("learn.guix" if key == "learn.arch" else key):
+        (dict(value, icon="\uf325", label="Guix",
+              action="omarchy-launch-webapp 'https://guix.gnu.org/manual/'")
+         if key == "learn.arch" else value)
+        for key, value in result.items()
+    }
     result["install.package"] = dict(
         menu["install.package"], label="Package",
         description="Any Guix package, added to /etc/config.scm",
