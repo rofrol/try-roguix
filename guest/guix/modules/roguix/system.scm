@@ -8,6 +8,7 @@
 (define-module (roguix system)
   #:use-module (gnu)
   #:use-module (gnu system linux-initrd)
+  #:use-module (gnu system locale)
   #:use-module (guix gexp)
   #:use-module (guix grafts)
   #:use-module (srfi srfi-1)
@@ -103,6 +104,12 @@
     (host-name "roguix")
     (timezone "Etc/UTC")
     (locale "en_US.utf8")
+    ;; Traditional Chinese, the launcher's one optional guest language
+    ;; (tryomarchy.locale); the session sets LANG from it.
+    (locale-definitions
+     (cons (locale-definition (name "zh_TW.utf8") (source "zh_TW")
+                              (charset "UTF-8"))
+           %default-locale-definitions))
     (keyboard-layout (keyboard-layout "us"))
     (kernel linux-libre)
     (firmware '())

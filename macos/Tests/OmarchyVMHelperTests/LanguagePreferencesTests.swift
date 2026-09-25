@@ -4,6 +4,15 @@ import Testing
 
 @Suite("Guest locale catalog")
 struct GuestLocaleCatalogTests {
+    @Test("a Roguix image offers the languages its launch.plist lists")
+    func guestLocalesFromLaunchConfiguration() {
+        #expect(GuestLocaleCatalog.supportsSelection(guestLocales: "zh_TW.UTF-8"))
+        #expect(GuestLocaleCatalog.supportsSelection(guestLocales: "de_DE.UTF-8,zh_TW.UTF-8"))
+        #expect(!GuestLocaleCatalog.supportsSelection(guestLocales: "-"))
+        #expect(!GuestLocaleCatalog.supportsSelection(guestLocales: ""))
+        #expect(!GuestLocaleCatalog.supportsSelection(guestLocales: "zh_TW.UTF-8 "))
+    }
+
     @Test("only the audited Traditional Chinese locale is recognized")
     func recognizesOnlySupportedTokens() {
         #expect(GuestLocaleCatalog.locale(forToken: "zh_TW.UTF-8") == GuestLocaleCatalog.traditionalChinese)

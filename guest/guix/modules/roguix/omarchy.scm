@@ -184,7 +184,11 @@ configuration, Quickshell desktop shell, themes and helper commands.")
           "neovim" "tmux" "git" "bat" "eza" "fd" "ripgrep" "zoxide" "starship"
           "less" "man-db" "tldr" "grim" "slurp" "hyprpicker" "wtype"
           "imagemagick" "yt-dlp" "tesseract-ocr" "pamixer" "brightnessctl"
-          "playerctl" "unzip" "whois"))
+          "playerctl" "unzip" "whois"
+          ;; Omarchy runs fcitx5 for compose keys; Chewing and Noto CJK back
+          ;; the optional Traditional Chinese language.
+          "fcitx5" "fcitx5-chewing" "fcitx5-gtk" "fcitx5-qt"
+          "font-google-noto-sans-cjk"))
    (list lazygit-bin lazydocker-bin gum-bin dua-bin cliamp-bin)))
 
 ;;; Compatibility commands for Omarchy's Arch assumptions, plus Try Omarchy's
@@ -200,7 +204,9 @@ configuration, Quickshell desktop shell, themes and helper commands.")
                                     (or (eq? 'directory (stat:type stat))
                                         (member (basename file)
                                                 '("busctl" "xdg-terminal-exec"
-                                                  "omarchy-seed" "roguix-pkg"))))))
+                                                  "omarchy-seed" "roguix-pkg"
+                                                  "fcitx5-profile"
+                                                  "30-roguix-cjk.conf"))))))
     (build-system copy-build-system)
     (arguments
      (list
@@ -208,7 +214,9 @@ configuration, Quickshell desktop shell, themes and helper commands.")
       #~'(("busctl" "bin/")
           ("roguix-pkg" "bin/roguix-pkg")
           ("xdg-terminal-exec" "bin/")
-          ("omarchy-seed" "bin/roguix-omarchy-seed"))
+          ("omarchy-seed" "bin/roguix-omarchy-seed")
+          ("fcitx5-profile" "share/roguix/")
+          ("30-roguix-cjk.conf" "share/roguix/"))
       #:phases
       #~(modify-phases %standard-phases
           (add-after 'install 'install-shims
@@ -324,6 +332,8 @@ hl.on(\"hyprland.start\", function()
   hl.exec_cmd(\"roguix-agent /dev/virtio-ports/dev.tryomarchy.clipboard roguix-clipboard-bridge\")
   hl.exec_cmd(\"roguix-agent /dev/virtio-ports/dev.tryomarchy.audio roguix-audio-bridge\")
   hl.exec_cmd(\"roguix-agent /dev/virtio-ports/dev.tryomarchy.camera roguix-camera-bridge\")
+  -- Omarchy's omarchy-fcitx5 user unit: compose sequences and Chewing.
+  hl.exec_cmd(\"roguix-agent /run/current-system fcitx5 --disable notificationitem\")
 end)
 "))
 

@@ -18,6 +18,7 @@
   #:use-module (gnu services)
   #:use-module (gnu services shepherd)
   #:use-module (guix gexp)
+  #:use-module ((roguix integrations) #:select (%roguix-host-settings-file))
   #:export (%roguix-account
             roguix-grow-root-service-type
             roguix-first-boot-service-type
@@ -184,6 +185,14 @@ if [ \"$(tty)\" = /dev/tty1 ] && [ -z \"$WAYLAND_DISPLAY\" ] \\
    && [ \"$(id -un)\" = " %roguix-account " ]; then
   # Omarchy's per-user files; a failure still starts the desktop.
   roguix-omarchy-seed || echo 'roguix: seeding Omarchy failed' >&2
+  # Omarchy's environment.d for its input method; no systemd reads it here.
+  set -a
+  . /usr/share/omarchy/default/environment.d/10-omarchy-fcitx.conf
+  set +a
+  # The launcher's optional guest language (roguix-host-settings).
+  case \" $(cat " %roguix-host-settings-file " 2>/dev/null) \" in
+    *' tryomarchy.locale=zh_TW.UTF-8 '*) export LANG=zh_TW.UTF-8 ;;
+  esac
   exec " (file-append dbus "/bin/dbus-run-session") " start-hyprland
 fi
 "))

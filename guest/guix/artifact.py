@@ -38,6 +38,9 @@ FILES = frozenset({DISK, MANIFEST, SUMS})
 # The image carries no password: roguix-first-boot asks for one on the first
 # start (modules/roguix/services.scm).
 CREDENTIALS = frozenset({"first-boot"})
+# Optional guest languages the image carries (system.scm's locale
+# definitions, fcitx5 and Noto CJK); the app offers them as its Language row.
+LOCALES = ("zh_TW.UTF-8",)
 ZSTD_MAGIC = bytes.fromhex("28b52ffd")
 # The persistent workspace the launcher creates; the guest grows its root
 # partition into the difference (roguix-grow-root). Matches the Arch guest's
@@ -218,6 +221,7 @@ def manifest_for(layout, raw_sha256, compressed, guix_commit, system_sha256,
             "architecture": "aarch64",
             "distribution": "Guix System",
             "credentials": credentials,
+            "locales": list(LOCALES),
         },
         "source": {"guixCommit": guix_commit, "systemFilesSHA256": system_sha256},
         "disk": dict(layout, sha256=raw_sha256, path=DISK,
@@ -250,9 +254,12 @@ def validate_manifest(manifest):
             or manifest["bootABI"] != BOOT_ABI:
         raise ArtifactError("manifest has an unsupported schema, kind or boot ABI")
     guest = manifest["guest"]
-    _require_keys(guest, {"architecture", "distribution", "credentials"}, "guest")
+    _require_keys(guest, {"architecture", "distribution", "credentials", "locales"},
+                  "guest")
     if guest["architecture"] != "aarch64" or guest["distribution"] != "Guix System" \
-            or guest["credentials"] not in CREDENTIALS:
+            or guest["credentials"] not in CREDENTIALS \
+            or not isinstance(guest["locales"], list) \
+            or not set(guest["locales"]) <= set(LOCALES):
         raise ArtifactError("manifest describes an unsupported guest")
     source = manifest["source"]
     _require_keys(source, {"guixCommit", "systemFilesSHA256"}, "source")
@@ -332,14 +339,16 @@ def launch_record(directory):
     """The tab-separated record run-qemu-gpu.sh consumes for this artifact.
 
     Fields: bundle identity (SHA-256 of the manifest file), raw disk SHA-256,
-    raw bytes, compressed bytes and working-disk bytes. The launcher's
-    materialization re-hashes the decompressed disk against the raw SHA-256.
+    raw bytes, compressed bytes, working-disk bytes, and the guest's optional
+    locales joined by commas ("-" for none). The launcher's materialization
+    re-hashes the decompressed disk against the raw SHA-256.
     """
     manifest = validate_artifacts(directory)
     disk = manifest["disk"]
     return "\t".join([
         sha256_file(Path(directory) / MANIFEST), disk["sha256"], str(disk["bytes"]),
         str(disk["compressedBytes"]), str(max(disk["bytes"], WORKING_DISK_BYTES)),
+        ",".join(manifest["guest"]["locales"]) or "-",
     ])
 
 
