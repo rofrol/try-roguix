@@ -454,9 +454,10 @@ pull-request description, omitting fields that do not apply:
 
 Run builder VM work that takes more than a minute (image and system builds,
 exports) as
-`herdr-job run --name "<short description>" -- guest/guix/vm-run '<command>'`
+`herdr-job run --name "<short description>" --why "<what it is for>" -- guest/guix/vm-run '<command>'`
 and wait for it in the background with `herdr-job wait <id>`. The job gets its
-own herdr tab with the live log.
+own herdr tab with the live log, and `--why` stays in the tab's footer so the
+user sees why it exists.
 
 `guest/guix/vm-run` runs the command as root in the builder VM through its
 serial console, detached in the guest with its own log
