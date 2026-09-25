@@ -21,6 +21,7 @@
   #:use-module (guix build-system font)
   #:use-module (guix build-system trivial)
   #:use-module ((guix licenses) #:prefix license:)
+  #:use-module (gnu packages)
   #:use-module (gnu packages admin)
   #:use-module (gnu packages base)
   #:use-module (gnu packages bash)
@@ -33,16 +34,19 @@
   #:use-module (gnu packages gnome)
   #:use-module (gnu packages gnome-xyz)
   #:use-module (gnu packages gtk)
+  #:use-module (gnu packages image-viewers)
   #:use-module (gnu packages linux)
   #:use-module (gnu packages ncurses)
   #:use-module (gnu packages networking)
   #:use-module (gnu packages python)
   #:use-module (gnu packages qt)
   #:use-module (gnu packages terminals)
+  #:use-module (gnu packages video)
   #:use-module (gnu packages web)
   #:use-module (gnu packages xdisorg)
   #:use-module (gnu services)
   #:use-module (gnu system pam)
+  #:use-module (roguix apps)
   #:use-module (roguix packages)
   #:export (omarchy
             font-jetbrains-mono-nerd
@@ -107,6 +111,13 @@
                     "exec roguix-pkg pick-add")
                    ("omarchy-pkg-remove" "choose Guix packages to remove"
                     "exec roguix-pkg pick-remove")))
+                ;; Web apps need a Chromium-family --app window; Roguix's
+                ;; browser is LibreWolf, so they open in a new browser window.
+                (let ((file (string-append bin "/omarchy-launch-webapp")))
+                  (call-with-output-file file
+                    (lambda (port)
+                      (format port "#!/bin/bash~%# Roguix: open a web app in a new window of the default browser.~%exec omarchy-launch-browser --new-window \"$1\"~%")))
+                  (chmod file #o555))
                 ;; The menu decides what is installed from pacman's database.
                 (substitute* (string-append omarchy "/shell/plugins/menu/MenuModel.js")
                   (("pacman -Qq; LC_ALL=C pacman -Qi") "roguix-pkg list; true")
@@ -154,6 +165,20 @@ configuration, Quickshell desktop shell, themes and helper commands.")
     (synopsis "JetBrains Mono patched with Nerd Font glyphs")
     (description "JetBrains Mono with the Nerd Fonts icon glyphs.")
     (license license:silofl1.1)))
+
+;; Omarchy's default applications (install/omarchy-base.packages): Guix's
+;; packages, LibreWolf standing in for Chromium, and (roguix apps) for those
+;; Guix lacks. Not provided: LibreOffice, Pinta, LocalSend, Signal, Obsidian.
+(define %omarchy-applications
+  (append
+   (map specification->package
+        '("librewolf" "xdg-utils" "nautilus" "evince" "gnome-disk-utility"
+          "xournalpp" "obs" "kdenlive" "btop" "fastfetch"
+          "neovim" "tmux" "git" "bat" "eza" "fd" "ripgrep" "zoxide" "starship"
+          "less" "man-db" "tldr" "grim" "slurp" "hyprpicker" "wtype"
+          "imagemagick" "yt-dlp" "tesseract-ocr" "pamixer" "brightnessctl"
+          "playerctl" "unzip" "whois"))
+   (list lazygit-bin lazydocker-bin gum-bin dua-bin cliamp-bin)))
 
 ;;; Compatibility commands for Omarchy's Arch assumptions, plus the Arch
 ;;; guest's xdg-terminal-exec (byte-identical copy) and the per-user seed.
@@ -312,12 +337,14 @@ end)
           (service-extension pam-root-service-type omarchy-pam-services)
           (service-extension profile-service-type
                              (const
-                              (list omarchy roguix-omarchy-compat quickshell-0.3
+                              (append
+                               (list omarchy roguix-omarchy-compat quickshell-0.3
                                     foot jq socat inotify-tools hyprsunset ncurses
-                                    fzf
+                                    fzf imv mpv
                                     fontconfig procps gawk util-linux curl
                                     `(,gtk+ "bin") libnotify xdg-user-dirs
                                     qtimageformats yaru-theme font-liberation
-                                    font-jetbrains-mono-nerd)))))
+                                    font-jetbrains-mono-nerd)
+                               %omarchy-applications)))))
    (default-value #f)
    (description "Install Omarchy 4's desktop, shell and theme.")))
