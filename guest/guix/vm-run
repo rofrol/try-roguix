@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+"""Run a shell command in the builder VM and block until it finishes.
+
+Usage: vm-run [--timeout SECONDS] [--poll SECONDS] '<command>'
+
+The command runs detached in the guest as root, with its output in
+/root/vm-run/<id>.log and its exit code in /root/vm-run/<id>.status, so a
+dropped console never kills it. vm-run prints the log as it grows and exits
+with the guest command's exit code. It exits 124 on timeout and 125 when the
+console stays unreachable, so an unknown outcome is never success.
+Meant for `herdr-job run --name "..." -- ./vm-run '...'`.
+"""
+import argparse
+import base64
+import os
+import re
+import secrets
+import socket
+import sys
+import time
+from pathlib import Path
+
+# The builder VM's serial console (guest/guix/README.md, "Builder VM").
+SOCKET = Path(os.environ.get(
+    'VM_RUN_SOCKET',
+    Path(__file__).resolve().parents[2] / '.build/guix-validation/serial.sock'))
+BEGIN, END = '__VMRUN_BEGIN__', '__VMRUN_END__'
+
+
+def console(command, wait=15.0, attempts=12):
+    """Send one command and return the text printed between the markers."""
+    line = f"echo {BEGIN}; {command}; echo {END}\n"
+    for attempt in range(attempts):
+        try:
+            with socket.socket(socket.AF_UNIX) as connection:
+                connection.connect(str(SOCKET))
+                connection.settimeout(0.5)
+                connection.sendall(line.encode())
+                data = b''
+                deadline = time.monotonic() + wait
+                while time.monotonic() < deadline:
+                    try:
+                        chunk = connection.recv(65536)
+                    except TimeoutError:
+                        chunk = b''
+                    data += chunk
+                    text = data.decode(errors='replace').replace('\r', '')
+                    # The echoed input line holds the markers too; take the
+                    # output that follows it.
+                    found = re.search(rf'^{BEGIN}\n(.*?)^{END}$', text,
+                                      re.S | re.M)
+                    if found:
+                        return found.group(1)
+        except (ConnectionRefusedError, FileNotFoundError, OSError):
+            pass
+        time.sleep(min(5 * (attempt + 1), 30))
+    return None
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    parser.add_argument('--timeout', type=float, default=6 * 3600)
+    parser.add_argument('--poll', type=float, default=20)
+    parser.add_argument('command')
+    args = parser.parse_args()
+
+    job = f"{time.strftime('%Y%m%d-%H%M%S')}-{secrets.token_hex(3)}"
+    base = f'/root/vm-run/{job}'
+    script = base64.b64encode(args.command.encode()).decode()
+    started = console(
+        f"mkdir -p /root/vm-run && echo {script} | base64 -d > {base}.sh && "
+        f"(setsid bash -c 'bash {base}.sh > {base}.log 2>&1; "
+        f"echo $? > {base}.status' < /dev/null > /dev/null 2>&1 &) && "
+        f"echo started")
+    if started is None or 'started' not in started:
+        print(f'vm-run: could not start {job} on the builder console',
+              file=sys.stderr)
+        return 125
+    print(f'vm-run: {job} started; guest log {base}.log', flush=True)
+
+    offset, deadline = 0, time.monotonic() + args.timeout
+    last_seen = time.monotonic()
+    while True:
+        # Size first, so the tail never skips output written in between.
+        reply = console(
+            f"s=$(stat -c %s {base}.log 2>/dev/null || echo 0); "
+            f"echo size=$s; echo status=$(cat {base}.status 2>/dev/null); "
+            f"tail -c +{offset + 1} {base}.log 2>/dev/null | "
+            f"head -c $((s - {offset})) | tr '\\r' '\\n' | "
+            f"grep -a -v '^ *$' | tail -n 40")
+        now = time.monotonic()
+        if reply is None:
+            if now - last_seen > 600:
+                print('vm-run: console unreachable for 10 minutes',
+                      file=sys.stderr)
+                return 125
+        else:
+            last_seen = now
+            size = re.search(r'^size=(\d+)$', reply, re.M)
+            status = re.search(r'^status=(\d*)$', reply, re.M)
+            body = re.sub(r'^(size|status)=.*\n', '', reply, flags=re.M)
+            if body.strip():
+                print(body.rstrip('\n'), flush=True)
+            if size:
+                offset = max(offset, int(size.group(1)))
+            if status and status.group(1):
+                code = int(status.group(1))
+                print(f'vm-run: {job} exited with {code}', flush=True)
+                return code
+        if now > deadline:
+            print(f'vm-run: timed out; {job} may still run in the guest',
+                  file=sys.stderr)
+            return 124
+        time.sleep(args.poll)
+
+
+if __name__ == '__main__':
+    sys.exit(main())
