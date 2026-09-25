@@ -122,6 +122,19 @@ struct AppReleaseTests {
         }
     }
 
+    @Test("a repository without releases reports none published, not a failure")
+    func noPublishedRelease() async throws {
+        await withPreferences { preferences in
+            let checker = AppReleaseChecker(installed: installed("0.4.1"), preferences: preferences, fetch: {
+                throw AppReleaseError.response(404)
+            })
+            await checker.check().value
+            #expect(checker.state == .noRelease)
+            #expect(checker.state.message == "No stable Try Roguix release has been published yet.")
+            #expect(checker.state.releaseURL == AppRelease.releasesURL)
+        }
+    }
+
     @Test("offline failures are recoverable and manual retries bypass the daily schedule")
     func offlineRetry() async throws {
         let latest = try release()

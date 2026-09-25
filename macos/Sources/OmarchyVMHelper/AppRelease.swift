@@ -103,6 +103,8 @@ enum AppReleaseCheckState: Equatable {
     case checking
     case available(AppRelease)
     case current
+    /// GitHub answers 404 for a repository without any published release.
+    case noRelease
     case unknownInstalledVersion(AppRelease)
     case failed(String)
 
@@ -117,6 +119,7 @@ enum AppReleaseCheckState: Equatable {
         case .checking: return "Checking for updates…"
         case .available(let release): return "Try Roguix \(release.version) is available. Review its release notes and macOS requirements before downloading."
         case .current: return "No newer stable release was found."
+        case .noRelease: return "No stable Try Roguix release has been published yet."
         case .unknownInstalledVersion(let release):
             return "The latest stable release is \(release.version). This build does not identify its installed release reliably, so versions cannot be compared."
         case .failed(let message): return "Couldn’t check for updates. \(message) You can still launch Roguix."
