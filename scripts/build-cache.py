@@ -20,17 +20,9 @@ from app_version import build_version
 
 
 SCHEMA_VERSION = 2
-GUEST_ARTIFACTS = {
-    "LICENSE.omarchy",
-    "build-spec.json",
-    "initramfs-linux.img",
-    "packages.lock.txt",
-    "provenance.json",
-    "rootfs.ext4",
-    "rootfs.ext4.zst",
-    "vmlinuz-linux",
-}
-GUEST_FILES = GUEST_ARTIFACTS | {"guest-manifest.json", "SHA256SUMS"}
+# The packaged Roguix guest the app embeds (guest/guix/package.py writes it
+# from an image built with guest/guix/build.py; it has no cached build step).
+GUIX_GUEST_FILES = ("dist/guix/guix-manifest.json", "dist/guix/SHA256SUMS")
 
 
 def read_runtime_manifest(path: Path) -> frozenset[str]:
@@ -94,14 +86,6 @@ def regular_files(
 
 
 def component_files(root: Path, component: str) -> list[Path]:
-    if component == "guest":
-        guest = root / "guest"
-        return [
-            path
-            for path in regular_files(guest, {".work", "tests"})
-            if path.relative_to(guest).as_posix() not in {"README.md", "test"}
-        ] + [p for p in regular_files(root / "integrations") if p.suffix != ".md" and p.name != ".DS_Store"]
-
     if component == "runtime":
         paths = [
             root / "macos/build-qemu-gpu-runtime.sh",
@@ -129,21 +113,11 @@ def component_files(root: Path, component: str) -> list[Path]:
             for path in regular_files(macos, {".build", ".swiftpm", "Tests", "patches"})
             if path.relative_to(macos).as_posix() not in excluded_names
         ]
-        paths.extend([p for p in regular_files(root / "integrations") if p.suffix != ".md" and p.name != ".DS_Store"])
-        paths.extend(regular_files(root / "guest/scripts"))
-        paths.extend(regular_files(root / "guest/native-overlay"))
         paths.extend(
             [
                 root / "LICENSE",
-                root / "guest/scripts/install-settings-integration.py",
-                root / "guest/native-overlay/usr/local/bin/omarchy-native-settings",
-                root / "guest/native-overlay/etc/udev/rules.d/92-omarchy-native-settings.rules",
-                root / "guest/native-overlay/usr/share/applications/try-omarchy-settings.desktop",
-                root / "guest/native-overlay/etc/skel/.config/omarchy/extensions/omarchy-menu.jsonc",
-                root / ".build/state/guest.json",
                 root / ".build/state/runtime.json",
-                root / "dist/guest/guest-manifest.json",
-                root / "dist/guest/SHA256SUMS",
+                *(root / name for name in GUIX_GUEST_FILES),
             ]
         )
         return sorted(paths)
@@ -257,101 +231,6 @@ def fingerprint(root: Path, component: str, command: list[str]) -> str:
     return digest.hexdigest()
 
 
-def direct_file_set(directory: Path) -> set[str]:
-    result: set[str] = set()
-    for path in directory.iterdir():
-        if path.is_file() and not path.is_symlink():
-            result.add(path.name)
-        else:
-            raise CacheError(f"unexpected non-file build artifact: {path}")
-    return result
-
-
-def guest_snapshot(directory: Path) -> dict[str, dict[str, int]]:
-    return {
-        name: {
-            "bytes": (directory / name).stat().st_size,
-            "ctimeNs": (directory / name).stat().st_ctime_ns,
-            "mtimeNs": (directory / name).stat().st_mtime_ns,
-        }
-        for name in sorted(GUEST_FILES)
-    }
-
-
-def validate_guest(root: Path, previous: dict[str, Any] | None) -> dict[str, Any]:
-    directory = root / "dist/guest"
-    if not directory.is_dir() or directory.is_symlink():
-        raise CacheError("guest artifact directory is missing or unsafe")
-    if direct_file_set(directory) != GUEST_FILES:
-        raise CacheError("guest artifact directory has a missing or unexpected file")
-
-    manifest_path = directory / "guest-manifest.json"
-    try:
-        manifest = json.loads(manifest_path.read_text())
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise CacheError(f"guest manifest is unreadable: {error}") from error
-    if not isinstance(manifest, dict):
-        raise CacheError("guest manifest is not an object")
-    if (
-        manifest.get("schemaVersion") != 1
-        or manifest.get("kind") != "try-omarchy-guest-artifacts"
-    ):
-        raise CacheError("guest manifest identity is invalid")
-    artifacts = manifest.get("artifacts")
-    if not isinstance(artifacts, list):
-        raise CacheError("guest manifest artifacts are invalid")
-
-    manifest_records: dict[str, dict[str, Any]] = {}
-    for record in artifacts:
-        if not isinstance(record, dict) or not isinstance(record.get("path"), str):
-            raise CacheError("guest manifest contains an invalid artifact record")
-        name = record["path"]
-        if name in manifest_records:
-            raise CacheError(f"guest manifest repeats artifact: {name}")
-        manifest_records[name] = record
-    if set(manifest_records) != GUEST_ARTIFACTS:
-        raise CacheError("guest manifest artifact set is incomplete")
-
-    checksums: dict[str, str] = {}
-    try:
-        checksum_lines = (
-            (directory / "SHA256SUMS").read_text(encoding="ascii").splitlines()
-        )
-    except (OSError, UnicodeError) as error:
-        raise CacheError(f"guest SHA256SUMS is unreadable: {error}") from error
-    for line in checksum_lines:
-        fields = line.split(maxsplit=1)
-        if len(fields) != 2 or len(fields[0]) != 64:
-            raise CacheError("guest SHA256SUMS has an invalid record")
-        name = fields[1].lstrip("*")
-        if name in checksums:
-            raise CacheError(f"guest SHA256SUMS repeats artifact: {name}")
-        checksums[name] = fields[0]
-    if set(checksums) != GUEST_ARTIFACTS | {"guest-manifest.json"}:
-        raise CacheError("guest SHA256SUMS artifact set is incomplete")
-    if checksums["guest-manifest.json"] != sha256_file(manifest_path):
-        raise CacheError("guest manifest checksum is stale")
-
-    for name, record in manifest_records.items():
-        path = directory / name
-        if not path.is_file() or path.is_symlink() or path.stat().st_size <= 0:
-            raise CacheError(f"guest artifact is missing or unsafe: {name}")
-        if (
-            record.get("bytes") != path.stat().st_size
-            or record.get("sha256") != checksums[name]
-        ):
-            raise CacheError(f"guest metadata does not match artifact: {name}")
-    if (directory / "build-spec.json").read_bytes() != (
-        root / "guest/spec.json"
-    ).read_bytes():
-        raise CacheError("guest build-spec.json does not match the current spec")
-
-    snapshot = guest_snapshot(directory)
-    if previous is not None and previous.get("outputs") != snapshot:
-        raise CacheError("guest artifact metadata changed since the successful build")
-    return snapshot
-
-
 def runtime_snapshot(directory: Path) -> dict[str, str]:
     return {name: sha256_file(directory / name) for name in sorted(RUNTIME_FILES)}
 
@@ -426,7 +305,8 @@ def validate_app(root: Path, previous: dict[str, Any] | None) -> dict[str, Any]:
         app / "Contents/MacOS/omarchy-vm-helper",
         app / "Contents/Resources/TryRoguix.icns",
         app / "Contents/Resources/runtime/bin/Try Roguix",
-        app / "Contents/Resources/guest/rootfs.ext4.zst",
+        app / "Contents/Resources/guest/disk.raw.zst",
+        app / "Contents/Resources/guest/guix-manifest.json",
         app / "Contents/Resources/guest/launch.plist",
     ]
     if (
@@ -468,8 +348,6 @@ def validate_app(root: Path, previous: dict[str, Any] | None) -> dict[str, Any]:
 def validate_outputs(
     root: Path, component: str, previous: dict[str, Any] | None
 ) -> dict[str, Any]:
-    if component == "guest":
-        return validate_guest(root, previous)
     if component == "runtime":
         return validate_runtime(root, previous)
     if component == "app":
@@ -574,7 +452,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--state-dir", required=True, type=Path)
     parser.add_argument("--force", action="store_true")
-    parser.add_argument("component", choices=("guest", "runtime", "app"))
+    parser.add_argument("component", choices=("runtime", "app"))
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if args.command and args.command[0] == "--":

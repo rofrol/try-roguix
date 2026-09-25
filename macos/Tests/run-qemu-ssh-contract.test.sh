@@ -490,7 +490,7 @@ persistent_root="$test_root/persistent"
 # absent and the launcher validates build-spec.json directly.
 development_guest="$resources/development-guest"
 mkdir -p "$development_guest"
-/bin/cp "$macos_dir/../guest/spec.json" "$development_guest/build-spec.json"
+/bin/cp "$macos_dir/Tests/fixtures/direct-boot-build-spec.json" "$development_guest/build-spec.json"
 DEVELOPMENT_GUEST="$development_guest" /usr/bin/python3 <<'PY'
 import hashlib
 import json

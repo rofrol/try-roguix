@@ -192,27 +192,12 @@ install -m 0644 "$repo_dir/LICENSE" "$contents/Resources/LICENSE"
 install -m 0644 "$generated_icon" "$contents/Resources/TryRoguix.icns"
 ditto "$runtime_source" "$contents/Resources/runtime"
 install -m 0755 "$macos_dir/run-qemu-gpu.sh" "$contents/Resources/scripts/run-qemu-gpu.sh"
-install -m 0755 "$repo_dir/guest/native-overlay/usr/local/sbin/try-omarchy-migrate-alacritty" \
-  "$contents/Resources/scripts/try-omarchy-migrate-alacritty"
 install -m 0644 "$macos_dir/qemu-persistent-storage.sh" \
   "$contents/Resources/scripts/qemu-persistent-storage.sh"
 install -m 0644 "$macos_dir/qemu-port-forwarding.sh" \
   "$contents/Resources/scripts/qemu-port-forwarding.sh"
 install -m 0644 "$macos_dir/qemu-networking.sh" "$contents/Resources/scripts/qemu-networking.sh"
-# Ship the same narrow settings payload to existing VMs at boot.
-settings_payload="$contents/Resources/guest-settings"
-mkdir -p "$settings_payload"
-install -m 0644 "$macos_dir/guest-settings.service" "$settings_payload/guest-settings.service"
-install -m 0644 "$repo_dir/guest/scripts/install-settings-integration.py" "$settings_payload/install.py"
-for relative in \
-  usr/local/bin/omarchy-native-settings \
-  etc/udev/rules.d/92-omarchy-native-settings.rules \
-  usr/share/applications/try-omarchy-settings.desktop \
-  etc/skel/.config/omarchy/extensions/omarchy-menu.jsonc; do
-  install -m 0644 "$repo_dir/guest/native-overlay/$relative" "$settings_payload/${relative##*/}"
-done
 install -m 0644 "$macos_dir/network-identity.py" "$contents/Resources/scripts/network-identity.py"
-python3 "$repo_dir/integrations/build-bundle.py" "$contents/Resources/integrations"
 # A Guix guest directory (guest/guix/package.py) holds exactly its manifest,
 # checksums and compressed UEFI disk; everything else is the Arch guest.
 if [[ -e $guest_dir/guix-manifest.json || -L $guest_dir/guix-manifest.json ]]; then

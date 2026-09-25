@@ -162,24 +162,7 @@ class BuildTests(unittest.TestCase):
 class ProjectModuleTests(unittest.TestCase):
     """The self-contained module directory is also installed into the guest."""
 
-    GUEST = Path(__file__).resolve().parents[1]
     MODULES = Path(__file__).resolve().parent / "modules" / "roguix"
-
-    def test_copies_match_the_reviewed_arch_guest_files(self):
-        for copy, original in [
-            ("hyprland-rounded-border-coverage.patch", "patches/hyprland/rounded-border-coverage.patch"),
-            ("display-sync", "native-overlay/usr/local/bin/omarchy-native-display-sync"),
-            ("mac-share", "native-overlay/usr/local/bin/omarchy-native-mac-share"),
-            ("clipboard-bridge", "native-overlay/usr/local/bin/omarchy-native-clipboard-bridge"),
-            ("audio-bridge", "native-overlay/usr/local/bin/omarchy-native-audio-bridge"),
-            ("camera-bridge", "native-overlay/usr/local/bin/omarchy-native-camera-bridge"),
-            ("camera-modprobe.conf", "native-overlay/etc/modprobe.d/90-try-omarchy-camera.conf"),
-            ("authentication-broker", "native-overlay/usr/local/lib/try-omarchy/native-authentication-broker"),
-            ("xdg-terminal-exec", "factory-overlay/usr/local/bin/xdg-terminal-exec"),
-            ("pipewire-quantum.conf", "native-overlay/usr/share/pipewire/pipewire.conf.d/90-try-omarchy-quantum.conf"),
-        ]:
-            with self.subTest(copy=copy):
-                self.assertEqual((self.MODULES / copy).read_bytes(), (self.GUEST / original).read_bytes())
 
     def test_broker_substitutions_match_exactly_once(self):
         # integrations.scm rewrites only these two /usr/bin OpenSSL references.
@@ -188,20 +171,18 @@ class ProjectModuleTests(unittest.TestCase):
         self.assertEqual(broker.count('{"PATH": "/usr/bin"}'), 1)
         self.assertEqual(broker.count("/usr/bin"), 3)  # plus the python3 shebang
 
-    def test_source_hashes_match_the_arch_guest_supply_chain(self):
-        import json
-        spec = json.loads((self.GUEST / "spec.json").read_text())["supplyChain"]
+    def test_source_hashes_stay_the_reviewed_ones(self):
+        # Guix records base32 hashes; the reviewed hex digests are kept alongside.
         module = (self.MODULES / "packages.scm").read_text()
         self.assertIn('(version "0.56.1")', module)
         self.assertIn('(version "0.14.0")', module)
-        self.assertEqual(spec["hyprland"]["version"], "0.56.1")
-        self.assertEqual(spec["aquamarine"]["version"], "0.14.0")
-        # Guix records base32 hashes; the reviewed hex digests are kept alongside.
-        for digest in (spec["hyprland"]["sha256"], spec["aquamarine"]["sha256"]):
+        for digest in ("c5b26eb377360358d01839a1de43fdc004a33e56d6a5d442fdad69b9f3a10549",
+                       "5dcf0b17f7dd51539fd7e79d68484f04240b3b63cf9f5f21d5b6dea0088168f9"):
             self.assertIn(f"SHA-256 {digest}", module)
         import hashlib
         patch = (self.MODULES / "hyprland-rounded-border-coverage.patch").read_bytes()
-        self.assertEqual(hashlib.sha256(patch).hexdigest(), spec["hyprland"]["patchSha256"])
+        self.assertEqual(hashlib.sha256(patch).hexdigest(),
+                         "5da431cbca37bdd9a66edeb77c3d677b7033d5f91449158e3ffa58a4eb515828")
 
     def test_guest_source_selection_covers_every_module_file(self):
         system = (self.MODULES / "system.scm").read_text()

@@ -1,8 +1,8 @@
 # Contributing
 
-Thanks for helping improve Try Omarchy. The project has one product target: a
-native Apple Silicon macOS app that runs pinned upstream Omarchy in a
-project-built ARM64 virtual machine image.
+Thanks for helping improve Try Roguix. The project has one product target: a
+native Apple Silicon macOS app that runs Roguix — Guix System with the pinned
+upstream Omarchy desktop — in a project-built ARM64 virtual machine image.
 
 ## Pull requests
 
@@ -44,8 +44,8 @@ The guest and QEMU supply chains are deliberately pinned. Do not update a URL,
 commit, package lock, archive, or checksum independently of its associated
 validation code.
 
-Generated files in `dist/` and build caches in `macos/.build/` and
-`guest/.work/` are not committed. Use `make clean` to remove project build
+Generated files in `dist/` and build caches in `macos/.build/` are not
+committed. Use `make clean` to remove project build
 artifacts and caches. `make clean-all` additionally destroys persistent local
 VM data and should only be used when a complete reset is intended.
 
@@ -56,27 +56,16 @@ input must be rebuilt; do not work around the cache by editing generated state.
 
 ## Updating Omarchy
 
-Pin an official upstream release, refresh the complete ARM64 transaction lock,
-and verify the source contract with one command:
-
-```sh
-make update-omarchy OMARCHY_RELEASE=4.0.3
-```
-
-The command keeps a complete shallow source checkout under `.build/upstream/`,
-verifies that its clean `HEAD` is the requested release tag, and derives the
-commit, Git tree, normalized source digest, source timestamp, source-reported
-version, and official release version. It then refreshes the package lock and
-runs the guest contract against that exact checkout.
-
-Before committing an update, review the upstream diff—especially changes to
-`install/omarchy-base.packages`—against the intentionally trimmed
-`guest/packages.txt`. Add runtime dependencies the native guest now needs, then
-review every entry in `authenticity.backports`: drop a backport that the new
-release contains, or refresh its strict preimage and postimage hashes after
-review. Run `make guest` and `make test`. The upstream source can report a development
-version even for an official tag, so never hand-edit the `version` or `release`
-fields to make them agree; they record different upstream identities.
+Omarchy is the `omarchy` package in `guest/guix/modules/roguix/omarchy.scm`,
+pinned to an upstream commit and its `guix hash -rx` digest. To update it,
+change both, then review the upstream diff against what Roguix rewrites at
+build time: the menu (`omarchy-menu.py`, which drops Arch-only entries), the
+package helpers replaced with `roguix-pkg`, and the two `MenuModel.js`
+substitutions (`test_omarchy_menu.py` pins that each still matches exactly
+once). Omarchy's own names (`omarchy-*`, `OMARCHY_PATH`) are never renamed, so
+an update stays a commit and hash change. Run `make test`, build the image
+(`guest/guix/README.md`), package it with `make guix-package`, and check the
+desktop in the app.
 
 ## Tests
 

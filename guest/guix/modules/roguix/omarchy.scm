@@ -53,7 +53,7 @@
             roguix-omarchy-compat
             roguix-omarchy-service-type))
 
-;; guest/spec.json upstream: basecamp/omarchy 4.0.2, tree 24ff1b25.
+;; Upstream basecamp/omarchy 4.0.2, tree 24ff1b25.
 (define omarchy
   (package
     (name "omarchy")
@@ -180,8 +180,8 @@ configuration, Quickshell desktop shell, themes and helper commands.")
           "playerctl" "unzip" "whois"))
    (list lazygit-bin lazydocker-bin gum-bin dua-bin cliamp-bin)))
 
-;;; Compatibility commands for Omarchy's Arch assumptions, plus the Arch
-;;; guest's xdg-terminal-exec (byte-identical copy) and the per-user seed.
+;;; Compatibility commands for Omarchy's Arch assumptions, plus Try Omarchy's
+;;; xdg-terminal-exec and the per-user seed.
 
 (define roguix-omarchy-compat
   (package

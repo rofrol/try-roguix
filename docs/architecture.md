@@ -1,24 +1,23 @@
 # Architecture
 
-Guix migration is in progress: the intended host runtime remains unchanged,
-while the guest will become Guix System with Hyprland. The first image-build
-slice is documented in [guest/guix](../guest/guix/README.md); it is not connected
-to the launcher yet. See [the migration decision](decisions/0001-guix-guest-on-existing-qemu-runtime.md).
-The description below still reflects the active Arch-based application.
-
-Try Omarchy packages three pieces into one macOS app:
+Try Roguix packages three pieces into one macOS app:
 
 1. A small Swift/AppKit launcher for the macOS side.
 2. A patched QEMU runtime that creates and runs the virtual machine.
-3. An ARM64 Arch Linux image containing pinned upstream Omarchy source.
+3. A Roguix disk image: Guix System for ARM64 with the pinned upstream Omarchy
+   desktop, built by this project (`guest/guix`).
 
 ```text
 Try Roguix.app
 └── Swift/AppKit launcher
     └── QEMU + Apple Hypervisor Framework
-        └── project-built ARM64 Linux image
-            └── Omarchy desktop
+        └── Roguix (Guix System, UEFI/GPT disk)
+            └── Omarchy desktop on Hyprland
 ```
+
+The launcher and runtime come from Try Omarchy, whose Arch Linux guest this
+project replaced ([decision 0001](decisions/0001-guix-guest-on-existing-qemu-runtime.md);
+the old design is recorded in [legacy-try-omarchy.md](legacy-try-omarchy.md)).
 
 ## What happens when the app opens
 
@@ -41,11 +40,11 @@ before acknowledging the report. This releases macOS physical memory without
 waiting for host pressure. See [memory reclamation](memory-reclamation.md) for
 the constraints and the disposable-VM validation command.
 
-Linux then boots from the selected VM disk and its paired kernel and initramfs,
-and Omarchy runs inside Linux. For a new, reset, or ephemeral VM, that pair and
-the disk originate in the current app's bundled factory. An existing persistent
-VM instead keeps the boot pair created with its disk, even after the app bundle
-is updated. Graphics travel from Linux through virtio-gpu and VirGL to the
+QEMU starts the bundled EDK2 UEFI firmware, which boots GRUB from the VM disk's
+EFI system partition; GRUB boots the current Guix System generation, and
+Omarchy runs inside it. The kernel, initrd and every earlier generation live
+on the VM disk, so `guix system reconfigure` and `roll-back` work inside the VM
+and an app update never replaces them. Graphics travel from Linux through virtio-gpu and VirGL to the
 native Cocoa window. Storage, networking, audio, and input use their matching
 QEMU virtual devices and host backends.
 
@@ -150,8 +149,8 @@ the Mac keeps real modes and ownership. A small QEMU patch adds
 files as the first Omarchy account (uid/gid 1000), which makes the guest
 kernel's permission checks agree with what the host will actually allow. The
 guest mounts the tag at `/mnt/mac` before the display manager starts, and a
-user unit links `~/<folder name>` to it at login; the name travels on the
-kernel command line as `omarchy.shared_folder_name=<base64url>`.
+login hook links `~/<folder name>` to it; the name travels in the launcher's
+SMBIOS OEM strings as `omarchy.shared_folder_name=<base64url>`.
 
 Optional port mappings are stored as a versioned launcher preference, validated
 again at every Swift-to-shell boundary, and translated into QEMU user-network
@@ -162,10 +161,10 @@ separate host-port namespaces, matching QEMU's socket behavior.
 **Add SSH** inserts an ordinary `tcp:2222:22` mapping into that same preference;
 there is no second SSH forwarding store or QEMU argument path. After the shell
 parser accepts the complete mapping list, any TCP rule targeting guest port 22
-also adds the fixed `tryomarchy.ssh_access=1` boot token. UDP port 22 and other
-guest ports do not. A guest systemd generator consumes only that exact token and
-adds the vendor `sshd.service` to the current boot's runtime wants directory,
-without modifying persistent systemd or SSH configuration.
+also adds the fixed `tryomarchy.ssh_access=1` setting. UDP port 22 and other
+guest ports do not. A guest Shepherd service consumes only that exact setting
+and starts `sshd` for the current boot; `sshd` is installed with auto-start off,
+so no persistent configuration changes.
 
 SSH host keys belong to the writable guest disk. Persistent compatible VMs keep
 them; Factory Reset and each ephemeral disk generate new keys. Reusing the same
@@ -173,18 +172,24 @@ Mac endpoint after either operation can require removing that endpoint from the
 Mac's `known_hosts`. Loopback prevents LAN access but other local Mac processes
 and users can still attempt authentication.
 
-## The ARM64 image
+## The Roguix image
 
-The guest image is built by this project; it is not an official prebuilt image
-from Basecamp. The `guest/` builder starts with pinned Arch Linux ARM packages,
-installs a pinned upstream Omarchy source tree, applies any explicitly declared
-and checksummed backports to the staged copy, and adds the small configuration
-and compatibility layer needed for ARM64 and QEMU. The verified upstream Git
-checkout itself stays untouched.
+The guest image is built by this project with `guix time-machine` from a
+pinned, signature-verified Guix commit (`guest/guix/build.py`); it is not an
+official Guix or Basecamp image. The system is `try-roguix-operating-system`
+in `guest/guix/modules/roguix/system.scm`: Guix's own packages, plus Roguix's
+Hyprland 0.56 and Quickshell builds and the pinned upstream Omarchy tree,
+installed read-only at `/usr/share/omarchy` from the store. Omarchy's Arch
+assumptions are met by small compatibility commands instead of changes to its
+source, apart from its menu and package helpers, which are rewritten at build
+time to manage Guix packages (`guest/guix/README.md`).
 
-The result is upstream Omarchy running in a project-built ARM64 Linux image. The
-image has no preconfigured user, so Omarchy's upstream owner-provisioning flow
-creates the account on first boot.
+The image carries no password; the first start asks for one on the console.
+In the VM, `/etc/config.scm` calls the same procedure with the owner's package
+list and `roguix-reconfigure` applies it with the Guix that built the image.
+Roguix's own packages have no substitutes on Guix's servers, so
+`https://roguix.frolow.dev` publishes them
+([decision 0002](decisions/0002-roguix-substitute-server.md)).
 
 ## What this project changes
 
@@ -193,51 +198,16 @@ creates the account on first boot.
   patches cover the Cocoa app identity, display behavior, graphics integration,
   host audio-device routing, and shared-folder ownership mapping. Nested
   virtualization uses QEMU's upstream Apple HVF implementation unchanged.
-- The pinned Omarchy runtime trees are copied from upstream. Reviewed temporary
-  backports are applied strictly against declared file hashes and recorded in
-  artifact provenance. Guest overlays add the QEMU and ARM64 integration around
-  them, including narrowly audited command replacements for host-backed audio
-  selection, VM-aware cursor restoration after the screensaver exits, and
-  user-first ordering in the background picker.
-- A project wallpaper is seeded in each new user's dedicated Tokyo Night
-  background directory. Omarchy's first-run theme flow searches that directory
-  before the packaged theme and selects the image as the default; the audited
-  picker override presents the same directory first without changing the
-  packaged upstream theme tree.
-- The guest normally consumes upstream Arch Linux ARM packages. Hyprland is the
-  documented exception: an upstream package is reproducibly rebuilt with a
-  guarded rounded-border coverage patch for the VM graphics path, then held in
-  the guest's immutable local repository. The factory rebuilds
-  `aquamarine 0.15.1-1` from a reviewed Arch-derived PKGBUILD and upstream
-  tarball, then rebuilds Hyprtoolkit against its `libaquamarine.so=14` ABI,
-  matching Hyprland 0.56.2. Both packages are provided by the disposable
-  builder repository and held alongside Hyprland on guest `IgnorePkg`.
-  Source and library hashes are verified, and build paths are remapped for
-  repeatable output. The factory uses an official HTTPS ARM mirror and checks
-  the complete transaction against its reviewed package lock before installing.
-- The final Arch Linux ARM pacman files live under `/usr/share/try-omarchy/`.
-  An Omarchy-supported `pre-refresh-pacman` hook restores them after a channel
-  refresh writes its x86_64 templates to `/etc`; the upstream templates remain
-  unchanged.
-- Traditional Chinese is available to opt into from the start menu's Language
-  row, without changing the default session: the choice becomes the
-  `tryomarchy.locale=zh_TW.UTF-8` kernel argument, and a guest oneshot unit
-  consumes it to write `LANG` into `/etc/locale.conf` before either login
-  entry point starts, which is where the login shell takes it from. `zh_TW.UTF-8`
-  is generated alongside `en_US.UTF-8`, fcitx5 is seeded with US and Chewing
-  (Bopomofo) input, a fontconfig rule prefers Traditional Chinese Han glyph
-  variants for `zh-TW` text, and Chromium is launched with the Wayland IME
-  flag it needs to receive fcitx5 input at all. Leaving the row untouched
-  emits no kernel argument, and `LANG`/`KEYMAP` stay `en_US`/`us`.
-  The factory base command line records `tryomarchy.locale_support=1` in its
-  saved boot kit. Both the menu and launcher check the selected disk's support
-  instead of assuming an app update installs guest files. Older disks show a
-  disabled language row with reset guidance. Updating `LANG` preserves other
-  locale categories and comments in `/etc/locale.conf`.
+- The guest is Guix System. Hyprland 0.56.1 with a guarded rounded-border
+  coverage patch for the VM graphics path, Aquamarine 0.14.0 and Quickshell
+  0.3 are packaged in `guest/guix/modules/roguix/packages.scm` with their
+  reviewed source hashes.
+- The pinned Omarchy tree is packaged unchanged except for its menu, its
+  package helpers and logo, rewritten at build time for Guix.
 
 Resources can set an optional maximum virtual disk capacity. On the next
 normal launch, an existing disk is sparsely extended under the workspace lock,
-after validating its metadata and boot kit. The native helper binds the change
+after validating its metadata. The native helper binds the change
 to the inspected inode and original size and never shrinks the disk. APFS
 allocates blocks as guest writes arrive; the configured capacity does not
 reserve host space. New launcher settings default to 64 GiB, raised to the
@@ -247,37 +217,14 @@ New VMs use the selected capacity when their factory clone is prepared.
 Nothing is overwritten while the app runs. The app bundle and packaged factory
 disk remain unchanged. Normal user launches use one private writable disk under
 `~/Library/Application Support/Try Roguix/VM/v1`. The disk metadata retains
-the identity of the factory that created it, and `boot/<identity>/` retains a
-validated copy of that VM's kernel, initramfs, and base command line. Normal
-launch selects those saved boot files instead of combining an older root
-filesystem with a newer bundled kernel. Consequently, a new app release can
-launch the existing VM without decompressing, cloning, expanding, or charging
-free space for its new factory disk.
+the identity of the factory that created it. The VM boots its own firmware
+path, so a new app release can launch the existing VM without decompressing,
+cloning, expanding, or charging free space for its new factory disk.
 
 The current bundled factory applies only when no persistent VM exists, after an
-explicitly confirmed reset, or in ephemeral mode. New and reset VMs atomically
-stage the current factory's boot kit with the new writable disk. A compatible
-legacy identity-keyed disk can be migrated into the single workspace without
-discarding its contents. If several recognized legacy disks exist, normal
-launch stops at the start menu; confirmed reset safely removes them before
-publishing one fresh workspace. Unrecognized host files are always left
+explicitly confirmed reset, or in ephemeral mode. Unsupported storage or boot
+ABIs require a confirmed reset. Unrecognized host files are always left
 untouched.
-
-Older schema-2 VMs predate saved boot kits. Their first preserving launch uses
-an authoritative two-pass consent handshake. The storage launcher selects and
-locks the old disk, notices the missing kit, and exits before QEMU starts. The
-Mac app explains the preserving transition and offers **Cancel** or
-**Continue**; only Continue retries with a one-launch recovery authorization.
-Inherited environment values are stripped so they cannot bypass this dialog.
-The authorized retry uses the current factory initramfs in a narrowly scoped
-recovery mode: the old root disk is attached read-only, its installed
-`/boot/Image` and
-`/boot/initramfs-linux.img` are exported over a private virtio-9p share, and the
-recovery environment powers off without switching into the old userspace. The
-host accepts the pair only after validating its type, size, hashes, ownership,
-and boot ABI, then stores it atomically for subsequent launches. Cancel does
-not start recovery, reset the VM, or alter its disk contents. Unsupported
-storage or boot ABIs still require a confirmed reset.
 
 The workspace does not have to live in Application Support. The start menu can
 put it in any folder the user picks, including one on an external drive, and the
@@ -296,8 +243,8 @@ unrecognized host files stay untouched, as everywhere else here.
 
 ## Build layout
 
-- `guest/` reproducibly assembles the unprovisioned ARM64 image in a privileged
-  ARM64 Docker container. Inputs are commit-, version-, and checksum-pinned.
+- `guest/guix/` defines Roguix and builds its image with a pinned Guix in a
+  Guix System builder; `make guix-package` compresses it into `dist/guix`.
 - `macos/` builds the Swift launcher and a patched QEMU runtime. The runtime is
   isolated, relocated, and signed before it enters the app bundle.
 - `dist/` is the only public output directory. It is generated and ignored by
@@ -306,50 +253,10 @@ unrecognized host files stay untouched, as everywhere else here.
 ## Trust model
 
 The app validates the bundled factory's exact file set, JSON schemas, hashes,
-sizes, pinned upstream identity, runtime contract, kernel command line,
-architecture, and factory profile. For an existing VM it independently
-validates the saved boot kit's ABI, metadata, ownership, sizes, and hashes
-before QEMU starts. Guest provenance separates verbatim runtime trees from
-backported trees and records each reviewed patch with its input and output
-hashes. The app also verifies the app signature and required QEMU features.
+sizes, boot ABI and architecture. The app also verifies the app signature and required QEMU features.
 Updates to a pinned dependency should update its digest, contract tests,
 notices, and review evidence together.
 
-App releases and guest updates are deliberately separate channels. Omarchy's
-built-in updater may advance ordinary packages supported by this ARM guest,
-but the direct-boot kernel and matching headers, the packaged
-`try-omarchy-runtime`, and reviewed compatibility backports remain pinned in
-Try Omarchy's prioritized local repository. Reusing a disk therefore does not
-silently import a newer app's factory contents, and running the in-guest updater
-must not be described as reproducing every factory-image change. The bundled integration manager provides an explicit migration channel for
-reviewed guest integrations, with user-approved installation and per-VM status
-reporting. It does not replace the pinned kernel or reproduce every factory
-change. Factory reset remains the way to opt into the complete new factory.
-
-Optional, user-initiated installers run after the factory image has been built
-and are a separate trust boundary. They may resolve a mutable current release
-from a vendor or community package source, or download an exact vendor artifact
-pinned by version and digest. The resulting payload is written only to the
-user's persistent guest disk; it is not redistributed in the app or covered by
-factory provenance. Each such exception must be declared in `guest/spec.json`,
-documented in `THIRD_PARTY_NOTICES.md`, and contract-tested to ensure that its
-installer uses the declared sources and authenticates downloaded vendor
-artifacts against an explicit signing identity. Invoking an optional installer
-is the user's
-decision to cross that post-build boundary.
-
-### Guest display synchronization
-
-QEMU publishes the Cocoa window's current backing-pixel dimensions through
-Virtio GPU EDID. The guest's `omarchy-native-display-sync` helper applies those
-live timings at startup and on DRM hotplug events. The Hyprland monitor fragment
-also invokes the helper with `--once` after `config.reloaded`: a configuration
-reload can restore a cached preferred mode without emitting a hotplug event,
-leaving the rendered desktop and absolute pointer coordinates out of sync.
-
-Both paths reread Omarchy's numeric `omarchy_monitor_scale` setting from
-`~/.config/hypr/monitors.lua` (under `$XDG_CONFIG_HOME` when set). An automatic or
-absent setting uses the live EDID's pixel density. If a resized display cannot
-represent the requested zoom exactly, the helper selects the nearest supported
-scale with integral logical dimensions. Explicit per-output monitor rules still
-take precedence over the helper's catch-all rule.
+App releases and guest updates are deliberately separate channels. Reusing a
+disk never imports a newer app's factory image; the VM changes only through
+Guix (`roguix-pkg`, `roguix-reconfigure`, roll-back) or a confirmed reset.

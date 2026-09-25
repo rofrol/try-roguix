@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 override ROOT := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
 override DIST := $(ROOT)/dist
-override GUEST_DIST := $(DIST)/guest
+override GUEST_DIST := $(DIST)/guix
 override APP := $(DIST)/app.noindex/Try Roguix.app
 override DMG := $(DIST)/TryRoguix.dmg
 override BUILD_CACHE := $(ROOT)/scripts/build-cache.py
@@ -15,7 +15,7 @@ PACKAGE_NOTARY_PROFILE ?= $(RELEASE_NOTARY_PROFILE)
 FORCE ?= 0
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor test guest guix-package guix-app guix-run runtime app build run run-ephemeral reset update-omarchy version-preflight package package-preflight release release-preflight clean clean-all clean-guest
+.PHONY: help doctor test guix-package runtime app build run run-ephemeral reset version-preflight package package-preflight release release-preflight clean clean-all
 
 help:
 	@printf '%s\n' \
@@ -23,24 +23,19 @@ help:
 	  '' \
 	  '  make doctor         Check the local toolchain' \
 	  '  make test           Run native and guest contract tests' \
-	  '  make build          Build only changed guest, runtime, and app inputs' \
+	  '  make build          Build only changed runtime and app inputs' \
 	  '  make build FORCE=1  Rebuild every component' \
 	  '  make run            Build the app from existing artifacts and open it' \
 	  '  make run DEVELOPMENT_SIGN_IDENTITY="Apple Development: ..."' \
 	  '                      Keep macOS privacy grants across local rebuilds' \
-	  '  make update-omarchy OMARCHY_RELEASE=x.y.z' \
-	  '                      Pin an upstream release and refresh the ARM64 lock' \
 	  '  make package        Create a signed and notarized distribution DMG' \
 	  '  make release        Create a signed and notarized distribution DMG' \
 	  '' \
 	  'Component builds:' \
-	  '  make guest          Ensure dist/guest is current (Docker)' \
-	  '  make runtime        Ensure macos/.build/qemu-gpu-runtime is current' \
-	  '  make app            Ensure both artifacts and the app are current' \
 	  '  make guix-package GUIX_IMAGE=/path/image.raw' \
-	  '                      Package a built Guix EFI image into dist/guix' \
-	  '  make guix-app       Build the app with the dist/guix guest' \
-	  '  make guix-run       Build that app and open it' \
+	  '                      Package a Roguix image (guest/guix/build.py) into dist/guix' \
+	  '  make runtime        Ensure macos/.build/qemu-gpu-runtime is current' \
+	  '  make app            Ensure the runtime and the app (with dist/guix) are current' \
 	  '' \
 	  'Storage:' \
 	  '  make run-ephemeral  Run without retaining VM changes' \
@@ -52,8 +47,7 @@ doctor:
 	@[[ "$$(uname -s)" == Darwin ]] || { echo 'error: macOS is required' >&2; exit 1; }
 	@[[ "$$(uname -m)" == arm64 ]] || { echo 'error: an Apple Silicon Mac is required' >&2; exit 1; }
 	@major=$$(sw_vers -productVersion | cut -d. -f1); (( major >= 15 )) || { echo 'error: macOS 15 or newer is required' >&2; exit 1; }
-	@for tool in curl docker pkg-config python3 swift xcrun; do command -v "$$tool" >/dev/null || { echo "error: $$tool is required" >&2; exit 1; }; done
-	@docker info >/dev/null 2>&1 || { echo 'error: Docker is installed but not running' >&2; exit 1; }
+	@for tool in curl pkg-config python3 swift xcrun; do command -v "$$tool" >/dev/null || { echo "error: $$tool is required" >&2; exit 1; }; done
 	@printf 'Toolchain ready: %s (%s)\n' "$$(sw_vers -productVersion)" "$$(uname -m)"
 
 test:
@@ -73,7 +67,6 @@ test:
 	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/guest/guix/test_busctl.py"
 	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/guest/guix/test_roguix_pkg.py"
 	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/guest/guix/test_omarchy_menu.py"
-	@$(ROOT)/guest/test
 	@$(ROOT)/macos/Tests/macos-compatibility.test.sh
 	@$(ROOT)/macos/Tests/runtime-relocation.test.sh
 	@mkdir -p $(ROOT)/macos/.build/module-cache/swift $(ROOT)/macos/.build/module-cache/clang
@@ -88,29 +81,19 @@ test:
 	@$(ROOT)/macos/Tests/qemu-persistent-storage.test.sh
 	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/macos/Tests/resize-vm-disk.test.py"
 
-guest:
-	@OMARCHY_FORCE_BUILD="$(FORCE)" "$(BUILD_CACHE)" \
-	  --root "$(ROOT)" --state-dir "$(BUILD_STATE)" guest -- \
-	  "$(ROOT)/guest/build-container.sh" --output "$(GUEST_DIST)"
-
 guix-package: runtime
 	@test -n "$(GUIX_IMAGE)" || { echo 'Set GUIX_IMAGE to a raw image from guest/guix/build.py' >&2; exit 64; }
 	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/guest/guix/package.py" --image "$(GUIX_IMAGE)"
-
-# The Guix app bypasses the build cache, which tracks the Arch guest; the next
-# `make app` sees a different bundle and rebuilds it.
-guix-app: runtime
-	@"$(ROOT)/macos/build-app.sh" --guest-dir "$(ROOT)/dist/guix"
-
-guix-run: guix-app
-	@$(ROOT)/macos/open-qemu-gpu.sh
 
 runtime:
 	@OMARCHY_FORCE_BUILD="$(FORCE)" "$(BUILD_CACHE)" \
 	  --root "$(ROOT)" --state-dir "$(BUILD_STATE)" runtime -- \
 	  "$(ROOT)/macos/build-qemu-gpu-runtime.sh"
 
-app: guest runtime
+# The guest image is built in a Guix System builder (guest/guix/README.md)
+# and packaged with `make guix-package`; the app embeds dist/guix.
+app: runtime
+	@[[ -f "$(GUEST_DIST)/guix-manifest.json" ]] || { echo 'error: dist/guix is missing; run make guix-package GUIX_IMAGE=...' >&2; exit 1; }
 	@OMARCHY_FORCE_BUILD="$(FORCE)" \
 	  OMARCHY_CODESIGN_IDENTITY="$(DEVELOPMENT_SIGN_IDENTITY)" \
 	  "$(BUILD_CACHE)" \
@@ -129,16 +112,6 @@ run-ephemeral: app
 reset: app
 	@$(ROOT)/macos/open-qemu-gpu.sh --reset-storage
 
-update-omarchy:
-	@[[ -n "$(strip $(OMARCHY_RELEASE))" ]] || { echo 'error: OMARCHY_RELEASE=x.y.z is required' >&2; exit 1; }
-	@$(ROOT)/guest/scripts/update-upstream-pin.py \
-	  --release "$(OMARCHY_RELEASE)" \
-	  --spec "$(ROOT)/guest/spec.json" \
-	  --cache-dir "$(ROOT)/.build/upstream"
-	@$(ROOT)/guest/build-container.sh \
-	  --refresh-package-lock "$(ROOT)/guest/packages.lock.json"
-	@$(ROOT)/guest/test --source "$(ROOT)/.build/upstream/omarchy-v$(OMARCHY_RELEASE)"
-
 version-preflight:
 	@python3 "$(ROOT)/scripts/app_version.py" --root "$(ROOT)" --require-release
 
@@ -147,7 +120,8 @@ package-preflight: version-preflight
 	@[[ -n "$(strip $(PACKAGE_NOTARY_PROFILE))" ]] || { echo 'error: PACKAGE_NOTARY_PROFILE must name a notarytool keychain profile' >&2; exit 1; }
 
 package: package-preflight
-	@$(MAKE) --no-print-directory guest runtime
+	@$(MAKE) --no-print-directory runtime
+	@[[ -f "$(GUEST_DIST)/guix-manifest.json" ]] || { echo 'error: dist/guix is missing; run make guix-package GUIX_IMAGE=...' >&2; exit 1; }
 	@$(ROOT)/macos/build-app.sh \
 	  --dmg \
 	  --guest-dir "$(GUEST_DIST)" \
@@ -159,7 +133,8 @@ release-preflight: version-preflight
 	@[[ -n "$(strip $(RELEASE_NOTARY_PROFILE))" ]] || { echo 'error: RELEASE_NOTARY_PROFILE must name a notarytool keychain profile' >&2; exit 1; }
 
 release: release-preflight
-	@$(MAKE) --no-print-directory guest runtime
+	@$(MAKE) --no-print-directory runtime
+	@[[ -f "$(GUEST_DIST)/guix-manifest.json" ]] || { echo 'error: dist/guix is missing; run make guix-package GUIX_IMAGE=...' >&2; exit 1; }
 	@$(ROOT)/macos/build-app.sh \
 	  --dmg \
 	  --guest-dir "$(GUEST_DIST)" \
@@ -171,23 +146,10 @@ clean:
 	@rm -rf -- \
 	  "$(DIST)" \
 	  "$(ROOT)/.build" \
-	  "$(ROOT)/guest/.work" \
 	  "$(ROOT)/macos/.build" \
 	  "$(ROOT)/macos/.swiftpm"
 	@find "$(ROOT)" -type d \( -name __pycache__ -o -name .pytest_cache \) \
 	  -prune -exec rm -rf -- {} +
-	@set -e; if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then \
-	  while IFS= read -r container; do \
-	    [[ -z "$$container" ]] || docker container rm "$$container" >/dev/null; \
-	  done < <(docker container ls -aq --filter ancestor=try-omarchy-guest-builder); \
-	  while IFS= read -r volume; do \
-	    [[ -z "$$volume" ]] || docker volume rm "$$volume" >/dev/null; \
-	  done < <(docker volume ls -q --filter label=dev.tryomarchy.role=guest-work); \
-	  docker image rm -f try-omarchy-guest-builder >/dev/null 2>&1 || true; \
-	  echo 'Removed Try Roguix Docker builder image and guest-work volumes.'; \
-	else \
-	  echo 'Docker is unavailable; skipped project Docker cache cleanup.' >&2; \
-	fi
 
 clean-all:
 	@[[ "$$(uname -s)" == Darwin ]] || { echo 'error: make clean-all requires macOS' >&2; exit 1; }
@@ -236,6 +198,3 @@ clean-all:
 	       -o -name 'try-omarchy-space-estimate-*' \) \
 	    -exec rm -rf -- {} +
 	@echo 'Try Roguix deep cleanup complete.'
-
-clean-guest: clean
-	@echo 'make clean-guest is now an alias for make clean.'

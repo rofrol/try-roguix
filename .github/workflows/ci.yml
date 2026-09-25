@@ -28,8 +28,8 @@ jobs:
         uses: actions/checkout@v4
 
       # This compiles the Swift product and runs the native, shell, and guest
-      # contract suites. The full build additionally requires privileged ARM64
-      # Docker, which is unavailable on GitHub-hosted macOS runners.
+      # contract suites. The guest image itself is built in a Guix System
+      # builder (guest/guix/README.md), not on GitHub-hosted runners.
       - name: Run test suite
         run: make test
 

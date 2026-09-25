@@ -16,7 +16,7 @@ pinned, signature-verified Guix commit. The macOS side comes from
 guest this project replaces (see
 [ADR 0001](docs/decisions/0001-guix-guest-on-existing-qemu-runtime.md)); its
 documentation is kept in [docs/legacy-try-omarchy.md](docs/legacy-try-omarchy.md)
-while the Arch code is still in the repository.
+as a record of the removed Arch guest.
 
 ## Highlights
 
@@ -40,8 +40,7 @@ The Guix guest boots from the app, keeps its disk, and every integration above
 has been verified end to end through the launcher except Touch ID enrollment,
 which needs a finger on the Mac. There are no release builds yet; build from
 source. See [guest/guix/README.md](guest/guix/README.md) for the verified
-results and what is still open (cursor handling, switching the default build
-and removing the Arch builder).
+results and what is still open.
 
 ## Quick start (from source)
 
@@ -50,7 +49,7 @@ and removing the Arch builder).
 2. Build the Guix image on a Linux machine or VM with Guix (see
    [guest/guix/README.md](guest/guix/README.md#build)), copy the raw image to
    the Mac, and package it: `make guix-package GUIX_IMAGE=/path/to/image.raw`.
-3. Build and open the app: `make guix-run`. It is built as
+3. Build and open the app: `make run`. It is built as
    `dist/app.noindex/Try Roguix.app`.
 
 On the first start the VM console asks for the password of the account
@@ -59,8 +58,9 @@ later start goes straight to Hyprland.
 
 The desktop is Omarchy's: **Super+Return** opens a terminal, **Super+Space**
 the Omarchy menu, **Super+Alt+Space** the app launcher, **Super+W** closes a
-window. Command acts as Super while the VM window is focused. Omarchy's menus
-for Arch packages and updates do nothing on Guix. A VM created before the
+window. Command acts as Super while the VM window is focused. Omarchy's
+Install, Remove and Update menus manage Guix packages and the Guix system
+configuration. A VM created before the
 Omarchy desktop keeps its old one; **Reset Roguix** starts a new one.
 
 ## Using the Mac integrations
