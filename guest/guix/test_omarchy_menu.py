@@ -24,6 +24,9 @@ UPSTREAM = """// Omarchy menu
     "action": "omarchy-pkg-add ghostty", "checked": "omarchy-pkg-present ghostty"},
   "remove.package": {"icon": "r", "label": "Package", "action": "omarchy-pkg-remove"},
   "update.omarchy": {"icon": "u", "label": "Omarchy", "action": "omarchy-update"},
+  "learn.omarchy": {"icon": "o", "label": "Omarchy", "action": "omarchy-launch-webapp 'https://omarchy.org/manual/'"},
+  "learn.arch": {"icon": "a", "label": "Arch", "action": "omarchy-launch-webapp 'https://wiki.archlinux.org/title/Main_page'"},
+  "learn.neovim": {"icon": "n", "label": "Neovim", "action": "omarchy-launch-webapp 'https://www.lazyvim.org/keymaps'"},
   "style.theme": {"icon": "s", "label": "Theme", "action": "https://example.org",},
 }
 """
@@ -59,6 +62,13 @@ class OmarchyMenuTests(unittest.TestCase):
         self.assertEqual(entry["action"], "roguix-settings")
         self.assertEqual(entry["when"],
                          "test -w /dev/virtio-ports/dev.tryomarchy.settings")
+
+    def test_learn_offers_the_guix_manual_where_arch_was(self):
+        self.assertNotIn("learn.arch", self.menu)
+        learn = [key for key in self.menu if key.startswith("learn.")]
+        self.assertEqual(learn, ["learn.omarchy", "learn.guix", "learn.neovim"])
+        self.assertEqual(self.menu["learn.guix"]["label"], "Guix")
+        self.assertIn("https://guix.gnu.org/manual/", self.menu["learn.guix"]["action"])
 
 
 class OmarchyPackageTests(unittest.TestCase):
