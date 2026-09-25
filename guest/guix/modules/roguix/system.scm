@@ -196,6 +196,7 @@
             (service roguix-audio-service-type)
             (service roguix-camera-service-type)
             (service roguix-battery-service-type)
+            (service roguix-settings-service-type)
             (service roguix-touch-id-service-type)
             ;; Installed but never auto-started: roguix-ssh-access starts it
             ;; for one boot when the launcher forwards SSH.

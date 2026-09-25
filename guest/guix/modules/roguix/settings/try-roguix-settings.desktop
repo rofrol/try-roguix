@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Try Roguix Settings
+Comment=Open the Try Roguix Mac app settings
+Exec=roguix-settings
+TryExec=roguix-settings
+Icon=preferences-system
+Terminal=false
+Categories=Settings;
+Keywords=Mac;VM;Startup;

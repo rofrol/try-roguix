@@ -91,6 +91,13 @@ def transform(menu):
                 "action": f"{TERMINAL} 'sudo roguix-pkg add {package}'",
                 "checked": f"roguix-pkg present {package}",
             }
+    # Try Omarchy's in-guest entry for the Mac app's settings, shown only
+    # when the launcher provides the settings port.
+    result["setup.try-roguix"] = {
+        "icon": "", "label": "Try Roguix Settings",
+        "description": "Open the Mac app settings",
+        "action": "roguix-settings",
+        "when": "test -w /dev/virtio-ports/dev.tryomarchy.settings"}
     result["update.system"] = {"icon": "", "label": "Guix System",
                                "aliases": ["reconfigure"]}
     result["update.system.apply"] = {
