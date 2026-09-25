@@ -52,3 +52,10 @@ server/publish.sh EXPORT_DIR      # on the Mac; SSH settings from .env
 `publish.sh` has the VPS substitute `vps-fetch.txt` from bordeaux (an import
 needs every reference valid), import the archive, and bake the cache with
 `roguix-prebake.sh`, all under `nice` and idle I/O.
+
+Then publish the release's modules to the roguix channel, so VMs can update
+with `roguix-update` (docs/decisions/0004-roguix-channel.md):
+
+```sh
+guest/guix/publish-channel
+```

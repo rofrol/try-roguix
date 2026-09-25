@@ -30,7 +30,10 @@ def git_environment():
     different repository than SOURCE, silently defeating the pin check.
     """
     return {k: v for k, v in os.environ.items() if k not in GIT_LOCAL_ENV_VARS}
-COMMIT = "7e74121a40a8308166e328a23647cf6f3768e6c8"
+# The Guix pin, shared with the image (/etc/roguix/guix-commit) and the
+# roguix channel, which must build on the same Guix.
+COMMIT = (Path(__file__).resolve().parent
+          / "modules/roguix/guix-commit").read_text().strip()
 
 
 def build(args):
