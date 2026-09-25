@@ -1287,9 +1287,9 @@ final class StartMenuWindow: NSObject, NSWindowDelegate {
     }
 
     private func automaticStartSettingRow() -> NSView {
-        let detail = virtualMachineRunning
-            ? "Skip the start menu on launch. Open settings anytime from Omarchy’s Setup menu."
-            : "Skip this menu on launch. Hold Option while opening the app to show it again."
+        // Roguix has no in-guest settings entry yet, so the only way back to
+        // this menu is from the Mac, running or not.
+        let detail = "Skip this menu on launch. Hold Option while opening the app to show it again."
         return toggleSettingRow(
             titleText: "Start automatically",
             detailText: detail,
