@@ -130,7 +130,7 @@ int main(void)
         runner = RUNNER.read_text(encoding="utf-8")
         self.assertIn("--host-keyboard-geometry", runner)
         self.assertIn(
-            'keyboard_kernel_argument=" tryomarchy.keyboard=$host_keyboard_geometry"',
+            'keyboard_setting="tryomarchy.keyboard=$host_keyboard_geometry"',
             runner,
         )
         self.assertIn("export TRYOMARCHY_KEYBOARD=$host_keyboard_geometry", runner)

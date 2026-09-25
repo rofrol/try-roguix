@@ -15,12 +15,12 @@ final class AppReleaseWindow: NSObject {
             styleMask: [.titled, .closable], backing: .buffered, defer: false
         )
         super.init()
-        window.title = "Try Omarchy Updates"
+        window.title = "Try Roguix Updates"
         window.isReleasedWhenClosed = false
 
         let installed = NSTextField(wrappingLabelWithString: checker.installed.label)
         installed.font = .systemFont(ofSize: 16, weight: .semibold)
-        let explanation = NSTextField(wrappingLabelWithString: "Updates are downloaded from GitHub and installed manually. Shut down Omarchy before replacing the Mac app. Your existing VM and settings are preserved; the guest is updated separately.")
+        let explanation = NSTextField(wrappingLabelWithString: "Updates are downloaded from GitHub and installed manually. Shut down Roguix before replacing the Mac app. Your existing VM and settings are preserved; the guest is updated separately.")
         explanation.textColor = .secondaryLabelColor
         let privacy = NSTextField(wrappingLabelWithString: "When enabled, checks contact GitHub at most once a day when you open the app. App updates aren’t downloaded or installed automatically.")
         privacy.textColor = .secondaryLabelColor

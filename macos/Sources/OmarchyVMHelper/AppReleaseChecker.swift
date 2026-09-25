@@ -67,10 +67,10 @@ final class AppReleaseChecker {
         configuration.urlCredentialStorage = nil
         let client = session ?? URLSession(configuration: configuration)
         defer { if session == nil { client.finishTasksAndInvalidate() } }
-        var request = URLRequest(url: URL(string: "https://api.github.com/repos/omacom/try-omarchy/releases/latest")!)
+        var request = URLRequest(url: URL(string: "https://api.github.com/repos/rofrol/try-roguix/releases/latest")!)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
-        request.setValue("Try-Omarchy-Release-Check", forHTTPHeaderField: "User-Agent")
+        request.setValue("Try-Roguix-Release-Check", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await client.data(for: request)
         guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
             throw AppReleaseError.response((response as? HTTPURLResponse)?.statusCode ?? 0)

@@ -83,7 +83,7 @@ struct FullscreenNativeContractTests {
         #expect(builder.contains(
             "reenable_patch=\"$native_dir/patches/qemu-cocoa-full-grab-reenable.patch\""
         ))
-        #expect(builder.contains("verify_file_sha \"Try Omarchy Cocoa full-grab re-enable patch\""))
+        #expect(builder.contains("verify_file_sha \"Try Roguix Cocoa full-grab re-enable patch\""))
 
         // It edits handleTapEvent after the full-grab patch rewrites it, so the
         // order of the two patch invocations is part of the contract.

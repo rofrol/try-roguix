@@ -210,7 +210,7 @@ do {
             source.resume()
             terminationSignalSources.append(source)
         }
-        fputs("[battery-bridge] The Mac battery is mirrored inside Omarchy.\n", stderr)
+        fputs("[battery-bridge] The Mac battery is mirrored inside Roguix.\n", stderr)
         try bridge.run()
         exit(0)
     }

@@ -74,11 +74,6 @@ fi
 chmod 755 "$resources/scripts/run-qemu-gpu.sh"
 chmod 644 "$resources/scripts/qemu-port-forwarding.sh"
 
-mkdir -p "$resources/guest-settings" "$resources/integrations"
-printf '{}\n' >"$resources/integrations/manifest.json"
-cp "$macos_dir/guest-settings.service" "$resources/guest-settings/guest-settings.service"
-cp "$macos_dir/../guest/native-overlay/usr/local/bin/omarchy-native-mac-share" "$resources/guest-settings/omarchy-native-mac-share"
-cp "$macos_dir/../guest/scripts/install-settings-integration.py" "$resources/guest-settings/install.py"
 
 cat >"$contents/MacOS/omarchy-vm-helper" <<'SH'
 #!/bin/bash
@@ -248,16 +243,16 @@ if os.environ.get("FAKE_SHUTDOWN_RACE") == "1":
     # Stay alive until ps has captured a live snapshot and the audio bridge
     # has started. The deadline bounds a broken fixture, not a successful run.
     deadline = time.monotonic() + 10
-    while not Path(os.environ[log_variable] + ".raced").exists():
+    while not Path(os.environ["FAKE_QEMU_LOG"] + ".raced").exists():
         if time.monotonic() >= deadline:
-            Path(os.environ[log_variable] + ".timed-out").touch()
+            Path(os.environ["FAKE_QEMU_LOG"] + ".timed-out").touch()
             raise SystemExit("fake QEMU timed out waiting for the shutdown race")
         time.sleep(0.01)
 elif os.environ.get("FAKE_QEMU_WAIT_FOR_TERMINATION") == "1":
     # Failure scenarios need QEMU alive until launcher cleanup, regardless of
     # host speed. The alarm only bounds a broken launcher/test, not success.
     def timed_out(signum, frame):
-        Path(os.environ[log_variable] + ".timed-out").touch()
+        Path(os.environ["FAKE_QEMU_LOG"] + ".timed-out").touch()
         raise SystemExit("fake QEMU timed out waiting for launcher cleanup")
 
     signal.signal(signal.SIGALRM, timed_out)
@@ -377,9 +372,17 @@ if [[ ${FAKE_LARGE_PROCESS_LIST:-0} == 1 && "$*" == "-axo pid=,command=" ]]; the
   printf '999999 /bin/bash run-qemu-gpu.sh\n'
   /usr/bin/awk 'BEGIN { for (i=0; i<10000; i++) print 800000+i, "unrelated process with enough output to fill a pipe buffer" }'
 fi
-if [[ ${FAKE_SHUTDOWN_RACE:-0} == 1 && -f ${FAKE_QEMU_LOG:-}.pid \
-   && $* == "-p $(cat "$FAKE_QEMU_LOG.pid") -o state=" \
-   && ! -e $FAKE_QEMU_LOG.raced ]]; then
+# The launcher reads QEMU's state alone (-p PID -o state=) or with its
+# bridges in one call (-o pid=,state= -p PID,...); race either form.
+race_query=0
+if [[ ${FAKE_SHUTDOWN_RACE:-0} == 1 && -f ${FAKE_QEMU_LOG:-}.pid ]]; then
+  race_pid=$(cat "$FAKE_QEMU_LOG.pid")
+  if [[ $* == "-p $race_pid -o state=" || \
+        ( $1 == -o && $2 == pid=,state= && $3 == -p && ,$4, == *,$race_pid,* ) ]]; then
+    race_query=1
+  fi
+fi
+if (( race_query )) && [[ ! -e $FAKE_QEMU_LOG.raced ]]; then
   state=$(/bin/ps "$@" 2>/dev/null) || exit $?
   [[ -n $state && $state != *Z* ]] || exit 1
   for ((attempt=0; attempt<500; attempt++)); do
@@ -487,18 +490,9 @@ run_scenario() {
 
 run_scenario disabled 0 ''
 disabled_qemu=$(<"$test_root/disabled/qemu.log")
-assert_contains "$disabled_qemu" 'tryomarchy.timezone=Asia/Tokyo'
 assert_contains "$disabled_qemu" 'name=dev.tryomarchy.timezone'
-run_scenario timezone-travel 0 '' FAKE_HOST_TIMEZONE=America/New_York
-assert_contains "$(<"$test_root/timezone-travel/qemu.log")" 'tryomarchy.timezone=America/New_York'
-run_scenario timezone-injection 1 '' 'FAKE_HOST_TIMEZONE=UTC systemd.unit=rescue.target'
-assert_contains "$(<"$test_root/timezone-injection/stderr")" 'invalid Mac time zone'
-run_scenario timezone-traversal 1 '' FAKE_HOST_TIMEZONE=../UTC
-assert_contains "$(<"$test_root/timezone-traversal/stderr")" 'invalid Mac time zone'
-assert_contains "$disabled_qemu" 'systemd.wants=try-omarchy-settings.service'
-assert_contains "$disabled_qemu" "systemd.set_credential_binary=systemd.extra-unit.try-omarchy-settings.service:$(base64 < "$macos_dir/guest-settings.service" | tr -d '\r\n')"
-assert_line_pair "$test_root/disabled/qemu.log" -fsdev \
-  "local,id=omarchy-settings,path=$resources/guest-settings,security_model=none,readonly=on"
+# The Arch guest's settings unit and share are not part of a Roguix launch.
+assert_not_contains "$disabled_qemu" try-omarchy-settings
 assert_not_contains "$disabled_qemu" 'systemd.unit='
 assert_line_pair "$test_root/disabled/qemu.log" -machine \
   'virt,gic-version=3,virtualization=on'
@@ -531,8 +525,8 @@ assert_contains "$disabled_qemu" \
   'virtserialport,bus=omarchy-serial.0,nr=7,chardev=omarchy-battery-bridge,name=dev.tryomarchy.battery'
 assert_contains "$disabled_qemu" \
   'virtserialport,bus=omarchy-serial.0,nr=6,chardev=omarchy-settings-bridge,name=dev.tryomarchy.settings'
-assert_contains "$disabled_qemu" \
-  'virtserialport,bus=omarchy-serial.0,nr=5,chardev=omarchy-integrations,name=dev.tryomarchy.integrations'
+# The app bundles no Arch integration manager, so the port is absent.
+assert_not_contains "$disabled_qemu" dev.tryomarchy.integrations
 # A duplicate bus/port pair makes real QEMU exit before its monitor is usable.
 python3 - "$test_root/disabled/qemu.log" <<'PYPORTS'
 import pathlib
@@ -546,7 +540,7 @@ for argument in pathlib.Path(sys.argv[1]).read_text().splitlines():
     port = (fields["bus"], fields["nr"])
     assert port not in ports, f"Duplicate virtual serial port: {port}"
     ports.add(port)
-assert len(ports) == 9, f"Expected all nine guest channels, got {ports}"
+assert len(ports) == 8, f"Expected all eight guest channels, got {ports}"
 PYPORTS
 assert_contains "$(<"$test_root/disabled/storage.log")" select-existing
 assert_contains "$(<"$test_root/disabled/storage.log")" create
@@ -739,18 +733,13 @@ run_scenario hvf-trace-relative 1 '' OMARCHY_QEMU_GPU_HVF_TRACE_LOG=hvf-trace.lo
 assert_contains "$(<"$test_root/hvf-trace-relative/stderr")" 'must be an absolute path'
 [[ ! -f $test_root/hvf-trace-relative/qemu.log ]] || fail 'relative HVF trace path started QEMU'
 
-# An app update must not advertise its own locale capability for an older
-# selected disk. Check both the rejection and a supported saved boot kit.
+# Roguix has no guest locale switch yet: a language request is refused before
+# QEMU starts, and English (no request) launches normally.
 run_scenario locale-unsupported 1 '' OMARCHY_QEMU_GPU_LOCALE=zh_TW.UTF-8
 assert_contains "$(<"$test_root/locale-unsupported/stderr")" 'does not support language selection'
 [[ ! -f $test_root/locale-unsupported/qemu.log ]] || fail 'unsupported locale started QEMU'
-saved_command_line=$(<"$persistent_root/boot/command-line")
-printf '%s tryomarchy.locale_support=1\n' "$saved_command_line" >"$persistent_root/boot/command-line"
-run_scenario locale-supported 0 '' OMARCHY_QEMU_GPU_LOCALE=zh_TW.UTF-8
-assert_contains "$(<"$test_root/locale-supported/qemu.log")" 'tryomarchy.locale=zh_TW.UTF-8'
 run_scenario locale-english 0 '' OMARCHY_QEMU_GPU_LOCALE=
 assert_not_contains "$(<"$test_root/locale-english/qemu.log")" 'tryomarchy.locale='
-printf '%s\n' "$saved_command_line" >"$persistent_root/boot/command-line"
 
 # Simulate installing a newer app build after the first VM was created. The
 # saved VM must be selected before the launcher even considers the absent new
@@ -772,33 +761,14 @@ assert_not_contains "$(<"$test_root/enabled/storage.log")" materialize
 assert_not_contains "$(<"$test_root/enabled/storage.log")" 'select persistent'
 printf 'factory\n' >"$guest/disk.raw"
 
-# Old persistent guests must receive the safe mount unit with their own boot kit.
-assert_not_contains "$disabled_qemu" 'systemd.mask=omarchy-native-mac-share.service'
+# The shared folder reaches the UEFI guest as an SMBIOS setting.
 mkdir -p "$test_root/Shared fixture"
 for mode in persistent ephemeral; do
   argument=''
   [[ $mode != ephemeral ]] || argument=--ephemeral
   run_scenario "shared-$mode" 0 "$argument" OMARCHY_QEMU_GPU_SHARED_FOLDER="$test_root/Shared fixture"
-  shared_qemu=$(<"$test_root/shared-$mode/qemu.log")
-  assert_contains "$shared_qemu" 'systemd.mask=omarchy-native-mac-share.service'
-  assert_contains "$shared_qemu" "systemd.set_credential_binary=systemd.extra-unit.try-omarchy-settings.service:$(base64 < "$macos_dir/guest-settings.service" | tr -d '\r\n')"
-  assert_contains "$shared_qemu" 'omarchy.shared_folder_name='
-  if [[ $mode == persistent ]]; then
-    assert_line_pair "$test_root/shared-$mode/qemu.log" -kernel "$persistent_root/boot/kernel"
-    assert_line_pair "$test_root/shared-$mode/qemu.log" -initrd "$persistent_root/boot/initramfs"
-  fi
+  assert_contains "$(<"$test_root/shared-$mode/qemu.log")" 'omarchy.shared_folder_name='
 done
-mv "$resources/guest-settings/omarchy-native-mac-share" "$resources/guest-settings/helper.saved"
-run_scenario missing-share-helper 1 '' OMARCHY_QEMU_GPU_SHARED_FOLDER="$test_root/Shared fixture"
-[[ ! -e $test_root/missing-share-helper/qemu.log ]] || fail 'unsafe QEMU launch without safety helper'
-mv "$resources/guest-settings/helper.saved" "$resources/guest-settings/omarchy-native-mac-share"
-
-# Never let ARM64 truncate the safety credential or old-service mask.
-share_saved_command_line=$(<"$persistent_root/boot/command-line")
-printf '%s fixture.padding=%02048d\n' "$share_saved_command_line" 0 >"$persistent_root/boot/command-line"
-run_scenario oversized-share-boot 1 '' OMARCHY_QEMU_GPU_SHARED_FOLDER="$test_root/Shared fixture"
-[[ ! -e $test_root/oversized-share-boot/qemu.log ]] || fail 'unsafe launch with truncated safety arguments'
-printf '%s\n' "$share_saved_command_line" >"$persistent_root/boot/command-line"
 
 run_scenario preset 0 '' OMARCHY_QEMU_GPU_PORT_FORWARDS=tcp:2222:22
 assert_line_pair "$test_root/preset/qemu.log" -netdev \

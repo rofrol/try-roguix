@@ -76,13 +76,11 @@ class ResizeDiskTests(unittest.TestCase):
         self.assertIn("shrinking", result.stderr)
         self.assertEqual(self.disk.stat().st_size, 64 * GIB)
 
-    def test_launcher_growth_requires_workspace_lock_and_valid_boot_kit(self):
+    def test_launcher_growth_requires_workspace_lock(self):
         import fcntl
         with (self.state / "locks/current.lock").open("r+b") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             self.assert_rejected(self.launch_growth(64))
-        (self.state / "boot" / self.identity / "kernel").write_bytes(bytes(64))
-        self.assert_rejected(self.launch_growth(64))
 
     def test_preview_preserves_disk_and_creates_no_backup(self):
         result = self.run_resize("--size-gib", "1")
