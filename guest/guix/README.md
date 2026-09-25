@@ -28,24 +28,27 @@ missing packages.
 
 ### Moving the pin
 
-Before moving the pin, check what the new commit would compile, with the
-system's own dry run in the builder, not `guix weather`:
+Before moving the pin, check what the new commit would compile, in the
+builder VM:
 
 ```sh
-guix time-machine --commit=NEW -- system build -n --no-grafts \
-  -L guest/guix/modules guest/guix/system.scm
+export GUIX="guix time-machine --commit=NEW --"
+$GUIX system build -n --no-grafts -L guest/guix/modules guest/guix/system.scm \
+  2>&1 | guest/guix/check-builds.sh
 ```
 
-`guix weather` only asks about package outputs. The system also builds
-derivations of its own locally, and their build inputs never show up there:
-GRUB's theme image, for one, is converted from SVG with `guile-rsvg`, which
-needs librsvg and so Rust; when bordeaux lacks those for aarch64, the build
-bootstraps Rust and LLVM. The dry run lists everything to be built. Move the
-pin only when that list holds nothing but Roguix's own packages
-(`packages.scm`, `apps.scm`, `omarchy.scm`) and small system files
-(configuration, profile hooks, `grub-image.png`); a large package in it means
-bordeaux has not built that commit for aarch64 yet, so wait or pick an
+`check-builds.sh` reads the dry run and allows only two kinds of builds:
+Roguix's own packages (the name and version of each package its modules
+define) and derivations Guix marks `preferLocalBuild` (configuration files,
+profile hooks, grafts, GRUB's image). Anything else is a package bordeaux has
+not built for aarch64, and the script fails listing it: wait, or pick an
 earlier commit.
+
+`guix weather` is not enough: it asks only about package outputs, not about
+the inputs of the system's local derivations. GRUB's theme image, for one, is
+converted from SVG with `guile-rsvg`, which needs librsvg and so Rust; without
+aarch64 substitutes for those, a build bootstraps Rust and LLVM. The dry run
+lists them.
 
 From the project root, on any host, inspect the plan without starting a build:
 
