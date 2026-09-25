@@ -286,7 +286,7 @@ enum QEMUGPUStorageSpaceEstimate {
             sourceDiskBytes: Int64(sourceBytes),
             workingDiskBytes: Int64(workingBytes),
             supportsLanguageSelection: GuestLocaleCatalog.supportsSelection(
-                kernelCommandLine: dictionary["kernelCommandLine"] as? String ?? ""
+                guestLocales: dictionary["guestLocales"] as? String ?? "-"
             )
         )
     }

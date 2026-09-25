@@ -245,7 +245,7 @@ codesign "${app_sign_options[@]}" \
 launch_record=$(OMARCHY_QEMU_GPU_INSPECT_ONLY=1 \
   "$contents/Resources/scripts/run-qemu-gpu.sh")
 IFS=$'\t' read -r bundle_identity source_disk_sha source_disk_bytes \
-  compressed_disk_bytes working_disk_bytes <<<"$launch_record"
+  compressed_disk_bytes working_disk_bytes guest_locales <<<"$launch_record"
 launch_configuration="$contents/Resources/guest/launch.plist"
 /usr/bin/plutil -create xml1 "$launch_configuration"
 /usr/bin/plutil -insert bundleIdentity -string "$bundle_identity" "$launch_configuration"
@@ -255,6 +255,8 @@ launch_configuration="$contents/Resources/guest/launch.plist"
 /usr/bin/plutil -insert workingDiskBytes -integer "$working_disk_bytes" "$launch_configuration"
 # Firmware boots the guest's own GRUB from the disk.
 /usr/bin/plutil -insert bootABI -string uefi-gpt-v1 "$launch_configuration"
+# Comma-separated optional guest languages, or "-" for none.
+/usr/bin/plutil -insert guestLocales -string "$guest_locales" "$launch_configuration"
 
 codesign "${app_sign_options[@]}" \
   --entitlements "$macos_dir/omarchy-vm-helper.entitlements" \

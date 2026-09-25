@@ -62,7 +62,7 @@
        (define directory "/sys/firmware/dmi/entries")
        ;; Exactly the launcher's argument shape; anything else is ignored.
        (define setting
-         (make-regexp "^(omarchy|tryomarchy)\\.[a-z_]+=[A-Za-z0-9_-]*$"))
+         (make-regexp "^(omarchy|tryomarchy)\\.[a-z_]+=[A-Za-z0-9_.-]*$"))
 
        (define (oem-strings entry)
          ;; An SMBIOS structure: a formatted area whose length is byte 1,

@@ -428,7 +428,7 @@ persistent_root="$test_root/persistent"
 # The repo-local development path has no launch.plist: the launcher asks the
 # bundled guix-artifact.py for the launch record (test_artifact.py covers its
 # validation) and only accepts a packaged Roguix guest directory.
-development_record="$(printf 'c%.0s' {1..64})	$(printf 'd%.0s' {1..64})	8	4	16"
+development_record="$(printf 'c%.0s' {1..64})	$(printf 'd%.0s' {1..64})	8	4	16	-"
 printf '%s\n' \
   'import sys' \
   'assert sys.argv[1:2] == ["launch-record"]' \
@@ -717,13 +717,20 @@ non_immersive_qemu=$(<"$test_root/non-immersive/qemu.log")
 assert_contains "$non_immersive_qemu" \
   'cocoa,gl=es,show-cursor=on,zoom-to-fit=on,full-screen=off,full-grab=on,immersive=off,swap-opt-cmd=off'
 
-# Roguix has no guest locale switch yet: a language request is refused before
-# QEMU starts, and English (no request) launches normally.
+# An image that lists no guest languages refuses a language request before
+# QEMU starts; one that lists it passes the choice as an SMBIOS setting, and
+# English (no request) never does.
 run_scenario locale-unsupported 1 '' OMARCHY_QEMU_GPU_LOCALE=zh_TW.UTF-8
 assert_contains "$(<"$test_root/locale-unsupported/stderr")" 'does not support language selection'
 [[ ! -f $test_root/locale-unsupported/qemu.log ]] || fail 'unsupported locale started QEMU'
+/usr/bin/plutil -insert guestLocales -string zh_TW.UTF-8 "$guest/launch.plist"
+run_scenario locale-supported 0 '' OMARCHY_QEMU_GPU_LOCALE=zh_TW.UTF-8
+assert_line_pair "$test_root/locale-supported/qemu.log" -smbios 'type=11,value=tryomarchy.locale=zh_TW.UTF-8'
 run_scenario locale-english 0 '' OMARCHY_QEMU_GPU_LOCALE=
 assert_not_contains "$(<"$test_root/locale-english/qemu.log")" 'tryomarchy.locale='
+run_scenario locale-other 1 '' OMARCHY_QEMU_GPU_LOCALE=de_DE.UTF-8
+assert_contains "$(<"$test_root/locale-other/stderr")" 'unsupported guest locale'
+/usr/bin/plutil -remove guestLocales "$guest/launch.plist"
 
 # Simulate installing a newer app build after the first VM was created. The
 # saved VM must be selected before the launcher even considers the absent new

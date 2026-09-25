@@ -157,8 +157,10 @@ class PackageTests(unittest.TestCase):
     def test_launch_record_matches_the_launcher_contract(self):
         manifest = self.packaged()
         fields = artifact.launch_record(self.output).split("\t")
-        self.assertEqual(len(fields), 5)
-        identity, raw_sha, raw_bytes, compressed_bytes, working_bytes = fields
+        self.assertEqual(len(fields), 6)
+        identity, raw_sha, raw_bytes, compressed_bytes, working_bytes, locales = fields
+        self.assertEqual(locales, ",".join(artifact.LOCALES))
+        self.assertEqual(manifest["guest"]["locales"], list(artifact.LOCALES))
         self.assertEqual(identity, artifact.sha256_file(self.output / artifact.MANIFEST))
         self.assertEqual((raw_sha, int(raw_bytes), int(compressed_bytes)),
                          (manifest["disk"]["sha256"], manifest["disk"]["bytes"],

@@ -30,6 +30,13 @@ enum GuestLocaleCatalog {
         kernelCommandLine.split(whereSeparator: { $0.isWhitespace }).contains(Substring(capabilityToken))
     }
 
+    /// A Roguix image lists its optional languages in `launch.plist`'s
+    /// comma-separated `guestLocales` ("-" for none).
+    static func supportsSelection(guestLocales: String) -> Bool {
+        let offered = guestLocales.split(separator: ",").map(String.init)
+        return supported.contains { offered.contains($0.localeToken) }
+    }
+
     static let traditionalChinese = GuestLocale(
         localeToken: "zh_TW.UTF-8",
         displayName: "Traditional Chinese (繁體中文)"
