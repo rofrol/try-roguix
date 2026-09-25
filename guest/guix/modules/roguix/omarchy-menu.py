@@ -109,6 +109,10 @@ def transform(menu):
         "when": "test -w /dev/virtio-ports/dev.tryomarchy.settings"}
     result["update.system"] = {"icon": "", "label": "Guix System",
                                "aliases": ["reconfigure"]}
+    result["update.system.roguix"] = {
+        "icon": "", "label": "Update Roguix",
+        "description": "Newest Roguix from its signed channel (roguix-update)",
+        "action": f"{TERMINAL} roguix-update"}
     result["update.system.apply"] = {
         "icon": "", "label": "Apply configuration",
         "description": "sudo roguix-reconfigure (/etc/config.scm)",

@@ -24,6 +24,7 @@
   #:use-module (gnu packages)
   #:use-module (gnu packages admin)
   #:use-module (gnu packages base)
+  #:use-module (gnu packages version-control)
   #:use-module (gnu packages bash)
   #:use-module (gnu packages curl)
   #:use-module (gnu packages fontutils)
@@ -194,6 +195,13 @@ configuration, Quickshell desktop shell, themes and helper commands.")
 ;;; Compatibility commands for Omarchy's Arch assumptions, plus Try Omarchy's
 ;;; xdg-terminal-exec and the per-user seed.
 
+;;; The roguix channel: Roguix's modules, published from try-roguix
+;;; (guest/guix/publish-channel) and signed with the channel key; Guix's
+;;; channel introduction model authenticates each commit from the first.
+(define %roguix-channel-url "https://github.com/rofrol/roguix-channel")
+(define %roguix-channel-introduction "bcc938512706d19de86dd8c6f50853fa80b063b8")
+(define %roguix-channel-signer "7D1A 8B40 0C26 0998 097F  63E5 28B8 3B16 11FA 815E")
+
 (define roguix-omarchy-compat
   (package
     (name "roguix-omarchy-compat")
@@ -287,6 +295,30 @@ exit 0
 exec /var/guix/gcroots/roguix-guix/bin/guix system reconfigure \\
   -L /etc/roguix/modules /etc/config.scm \"$@\"
 ")
+              ;; Update Roguix from its signed channel (docs/decisions/0004):
+              ;; fetch it, authenticate every new commit from the channel
+              ;; introduction, require the same Guix pin as this image, then
+              ;; reconfigure /etc/config.scm with the channel's modules. The
+              ;; applied modules become /etc/roguix, so roguix-reconfigure
+              ;; keeps using them offline.
+              (shim "roguix-update" (string-append "\
+[ \"$(id -u)\" = 0 ] || exec sudo \"$0\" \"$@\"
+set -e
+git=" #$(file-append git "/bin/git") "
+guix=/var/guix/gcroots/roguix-guix/bin/guix
+dir=/var/lib/roguix/channel
+[ -d \"$dir/.git\" ] || $git clone --quiet --no-checkout " #$%roguix-channel-url " \"$dir\"
+$git -C \"$dir\" fetch --quiet origin main keyring
+( cd \"$dir\" && $guix git authenticate --keyring=origin/keyring --end=origin/main \\
+    " #$%roguix-channel-introduction " '" #$%roguix-channel-signer "' )
+$git -C \"$dir\" checkout --quiet --detach origin/main
+if ! cmp -s \"$dir/modules/roguix/guix-commit\" /etc/roguix/modules/roguix/guix-commit; then
+  echo 'roguix-update: this Roguix release needs a newer Guix than this VM has;' >&2
+  echo 'reset Roguix from the latest Try Roguix app to get it.' >&2
+  exit 1
+fi
+exec $guix system reconfigure -L \"$dir/modules\" /etc/config.scm \"$@\"
+"))
               (for-each (lambda (program)
                           (chmod (string-append #$output "/bin/" program) #o555))
                         '("busctl" "roguix-pkg" "xdg-terminal-exec"

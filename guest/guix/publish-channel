@@ -1,0 +1,37 @@
+#!/bin/bash
+# Publish guest/guix's Roguix definitions as a signed commit of the roguix
+# channel (docs/decisions/0004-roguix-channel.md), which roguix-update in a
+# VM authenticates and applies.
+#
+# Publish the matching packages on roguix.frolow.dev first
+# (server/README.md): a VM updating before then would build them itself.
+#
+#   ROGUIX_CHANNEL_DIR  the channel checkout (default ../roguix-channel)
+#   GNUPGHOME           the channel key (default ~/.config/roguix-channel/gnupg)
+set -euo pipefail
+here=$(cd "$(dirname "$0")" && pwd)
+root=$(cd "$here/../.." && pwd)
+channel=${ROGUIX_CHANNEL_DIR:-$(cd "$root/.." && pwd)/roguix-channel}
+export GNUPGHOME=${GNUPGHOME:-$HOME/.config/roguix-channel/gnupg}
+
+# Each channel commit names the try-roguix commit it was made from.
+if [[ -n $(git -C "$root" status --porcelain -- guest/guix) ]]; then
+  echo "publish-channel: commit guest/guix in try-roguix first" >&2
+  exit 1
+fi
+revision=$(git -C "$root" rev-parse --short HEAD)
+
+git -C "$channel" checkout --quiet main
+git -C "$channel" pull --quiet --ff-only origin main 2>/dev/null || true
+cp "$here/system.scm" "$channel/system.scm"
+mkdir -p "$channel/modules/roguix"
+rsync -a --delete --exclude __pycache__ "$here/modules/roguix/" "$channel/modules/roguix/"
+
+git -C "$channel" add -A
+if git -C "$channel" diff --cached --quiet; then
+  echo "publish-channel: the channel already matches try-roguix $revision"
+  exit 0
+fi
+git -C "$channel" commit --quiet --gpg-sign -m "Roguix from try-roguix $revision"
+git -C "$channel" push --quiet origin main keyring
+echo "publish-channel: published $(git -C "$channel" rev-parse --short HEAD) (try-roguix $revision)"
