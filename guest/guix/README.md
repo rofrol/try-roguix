@@ -300,9 +300,9 @@ went straight to the desktop.
 
 ## The Omarchy 4 desktop
 
-`modules/roguix/omarchy.scm` gives the desktop account the same Omarchy 4
-("Quattro") desktop as the Arch guest, from the same pinned upstream commit
-(`346e69e1`, tree `24ff1b25`):
+`modules/roguix/omarchy.scm` gives the desktop account the Omarchy 4
+("Quattro") desktop from the pinned upstream release 4.0.4 (`c668141e`, tree
+`1d48adc1`):
 
 - **Omarchy itself** is a package: the upstream tree under
   `share/omarchy`, its commands in `bin/`, and `/usr/share/omarchy` (the

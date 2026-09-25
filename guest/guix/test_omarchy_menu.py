@@ -58,7 +58,7 @@ class OmarchyMenuTests(unittest.TestCase):
 class OmarchyPackageTests(unittest.TestCase):
     def test_menu_guard_asks_guix(self):
         # MenuModel.js's installed-package guard reads pacman's database;
-        # the build replaces exactly these two strings from Omarchy 346e69e.
+        # the build replaces exactly these two strings from Omarchy 4.0.4.
         source = (HERE / "modules/roguix/omarchy.scm").read_text()
         self.assertEqual(source.count('("pacman -Qq; LC_ALL=C pacman -Qi")'), 1)
         self.assertEqual(source.count('("pacman -Q \\"[$]1\\"")'), 1)
