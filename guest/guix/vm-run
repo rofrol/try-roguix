@@ -3,7 +3,8 @@
 
 Usage: vm-run [--timeout SECONDS] [--poll SECONDS] '<command>'
 
-The command runs detached in the guest as root, with its output in
+The command runs detached in the guest as root under bash with pipefail
+(a failure anywhere in a pipeline fails it), with its output in
 /root/vm-run/<id>.log and its exit code in /root/vm-run/<id>.status, so a
 dropped console never kills it. vm-run prints the log as it grows and exits
 with the guest command's exit code. It exits 124 on timeout and 125 when the
@@ -66,7 +67,10 @@ def main():
 
     job = f"{time.strftime('%Y%m%d-%H%M%S')}-{secrets.token_hex(3)}"
     base = f'/root/vm-run/{job}'
-    script = base64.b64encode(args.command.encode()).decode()
+    # pipefail: a failing command piped into another (`build | tail`) must
+    # fail the job, not report the last command's success.
+    script = base64.b64encode(
+        ("set -o pipefail\n" + args.command + "\n").encode()).decode()
     started = console(
         f"mkdir -p /root/vm-run && echo {script} | base64 -d > {base}.sh && "
         f"(setsid bash -c 'bash {base}.sh > {base}.log 2>&1; "
