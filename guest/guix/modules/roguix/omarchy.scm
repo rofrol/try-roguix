@@ -53,20 +53,20 @@
             roguix-omarchy-compat
             roguix-omarchy-service-type))
 
-;; Upstream basecamp/omarchy 4.0.2, tree 24ff1b25.
+;; Upstream basecamp/omarchy 4.0.4, tree 1d48adc1.
 (define omarchy
   (package
     (name "omarchy")
-    (version "4.0.2")
+    (version "4.0.4")
     (source (origin
               (method git-fetch)
               (uri (git-reference
                     (url "https://github.com/basecamp/omarchy")
-                    (commit "346e69e1cec6c4e8924531874af6ba010a1bc99e")))
+                    (commit "c668141e9c42b13c80c9ca4ea108e11708c5e8a5")))
               (file-name (git-file-name name version))
               (sha256
                (base32
-                "1ipk7ip7h5dhglbax7w7rqmwcw9lcvsdm9bvavcaxg1jg0iq7mhf"))))
+                "0djxrwz0h8nbisy5j3xdvkicj6v0kl12qxc34dvakscgw0rp3jwy"))))
     (build-system copy-build-system)
     (arguments
      (list
