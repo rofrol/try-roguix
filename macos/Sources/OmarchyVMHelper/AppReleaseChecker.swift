@@ -51,6 +51,8 @@ final class AppReleaseChecker {
                 let latest = try await fetch()
                 preferences.latestRelease = latest
                 state = .result(installed: installed, latest: latest)
+            } catch AppReleaseError.response(404) {
+                state = .noRelease
             } catch {
                 state = .failed(error.localizedDescription)
             }
