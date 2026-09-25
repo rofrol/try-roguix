@@ -242,7 +242,8 @@ enum StartMenuPresentation {
                 detail: "Roguix boots in English, the guest’s default language.",
                 isNonDefault: false,
                 statusLabel: "○  English",
-                actionTitle: "Switch to \(GuestLocaleCatalog.traditionalChinese.displayName)"
+                // The full display name overflows the fixed-width button.
+                actionTitle: "Switch to 繁體中文"
             )
         }
         return StartMenuLanguagePresentation(
