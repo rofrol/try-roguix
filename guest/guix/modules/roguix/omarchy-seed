@@ -36,6 +36,9 @@ if ! grep -qsF "$include" "$HOME/.config/hypr/monitors.lua"; then
     "$include" >>"$HOME/.config/hypr/monitors.lua"
 fi
 
+# Omarchy's browser is Chromium; Roguix's is LibreWolf.
+xdg-settings set default-web-browser librewolf.desktop 2>/dev/null || true
+
 # Build ~/.local/state/omarchy/current/theme without a running session.
 OMARCHY_THEME_HEADLESS=1 OMARCHY_PATH=$omarchy PATH="$omarchy/bin:$PATH" \
   omarchy-theme-set "Tokyo Night"

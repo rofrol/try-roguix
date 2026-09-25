@@ -18,7 +18,7 @@
   #:use-module (roguix services)
   #:export (roguix-operating-system
             %pinned-guix-root))
-(use-service-modules desktop sddm sound ssh xorg)
+(use-service-modules desktop docker sddm sound ssh xorg)
 (use-package-modules fonts gl linux package-management terminals
                      window-management xdisorg)
 
@@ -198,6 +198,10 @@
                       (%auto-start? #f)
                       (permit-root-login #f)))
             (service roguix-ssh-access-service-type)
+            ;; Omarchy's Docker: the daemon runs, but the account is not in the
+            ;; docker group (root-equivalent), so the CLI runs under sudo.
+            (service containerd-service-type)
+            (service docker-service-type)
             ;; Like the Arch guest, log straight in on the VM console: the disk
             ;; is protected by the Mac account. tty1 waits for the first-start
             ;; password prompt, then /etc/profile.d starts Hyprland there.
