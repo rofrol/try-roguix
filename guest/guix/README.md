@@ -26,6 +26,27 @@ Guix verifies commit signatures, not only the requested hash. Authentication is
 never disabled. Guix still downloads package sources/substitutes and may build
 missing packages.
 
+### Moving the pin
+
+Before moving the pin, check what the new commit would compile, with the
+system's own dry run in the builder, not `guix weather`:
+
+```sh
+guix time-machine --commit=NEW -- system build -n --no-grafts \
+  -L guest/guix/modules guest/guix/system.scm
+```
+
+`guix weather` only asks about package outputs. The system also builds
+derivations of its own locally, and their build inputs never show up there:
+GRUB's theme image, for one, is converted from SVG with `guile-rsvg`, which
+needs librsvg and so Rust; when bordeaux lacks those for aarch64, the build
+bootstraps Rust and LLVM. The dry run lists everything to be built. Move the
+pin only when that list holds nothing but Roguix's own packages
+(`packages.scm`, `apps.scm`, `omarchy.scm`) and small system files
+(configuration, profile hooks, `grub-image.png`); a large package in it means
+bordeaux has not built that commit for aarch64 yet, so wait or pick an
+earlier commit.
+
 From the project root, on any host, inspect the plan without starting a build:
 
 ```sh

@@ -128,6 +128,9 @@
                   (targets '("/boot/efi"))
                   ;; At the display's native size GRUB's text is tiny; QEMU
                   ;; scales this mode up to the window.
+                  ;; The inherited background is an SVG converted with
+                  ;; guile-rsvg (librsvg, Rust): check it has substitutes when
+                  ;; moving the pin (guest/guix/README.md).
                   (theme (grub-theme
                           (inherit (grub-theme))
                           (gfxmode '("1024x768" "auto"))))))
