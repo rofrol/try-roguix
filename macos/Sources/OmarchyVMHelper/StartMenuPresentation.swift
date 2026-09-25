@@ -58,13 +58,6 @@ enum StartMenuPresentation {
 
     static let incompatibleWorkspaceDetail = "The saved VM uses a storage or boot format this version can’t use, or its data folder contains multiple saved VMs. Reset Roguix to create a compatible VM. Resetting permanently erases everything in the VM."
 
-    static let bootRecoveryConfirmationTitle = "Prepare this saved VM once?"
-    static let bootRecoveryConfirmationDetail = """
-        Try Roguix found an existing VM from an earlier app version. Before it starts, Try Roguix will run a one-time, read-only recovery to pair that VM with its own kernel and startup files. The saved disk and all of its data remain intact.
-
-        The factory image bundled with this app is ignored for this VM. Continuing does not reset the VM, upgrade Roguix, or install system updates.
-        """
-
     static func microphone(
         state: MicrophoneAuthorizationState,
         requestInFlight: Bool

@@ -514,21 +514,6 @@ final class StartMenuWindow: NSObject, NSWindowDelegate {
         alert.beginSheetModal(for: window)
     }
 
-    /// Requests one-shot consent for legacy boot-file pairing. This remains a
-    /// synchronous application-modal decision so the launcher cannot start in
-    /// the gap between presenting the explanation and receiving the answer.
-    func confirmBootRecovery() -> Bool {
-        guard launchInProgress else { return false }
-        show()
-        let alert = NSAlert()
-        alert.alertStyle = .informational
-        alert.messageText = StartMenuPresentation.bootRecoveryConfirmationTitle
-        alert.informativeText = StartMenuPresentation.bootRecoveryConfirmationDetail
-        alert.addButton(withTitle: "Cancel")
-        alert.addButton(withTitle: "Continue")
-        return alert.runModal() == .alertSecondButtonReturn
-    }
-
     func launchDidFail(errorMessage: String) {
         guard launchInProgress else { return }
         launchInProgress = false

@@ -114,7 +114,8 @@ case " $* " in
     for device in \
       hda-micro intel-hda virtconsole virtserialport virtio-balloon-pci \
       virtio-9p-pci virtio-blk-pci virtio-gpu-gl-pci virtio-keyboard-pci \
-      virtio-net-pci virtio-rng-pci virtio-serial-pci virtio-tablet-pci virtio-pinch-pci; do
+      virtio-net-pci virtio-rng-pci virtio-serial-pci virtio-tablet-pci virtio-pinch-pci \
+      qemu-xhci usb-kbd; do
       printf 'name "%s"\n' "$device"
     done
     ;;
@@ -213,10 +214,6 @@ QEMU_SELECTED_STORAGE_MODE=''
 QEMU_PERSISTENT_STORAGE_DIRECTORY=''
 QEMU_PERSISTENT_STORAGE_ROOT=''
 QEMU_PERSISTENT_STORAGE_IDENTITY=''
-QEMU_SELECTED_KERNEL=''
-QEMU_SELECTED_INITRAMFS=''
-QEMU_SELECTED_KERNEL_COMMAND_LINE=''
-QEMU_PERSISTENT_STORAGE_NEEDS_BOOT_RECOVERY=0
 _qps_owner() { /usr/bin/stat -f '%u' "$1"; }
 _qps_permissions() { /usr/bin/stat -f '%Lp' "$1"; }
 _qps_lstat_kind() { /usr/bin/stat -f '%HT' "$1"; }
@@ -225,14 +222,13 @@ qemu_persistent_storage_release_lock() { :; }
 qemu_persistent_storage_grow_selected() {
   printf 'grow:%s\n' "$1" >>"$FAKE_STORAGE_LOG"
 }
-qemu_persistent_storage_configure_guest() { [[ $1 == direct ]]; }
 qemu_persistent_storage_materialize_source() {
   printf 'materialize\n' >>"$FAKE_STORAGE_LOG"
   return 1
 }
 qemu_persistent_storage_select_existing() {
   printf 'select-existing\n' >>"$FAKE_STORAGE_LOG"
-  QEMU_SELECTED_DISK="$FAKE_PERSISTENT_ROOT/rootfs.ext4"
+  QEMU_SELECTED_DISK="$FAKE_PERSISTENT_ROOT/disk.raw"
   if [[ ! -f $QEMU_SELECTED_DISK ]]; then
     QEMU_SELECTED_DISK=''
     return "$QEMU_PERSISTENT_STORAGE_MISSING_STATUS"
@@ -242,50 +238,22 @@ qemu_persistent_storage_select_existing() {
   QEMU_PERSISTENT_STORAGE_DIRECTORY=$FAKE_PERSISTENT_ROOT
   QEMU_PERSISTENT_STORAGE_ROOT=$FAKE_PERSISTENT_ROOT
   QEMU_PERSISTENT_STORAGE_IDENTITY=${FAKE_SAVED_IDENTITY:-saved-vm}
-  if [[ -f $FAKE_PERSISTENT_ROOT/boot/kernel && \
-        -f $FAKE_PERSISTENT_ROOT/boot/initramfs && \
-        -f $FAKE_PERSISTENT_ROOT/boot/command-line ]]; then
-    QEMU_SELECTED_KERNEL="$FAKE_PERSISTENT_ROOT/boot/kernel"
-    QEMU_SELECTED_INITRAMFS="$FAKE_PERSISTENT_ROOT/boot/initramfs"
-    QEMU_SELECTED_KERNEL_COMMAND_LINE=$(<"$FAKE_PERSISTENT_ROOT/boot/command-line")
-    QEMU_PERSISTENT_STORAGE_NEEDS_BOOT_RECOVERY=0
-  else
-    QEMU_SELECTED_KERNEL=''
-    QEMU_SELECTED_INITRAMFS=''
-    QEMU_SELECTED_KERNEL_COMMAND_LINE=''
-    QEMU_PERSISTENT_STORAGE_NEEDS_BOOT_RECOVERY=1
-  fi
-}
-qemu_persistent_storage_stage_selected_boot_kit() {
-  printf 'stage-recovered-boot\n' >>"$FAKE_STORAGE_LOG"
-  mkdir -p "$FAKE_PERSISTENT_ROOT/boot"
-  /bin/cp "$1" "$FAKE_PERSISTENT_ROOT/boot/kernel"
-  /bin/cp "$2" "$FAKE_PERSISTENT_ROOT/boot/initramfs"
-  printf '%s\n' "$3" >"$FAKE_PERSISTENT_ROOT/boot/command-line"
-  QEMU_SELECTED_KERNEL="$FAKE_PERSISTENT_ROOT/boot/kernel"
-  QEMU_SELECTED_INITRAMFS="$FAKE_PERSISTENT_ROOT/boot/initramfs"
-  QEMU_SELECTED_KERNEL_COMMAND_LINE=$3
-  QEMU_PERSISTENT_STORAGE_NEEDS_BOOT_RECOVERY=0
 }
 qemu_persistent_storage_select() {
   printf 'select %s\n' "$1" >>"$FAKE_STORAGE_LOG"
   if [[ $1 == ephemeral ]]; then
     mkdir -p "$6"
-    QEMU_SELECTED_DISK="$6/rootfs.ext4"
+    QEMU_SELECTED_DISK="$6/disk.raw"
     /bin/cp "$3" "$QEMU_SELECTED_DISK"
     chmod 600 "$QEMU_SELECTED_DISK"
     QEMU_SELECTED_STORAGE_MODE=ephemeral
     QEMU_PERSISTENT_STORAGE_DIRECTORY=''
     QEMU_PERSISTENT_STORAGE_ROOT=''
     QEMU_PERSISTENT_STORAGE_IDENTITY=''
-    QEMU_SELECTED_KERNEL=$8
-    QEMU_SELECTED_INITRAMFS=$9
-    QEMU_SELECTED_KERNEL_COMMAND_LINE=${10}
-    QEMU_PERSISTENT_STORAGE_NEEDS_BOOT_RECOVERY=0
     return 0
   fi
   mkdir -p "$FAKE_PERSISTENT_ROOT"
-  QEMU_SELECTED_DISK="$FAKE_PERSISTENT_ROOT/rootfs.ext4"
+  QEMU_SELECTED_DISK="$FAKE_PERSISTENT_ROOT/disk.raw"
   if [[ $1 != reset && -f $QEMU_SELECTED_DISK ]]; then
     printf 'reuse\n' >>"$FAKE_STORAGE_LOG"
   else
@@ -293,18 +261,10 @@ qemu_persistent_storage_select() {
     printf 'create\n' >>"$FAKE_STORAGE_LOG"
   fi
   chmod 600 "$QEMU_SELECTED_DISK"
-  mkdir -p "$FAKE_PERSISTENT_ROOT/boot"
-  /bin/cp "$8" "$FAKE_PERSISTENT_ROOT/boot/kernel"
-  /bin/cp "$9" "$FAKE_PERSISTENT_ROOT/boot/initramfs"
-  printf '%s\n' "${10}" >"$FAKE_PERSISTENT_ROOT/boot/command-line"
   QEMU_SELECTED_STORAGE_MODE=persistent
   QEMU_PERSISTENT_STORAGE_DIRECTORY=$FAKE_PERSISTENT_ROOT
   QEMU_PERSISTENT_STORAGE_ROOT=$FAKE_PERSISTENT_ROOT
   QEMU_PERSISTENT_STORAGE_IDENTITY=${FAKE_SAVED_IDENTITY:-saved-vm}
-  QEMU_SELECTED_KERNEL="$FAKE_PERSISTENT_ROOT/boot/kernel"
-  QEMU_SELECTED_INITRAMFS="$FAKE_PERSISTENT_ROOT/boot/initramfs"
-  QEMU_SELECTED_KERNEL_COMMAND_LINE=${10}
-  QEMU_PERSISTENT_STORAGE_NEEDS_BOOT_RECOVERY=0
 }
 SH
 chmod 644 "$resources/scripts/qemu-persistent-storage.sh"
@@ -338,18 +298,16 @@ SH
 chmod 755 "$shim_dir"/*
 
 guest="$resources/guest"
-printf 'kernel\n' >"$guest/vmlinuz-linux"
-printf 'initramfs\n' >"$guest/initramfs-linux.img"
-printf 'factory\n' >"$guest/rootfs.ext4"
+mkdir -p "$resources/runtime/share/qemu"
+printf 'firmware\n' >"$resources/runtime/share/qemu/edk2-aarch64-code.fd"
+printf 'factory\n' >"$guest/disk.raw"
 /usr/bin/plutil -create xml1 "$guest/launch.plist"
 /usr/bin/plutil -insert bundleIdentity -string "$(printf 'a%.0s' {1..64})" "$guest/launch.plist"
 /usr/bin/plutil -insert sourceDiskSHA256 -string "$(printf 'b%.0s' {1..64})" "$guest/launch.plist"
 /usr/bin/plutil -insert sourceDiskBytes -integer 8 "$guest/launch.plist"
 /usr/bin/plutil -insert compressedDiskBytes -integer 4 "$guest/launch.plist"
 /usr/bin/plutil -insert workingDiskBytes -integer 16 "$guest/launch.plist"
-/usr/bin/plutil -insert kernelCommandLine -string \
-  'root=/dev/vda rw rootwait console=tty0 console=hvc0 loglevel=4 systemd.show_status=false rd.systemd.show_status=false mitigations=off nowatchdog' \
-  "$guest/launch.plist"
+/usr/bin/plutil -insert bootABI -string uefi-gpt-v1 "$guest/launch.plist"
 
 launcher="$resources/scripts/run-qemu-gpu.sh"
 persistent_root="$test_root/persistent"

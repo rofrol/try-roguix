@@ -59,7 +59,7 @@ contents="$app/Contents"
 bundled_qemu="$contents/Resources/runtime/bin/Try Roguix"
 module_cache="$macos_dir/.build/module-cache"
 runtime_source="$macos_dir/.build/qemu-gpu-runtime"
-guest_dir=${guest_dir:-"$repo_dir/dist/guest"}
+guest_dir=${guest_dir:-"$repo_dir/dist/guix"}
 dependency_bundler="$macos_dir/bundle-macho-dependencies.sh"
 compatibility_verifier="$macos_dir/verify-macos-compatibility.sh"
 package_dmg="$macos_dir/package-dmg.sh"
@@ -198,25 +198,11 @@ install -m 0644 "$macos_dir/qemu-port-forwarding.sh" \
   "$contents/Resources/scripts/qemu-port-forwarding.sh"
 install -m 0644 "$macos_dir/qemu-networking.sh" "$contents/Resources/scripts/qemu-networking.sh"
 install -m 0644 "$macos_dir/network-identity.py" "$contents/Resources/scripts/network-identity.py"
-# A Guix guest directory (guest/guix/package.py) holds exactly its manifest,
-# checksums and compressed UEFI disk; everything else is the Arch guest.
-if [[ -e $guest_dir/guix-manifest.json || -L $guest_dir/guix-manifest.json ]]; then
-  guest_resources=(SHA256SUMS disk.raw.zst guix-manifest.json)
-  install -m 0644 "$repo_dir/guest/guix/artifact.py" \
-    "$contents/Resources/scripts/guix-artifact.py"
-else
-  guest_resources=(
-    LICENSE.omarchy
-    SHA256SUMS
-    build-spec.json
-    guest-manifest.json
-    initramfs-linux.img
-    packages.lock.txt
-    provenance.json
-    rootfs.ext4.zst
-    vmlinuz-linux
-  )
-fi
+# The Roguix guest directory (guest/guix/package.py) holds exactly its
+# manifest, checksums and compressed UEFI disk.
+guest_resources=(SHA256SUMS disk.raw.zst guix-manifest.json)
+install -m 0644 "$repo_dir/guest/guix/artifact.py" \
+  "$contents/Resources/scripts/guix-artifact.py"
 for guest_resource in "${guest_resources[@]}"; do
   [[ -f $guest_dir/$guest_resource && ! -L $guest_dir/$guest_resource ]] || {
     echo "build-app: factory guest resource is missing or unsafe: $guest_resource" >&2
@@ -259,7 +245,7 @@ codesign "${app_sign_options[@]}" \
 launch_record=$(OMARCHY_QEMU_GPU_INSPECT_ONLY=1 \
   "$contents/Resources/scripts/run-qemu-gpu.sh")
 IFS=$'\t' read -r bundle_identity source_disk_sha source_disk_bytes \
-  compressed_disk_bytes working_disk_bytes kernel_command_line <<<"$launch_record"
+  compressed_disk_bytes working_disk_bytes <<<"$launch_record"
 launch_configuration="$contents/Resources/guest/launch.plist"
 /usr/bin/plutil -create xml1 "$launch_configuration"
 /usr/bin/plutil -insert bundleIdentity -string "$bundle_identity" "$launch_configuration"
@@ -267,12 +253,8 @@ launch_configuration="$contents/Resources/guest/launch.plist"
 /usr/bin/plutil -insert sourceDiskBytes -integer "$source_disk_bytes" "$launch_configuration"
 /usr/bin/plutil -insert compressedDiskBytes -integer "$compressed_disk_bytes" "$launch_configuration"
 /usr/bin/plutil -insert workingDiskBytes -integer "$working_disk_bytes" "$launch_configuration"
-if [[ -n $kernel_command_line ]]; then
-  /usr/bin/plutil -insert kernelCommandLine -string "$kernel_command_line" "$launch_configuration"
-else
-  # Only the UEFI guest validates without a command line; firmware boots it.
-  /usr/bin/plutil -insert bootABI -string uefi-gpt-v1 "$launch_configuration"
-fi
+# Firmware boots the guest's own GRUB from the disk.
+/usr/bin/plutil -insert bootABI -string uefi-gpt-v1 "$launch_configuration"
 
 codesign "${app_sign_options[@]}" \
   --entitlements "$macos_dir/omarchy-vm-helper.entitlements" \

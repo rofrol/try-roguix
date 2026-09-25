@@ -332,15 +332,14 @@ def launch_record(directory):
     """The tab-separated record run-qemu-gpu.sh consumes for this artifact.
 
     Fields: bundle identity (SHA-256 of the manifest file), raw disk SHA-256,
-    raw bytes, compressed bytes, working-disk bytes, and an empty kernel
-    command line: firmware boots the disk's own GRUB. The launcher's
+    raw bytes, compressed bytes and working-disk bytes. The launcher's
     materialization re-hashes the decompressed disk against the raw SHA-256.
     """
     manifest = validate_artifacts(directory)
     disk = manifest["disk"]
     return "\t".join([
         sha256_file(Path(directory) / MANIFEST), disk["sha256"], str(disk["bytes"]),
-        str(disk["compressedBytes"]), str(max(disk["bytes"], WORKING_DISK_BYTES)), "",
+        str(disk["compressedBytes"]), str(max(disk["bytes"], WORKING_DISK_BYTES)),
     ])
 
 

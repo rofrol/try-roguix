@@ -18,28 +18,25 @@ class ResizeDiskTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(prefix="omarchy-resize-test.")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        self.state = self.root / "VM with spaces"
-        self.source = self.root / "source.ext4"
+        self.root_state = self.root / "VM with spaces"
+        # The storage library keeps the Roguix VM in a `guix` subdirectory.
+        self.state = self.root_state / "guix"
+        self.source = self.root / "source.raw"
         self.payload = b"existing guest data" + bytes(4096)
         self.source.write_bytes(self.payload)
-        self.kernel = self.root / "kernel"
-        self.kernel.write_bytes(bytes(56) + b"ARMd" + bytes(4))
-        self.initramfs = self.root / "initramfs"
-        self.initramfs.write_bytes(b"070701fixture")
         self.identity = hashlib.sha256(b"bundle").hexdigest()
-        self.environment = dict(os.environ, OMARCHY_QEMU_GPU_STATE_ROOT=str(self.state),
+        self.environment = dict(os.environ, OMARCHY_QEMU_GPU_STATE_ROOT=str(self.root_state),
                                 OMARCHY_QEMU_GPU_DEVELOPMENT_MULTI_DISK="0")
         self.environment.pop("OMARCHY_QEMU_GPU_TEST_FREE_BYTES", None)
         self.environment.pop("OMARCHY_QEMU_GPU_TEST_FS_TYPE", None)
         result = subprocess.run([
             "bash", "-eu", "-c",
-            'source "$1"; qemu_persistent_storage_select persistent "$2" "$3" "$4" "$5" "" "$5" "$6" "$7" "root=/dev/vda rw rootwait console=tty0 console=hvc0"',
+            'source "$1"; qemu_persistent_storage_select persistent "$2" "$3" "$4" "$5" "" "$5"',
             "fixture", str(NATIVE / "qemu-persistent-storage.sh"), self.identity,
             str(self.source), hashlib.sha256(self.payload).hexdigest(), str(len(self.payload)),
-            str(self.kernel), str(self.initramfs),
         ], env=self.environment, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.disk = self.state / "disks/current/rootfs.ext4"
+        self.disk = self.state / "disks/current/disk.raw"
         self.metadata = self.disk.with_name("metadata.json")
 
     def run_resize(self, *args, environment=None):
@@ -47,7 +44,7 @@ class ResizeDiskTests(unittest.TestCase):
                               env=environment or self.environment, text=True, capture_output=True)
 
     def backups(self):
-        return list(self.root.glob("VM with spaces.resize-backup.*"))
+        return list(self.root_state.glob("guix.resize-backup.*"))
 
     def assert_rejected(self, result):
         self.assertNotEqual(result.returncode, 0, result.stdout)
@@ -108,9 +105,8 @@ class ResizeDiskTests(unittest.TestCase):
         self.assertEqual(self.metadata.read_bytes(), metadata)
         backup, = self.backups()
         self.assertEqual(backup.stat().st_mode & 0o777, 0o700)
-        self.assertEqual((backup / "rootfs.ext4").read_bytes(), self.payload)
+        self.assertEqual((backup / "disk.raw").read_bytes(), self.payload)
         self.assertEqual((backup / "metadata.json").read_bytes(), metadata)
-        self.assertEqual((backup / "boot" / self.identity / "kernel").read_bytes(), self.kernel.read_bytes())
         self.assertIn(hashlib.sha256(self.payload).hexdigest(), (backup / "resize.txt").read_text())
         result = self.run_resize("--size-gib", "1", "--apply")
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -144,12 +140,12 @@ class ResizeDiskTests(unittest.TestCase):
             self.assert_rejected(self.run_resize("--size-gib", "1", "--apply"))
 
     def test_rejects_symlinked_disk(self):
-        self.disk.rename(self.root / "original.ext4")
-        self.disk.symlink_to(self.root / "original.ext4")
+        self.disk.rename(self.root / "original.raw")
+        self.disk.symlink_to(self.root / "original.raw")
         self.assert_rejected(self.run_resize("--size-gib", "1", "--apply"))
 
     def test_rejects_hardlinked_disk(self):
-        os.link(self.disk, self.root / "alias.ext4")
+        os.link(self.disk, self.root / "alias.raw")
         self.assert_rejected(self.run_resize("--size-gib", "1", "--apply"))
 
     def test_rejects_corrupt_marker_and_preserves_it(self):
@@ -157,10 +153,6 @@ class ResizeDiskTests(unittest.TestCase):
         marker.write_text("unrecognized\n")
         self.assert_rejected(self.run_resize("--size-gib", "1", "--apply"))
         self.assertEqual(marker.read_text(), "unrecognized\n")
-
-    def test_rejects_corrupt_boot_kit(self):
-        (self.state / "boot" / self.identity / "kernel").write_bytes(bytes(64))
-        self.assert_rejected(self.run_resize("--size-gib", "1", "--apply"))
 
     def test_rejects_insufficient_space_and_unsupported_filesystem(self):
         for overrides in ({"OMARCHY_QEMU_GPU_TEST_FREE_BYTES": "1"},

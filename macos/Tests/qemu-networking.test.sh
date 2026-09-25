@@ -19,9 +19,9 @@ first=$(qemu_network_mac)
 [[ $first =~ ^02(:[0-9a-f]{2}){5}$ ]] || fail 'invalid bridge MAC'
 [[ $first != "$(qemu_network_mac)" ]] || fail 'ephemeral identities reused'
 mkdir -p "$test_root/disks/current"
-printf 'disk' >"$test_root/disks/current/rootfs.ext4"
+printf 'disk' >"$test_root/disks/current/disk.raw"
 QEMU_PERSISTENT_STORAGE_DISKS_ROOT="$test_root/disks"
-QEMU_SELECTED_DISK="$test_root/disks/current/rootfs.ext4"
+QEMU_SELECTED_DISK="$test_root/disks/current/disk.raw"
 QEMU_SELECTED_STORAGE_MODE=persistent
 first=$(qemu_network_mac)
 [[ $first == "$(qemu_network_mac)" ]] || fail 'persistent identity changed'

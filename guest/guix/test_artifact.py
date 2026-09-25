@@ -157,14 +157,13 @@ class PackageTests(unittest.TestCase):
     def test_launch_record_matches_the_launcher_contract(self):
         manifest = self.packaged()
         fields = artifact.launch_record(self.output).split("\t")
-        self.assertEqual(len(fields), 6)
-        identity, raw_sha, raw_bytes, compressed_bytes, working_bytes, command_line = fields
+        self.assertEqual(len(fields), 5)
+        identity, raw_sha, raw_bytes, compressed_bytes, working_bytes = fields
         self.assertEqual(identity, artifact.sha256_file(self.output / artifact.MANIFEST))
         self.assertEqual((raw_sha, int(raw_bytes), int(compressed_bytes)),
                          (manifest["disk"]["sha256"], manifest["disk"]["bytes"],
                           manifest["disk"]["compressedBytes"]))
         self.assertEqual(int(working_bytes), artifact.WORKING_DISK_BYTES)
-        self.assertEqual(command_line, "")
         import subprocess
         result = subprocess.run([sys.executable, str(HERE / "artifact.py"), "launch-record",
                                  str(self.output)], capture_output=True, text=True)

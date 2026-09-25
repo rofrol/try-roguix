@@ -13,19 +13,11 @@ enum QEMUGPUStorageOption: String, Equatable {
 enum QEMUGPURuntimeEnvironment {
     static let inspectOnlyKey = "OMARCHY_QEMU_GPU_INSPECT_ONLY"
     static let dryRunKey = "OMARCHY_QEMU_GPU_DRY_RUN"
-    static let bootRecoveryConsentKey = "OMARCHY_QEMU_GPU_ALLOW_BOOT_RECOVERY"
 
     static func sanitizedForLaunch(_ base: [String: String]) -> [String: String] {
         var environment = base
         environment.removeValue(forKey: inspectOnlyKey)
         environment.removeValue(forKey: dryRunKey)
-        environment.removeValue(forKey: bootRecoveryConsentKey)
-        return environment
-    }
-
-    static func withBootRecoveryConsent(_ base: [String: String]) -> [String: String] {
-        var environment = sanitizedForLaunch(base)
-        environment[bootRecoveryConsentKey] = "1"
         return environment
     }
 
@@ -256,58 +248,6 @@ enum QEMUGPUStorageSpaceEstimate {
         return GuestLocaleCatalog.supportsSelection(kernelCommandLine: contents)
     }
 
-    /// Read-only best-effort preflight for the one-time legacy boot-file
-    /// pairing. The shell repeats every check under its workspace lock and
-    /// requires an explicit one-shot consent variable, so a filesystem race or
-    /// a conservative false negative cannot perform recovery without consent.
-    static func bootRecoveryPreflight(
-        environment: [String: String],
-        bundleIdentity: String?,
-        preference: StorageLocationPreference = .default,
-        fileManager: FileManager = .default
-    ) -> BootRecoveryLaunchPreflight {
-        guard environment["OMARCHY_QEMU_GPU_DEVELOPMENT_MULTI_DISK"] ?? "0" == "0",
-              let bundleIdentity,
-              isIdentity(bundleIdentity),
-              let root = storageRootURL(
-                environment: environment,
-                preference: preference,
-                fileManager: fileManager
-              ),
-              StorageLocationPolicy.hasValidRootMarker(in: root)
-        else { return .notRequired }
-
-        let disks = root.appendingPathComponent("disks", isDirectory: true)
-        guard hasAttributes(
-            disks,
-            type: .typeDirectory,
-            permissions: 0o700,
-            fileManager: fileManager
-        ),
-              let entries = try? fileManager.contentsOfDirectory(
-                at: disks,
-                includingPropertiesForKeys: nil,
-                options: []
-              )
-        else { return .notRequired }
-
-        guard let selected = selectedSinglePersistentDisk(
-            from: entries,
-            bundleIdentity: bundleIdentity,
-            fileManager: fileManager
-        ) else { return .notRequired }
-
-        guard selected.schemaVersion == 2,
-              selected.identity != bundleIdentity,
-              bootKitEntryIsMissing(
-                stateRoot: root,
-                identity: selected.identity,
-                fileManager: fileManager
-              )
-        else { return .notRequired }
-        return .requiresConfirmation
-    }
-
     static func format(bytes: Int64) -> String? {
         guard bytes > 0 else { return nil }
         let gigabytes = Double(bytes) / 1_000_000_000
@@ -489,33 +429,6 @@ enum QEMUGPUStorageSpaceEstimate {
         }
         guard validLegacyDisks.count == 1 else { return nil }
         return validLegacyDisks.first
-    }
-
-    /// Missing is the only state in which recovery is meaningful. Any direct
-    /// entry, valid or not, suppresses the prompt: the shell owns full boot-kit
-    /// validation and must report an unsafe collision rather than overwrite it.
-    private static func bootKitEntryIsMissing(
-        stateRoot: URL,
-        identity: String,
-        fileManager: FileManager
-    ) -> Bool {
-        let bootRoot = stateRoot.appendingPathComponent("boot", isDirectory: true)
-        var information = stat()
-        if Darwin.lstat(bootRoot.path, &information) != 0 {
-            return errno == ENOENT
-        }
-        guard hasAttributes(
-            bootRoot,
-            type: .typeDirectory,
-            permissions: 0o700,
-            fileManager: fileManager
-        ) else { return false }
-
-        let bootKit = bootRoot.appendingPathComponent(identity, isDirectory: true)
-        if Darwin.lstat(bootKit.path, &information) == 0 {
-            return false
-        }
-        return errno == ENOENT
     }
 
     private static func hasAttributes(

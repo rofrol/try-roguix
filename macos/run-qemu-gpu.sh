@@ -14,16 +14,8 @@ fail() {
 
 storage_mode=persistent
 reset_only=0
-boot_recovery_consent_required_status=80
-boot_recovery_failed_status=81
-# QEMU 11's HVF backend requires Apple's in-hypervisor GICv3. Keep recovery
-# and normal launches on one machine definition so they cannot drift apart.
+# QEMU 11's HVF backend requires Apple's in-hypervisor GICv3.
 qemu_machine='virt,accel=hvf,gic-version=3'
-
-boot_recovery_fail() {
-  echo "run-qemu-gpu: $*" >&2
-  exit "$boot_recovery_failed_status"
-}
 
 case ${1:-} in
   --ephemeral)
@@ -60,17 +52,10 @@ macos_major=$(sw_vers -productVersion | cut -d. -f1)
   fail "requires macOS 15 or newer"
 [[ -d $guest_input && ! -L $guest_input ]] || fail "ARM guest directory is missing or unsafe: $guest_input"
 guest_dir=$(cd "$guest_input" && pwd -P)
-# The Guix guest (guest/guix/package.py) is a UEFI/GPT disk booted by the
-# runtime's EDK2 firmware; the Arch guest boots its kernel directly. The kind
-# is fixed by the signed guest resources, and each path below validates only
-# its own artifact contract.
-guest_kind=omarchy
-if [[ -e $guest_dir/guix-manifest.json || -L $guest_dir/guix-manifest.json ]]; then
-  guest_kind=guix
-fi
+# The Roguix guest (guest/guix/package.py) is a UEFI/GPT disk booted by the
+# runtime's EDK2 firmware.
 uefi_boot_abi=uefi-gpt-v1
 qemu_window_name='Try Roguix'
-[[ $guest_kind == guix ]] && qemu_window_name='Try Roguix'
 uefi_firmware="$resources_dir/runtime/share/qemu/edk2-aarch64-code.fd"
 
 for command in codesign file getconf id mktemp plutil ps sysctl; do
@@ -93,11 +78,9 @@ esac
 [[ -f $native_bridge && -x $native_bridge ]] || {
   fail "missing bundled native bridge at $native_bridge"
 }
-if [[ $guest_kind == guix ]]; then
-  [[ -f $uefi_firmware && ! -L $uefi_firmware ]] || {
-    fail "missing bundled UEFI firmware; run make runtime"
-  }
-fi
+[[ -f $uefi_firmware && ! -L $uefi_firmware ]] || {
+  fail "missing bundled UEFI firmware; run make runtime"
+}
 file "$qemu_bin" | grep 'arm64' >/dev/null || fail "staged QEMU is not an ARM64 executable"
 LC_ALL=C grep -aFq 'TryRoguix.icns' "$qemu_bin" || {
   fail "staged QEMU lacks the Try Roguix macOS identity; run make runtime"
@@ -174,7 +157,9 @@ for device in \
   virtio-rng-pci \
   virtio-serial-pci \
   virtio-tablet-pci \
-  virtio-pinch-pci; do
+  virtio-pinch-pci \
+  qemu-xhci \
+  usb-kbd; do
   require_qemu_device "$device"
 done
 for marker in guest_owner_uid guest_owner_gid; do
@@ -215,811 +200,37 @@ if [[ -f $launch_configuration && ! -L $launch_configuration ]]; then
   plist_read() {
     /usr/libexec/PlistBuddy -c "Print :$1" "$launch_configuration" 2>/dev/null
   }
-  bundle_validation=$(printf '%s\t%s\t%s\t%s\t%s\t%s' \
+  bundle_validation=$(printf '%s\t%s\t%s\t%s\t%s' \
     "$(plist_read bundleIdentity)" \
     "$(plist_read sourceDiskSHA256)" \
     "$(plist_read sourceDiskBytes)" \
     "$(plist_read compressedDiskBytes)" \
-    "$(plist_read workingDiskBytes)" \
-    "$(plist_read kernelCommandLine)")
+    "$(plist_read workingDiskBytes)")
   launch_boot_abi=$(plist_read bootABI || true)
-elif [[ $guest_kind == guix ]]; then
+else
+  [[ -e $guest_dir/guix-manifest.json && ! -L $guest_dir/guix-manifest.json ]] || {
+    fail "the guest directory is not a packaged Roguix guest: $guest_dir"
+  }
   command -v python3 >/dev/null 2>&1 || {
     fail "bundled launch configuration is missing and Python is unavailable for development validation"
   }
   # guix-artifact.py checks the exact file set, manifest, GPT layout record and
-  # every checksum, then prints the same record as the Arch validator.
+  # every checksum, then prints the launch record.
   bundle_validation=$(python3 "$script_dir/guix-artifact.py" launch-record "$guest_dir") || {
-    fail "the bundled Guix guest failed validation"
+    fail "the bundled Roguix guest failed validation"
   }
   launch_boot_abi=$uefi_boot_abi
-else
-  command -v python3 >/dev/null 2>&1 || {
-    fail "bundled launch configuration is missing and Python is unavailable for development validation"
-  }
-  # Emit one trusted tab-delimited record on stdout. All validation failures
-  # go to stderr so command substitution cannot become launch data.
-  bundle_validation=$(python3 - "$guest_dir" <<'PY'
-import hashlib
-import json
-from pathlib import Path
-import re
-import stat
-import sys
-
-
-def fail(message: str) -> None:
-    raise SystemExit(f"run-qemu-gpu: invalid ARM guest bundle: {message}")
-
-
-def exact_keys(value: object, keys: set[str], label: str) -> dict[str, object]:
-    if not isinstance(value, dict) or set(value) != keys:
-        fail(f"{label} has an unexpected schema")
-    return value
-
-
-def load_json(path: Path, label: str) -> tuple[dict[str, object], bytes]:
-    try:
-        data = path.read_bytes()
-        value = json.loads(data)
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        fail(f"cannot read {label}: {error}")
-    if not isinstance(value, dict):
-        fail(f"{label} is not a JSON object")
-    return value, data
-
-
-def sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    try:
-        with path.open("rb") as handle:
-            while chunk := handle.read(8 * 1024 * 1024):
-                digest.update(chunk)
-    except OSError as error:
-        fail(f"cannot hash {path.name}: {error}")
-    return digest.hexdigest()
-
-
-guest = Path(sys.argv[1])
-expected_artifacts = {
-    "LICENSE.omarchy": ("guest-license", "text/plain"),
-    "build-spec.json": ("guest-metadata", "application/json"),
-    "initramfs-linux.img": ("guest-initramfs", "application/vnd.linux.initramfs"),
-    "packages.lock.txt": ("guest-metadata", "text/plain"),
-    "provenance.json": ("guest-metadata", "application/json"),
-    "rootfs.ext4": ("guest-rootfs", "application/vnd.omarchy.ext4"),
-    "rootfs.ext4.zst": ("guest-rootfs-compressed", "application/zstd"),
-    "vmlinuz-linux": ("guest-kernel", "application/vnd.linux.kernel"),
-}
-packaged_artifacts = set(expected_artifacts)
-if not (guest / "rootfs.ext4").exists():
-    packaged_artifacts.remove("rootfs.ext4")
-expected_files = packaged_artifacts | {"guest-manifest.json", "SHA256SUMS"}
-
-try:
-    actual_files = {entry.name for entry in guest.iterdir()}
-except OSError as error:
-    fail(f"cannot enumerate bundle: {error}")
-if actual_files != expected_files:
-    missing = sorted(expected_files - actual_files)
-    extra = sorted(actual_files - expected_files)
-    fail(f"file set differs (missing={missing}, extra={extra})")
-for name in expected_files:
-    path = guest / name
-    try:
-        mode = path.lstat().st_mode
-    except OSError as error:
-        fail(f"cannot stat {name}: {error}")
-    if not stat.S_ISREG(mode):
-        fail(f"{name} is not a direct regular file")
-
-manifest, manifest_data = load_json(guest / "guest-manifest.json", "guest-manifest.json")
-exact_keys(
-    manifest,
-    {"artifacts", "build", "guest", "kind", "normalizedUpstreamTree", "schemaVersion", "upstream"},
-    "guest-manifest.json",
-)
-if manifest.get("schemaVersion") != 1 or manifest.get("kind") != "try-omarchy-guest-artifacts":
-    fail("guest manifest identity is invalid")
-manifest_guest_raw = manifest.get("guest")
-if not isinstance(manifest_guest_raw, dict):
-    fail("guest manifest guest has an unexpected schema")
-manifest_profile = manifest_guest_raw.get("profile")
-manifest_guest_keys = {"architecture", "display", "distribution", "kernelCommandLine", "profile", "username"}
-manifest_guest = exact_keys(manifest_guest_raw, manifest_guest_keys, "guest manifest guest")
-if (
-    manifest_guest.get("architecture") != "aarch64"
-    or manifest_guest.get("distribution") != "Arch Linux"
-    or manifest_profile != "factory"
-    or manifest_guest.get("username") is not None
-):
-    fail("guest manifest is not a native ARM64 Omarchy factory guest")
-
-spec, _ = load_json(guest / "build-spec.json", "build-spec.json")
-exact_keys(
-    spec,
-    {
-        "authenticity",
-        "guest",
-        "image",
-        "inputs",
-        "runtime",
-        "schemaVersion",
-        "supplyChain",
-        "themes",
-        "upstream",
-    },
-    "build-spec.json",
-)
-if spec.get("schemaVersion") != 1:
-    fail("unsupported build spec schema")
-image = exact_keys(
-    spec.get("image"),
-    {"architecture", "filesystem", "filesystemLabel", "filesystemUuid", "sizeMiB", "sourceDateEpoch"},
-    "build spec image",
-)
-spec_guest_raw = spec.get("guest")
-if not isinstance(spec_guest_raw, dict):
-    fail("build spec guest has an unexpected schema")
-spec_profile = spec_guest_raw.get("profile")
-spec_guest_keys = {"defaultTheme", "hostname", "profile", "uid", "username", "virtualDisplay"}
-spec_guest = exact_keys(spec_guest_raw, spec_guest_keys, "build spec guest")
-if spec_profile != "factory" or manifest_profile != spec_profile:
-    fail("manifest and build spec must describe the factory profile")
-
-profile_contract = {
-    "filesystemLabel": "omarchy-factory",
-    "filesystemUuid": "89054943-1f4e-4f14-b934-d6db3fba4254",
-    "sizeMiB": 6144,
-    "hostname": "omarchy-factory",
-    "username": None,
-    "uid": None,
-    "defaultTheme": None,
-}
-if (
-    image.get("architecture") != "aarch64"
-    or image.get("filesystem") != "ext4"
-    or image.get("filesystemLabel") != profile_contract["filesystemLabel"]
-    or image.get("filesystemUuid") != profile_contract["filesystemUuid"]
-    or image.get("sizeMiB") != profile_contract["sizeMiB"]
-):
-    fail("build spec image contract is invalid")
-
-display = exact_keys(
-    spec_guest.get("virtualDisplay"),
-    {"height", "refreshHz", "scale", "width"},
-    "build spec display",
-)
-if (
-    spec_guest.get("hostname") != profile_contract["hostname"]
-    or spec_guest.get("username") != profile_contract["username"]
-    or spec_guest.get("uid") != profile_contract["uid"]
-    or spec_guest.get("defaultTheme") != profile_contract["defaultTheme"]
-    or display != {"width": 1600, "height": 900, "refreshHz": 60, "scale": 1}
-    or manifest_guest.get("display") != display
-):
-    fail("guest or display contract is invalid")
-
-runtime = exact_keys(
-    spec.get("runtime"),
-    {
-        "audio",
-        "authentication",
-        "battery",
-        "camera",
-        "clipboard",
-        "compressedDisk",
-        "devices",
-        "disk",
-        "graphics",
-        "hypervisor",
-        "initramfs",
-        "initramfsSource",
-        "kernel",
-        "kernelCommandLine",
-        "kernelSource",
-        "minimumCpuCount",
-        "minimumMemoryMiB",
-        "network",
-        "recommendedMemoryMiB",
-        "sharedFolder",
-        "storage",
-        "virtualMachineMonitor",
-    },
-    "build spec runtime",
-)
-expected_devices = [
-    "virtio-blk-pci",
-    "virtio-gpu-gl-pci",
-    "virtio-keyboard-pci",
-    "virtio-tablet-pci",
-    "virtio-net-pci",
-    "virtio-serial-pci",
-    "virtconsole",
-    "virtserialport",
-    "virtio-rng-pci",
-    "virtio-balloon-pci",
-    "intel-hda",
-    "hda-micro",
-    "virtio-9p-pci",
-]
-clipboard = {
-    "device": "virtserialport",
-    "port": "dev.tryomarchy.clipboard",
-    "formats": ["text/plain;charset=utf-8", "image/png"],
-}
-authentication = {
-    "activation": "explicit-menu-opt-in",
-    "approvalLifetimeSeconds": 15,
-    "authorizationScope": "sudo-authentication",
-    "device": "virtserialport",
-    "guestDeviceMode": "0600",
-    "guestIdentity": "root-private-random-256-bit",
-    "hostKey": "per-guest-secure-enclave-p256",
-    "pamService": "sudo",
-    "port": "dev.tryomarchy.authentication",
-    "protocolVersion": 3,
-    "requiresEnrollment": True,
-    "signature": "ecdsa-p256-sha256",
-}
-shared_folder = {
-    "device": "virtio-9p-pci",
-    "fsdriver": "local",
-    "securityModel": "none",
-    "mountTag": "mac",
-    "guestOwnerUid": 1000,
-    "guestOwnerGid": 1000,
-    "guestMountPoint": "/mnt/mac",
-    "guestLinkNameParameter": "omarchy.shared_folder_name",
-}
-graphics = {
-    "device": "virtio-gpu-gl-pci",
-    "display": "cocoa",
-    "guestRenderer": "virgl",
-    "hostRenderer": "angle-metal",
-}
-network = {
-    "device": "virtio-net-pci",
-    "backend": "slirp",
-    "mode": "user",
-    "sshAccess": {
-        "activation": {
-            "guestPort": 22,
-            "kernelToken": "tryomarchy.ssh_access=1",
-            "protocol": "tcp",
-            "scope": "boot",
-            "service": "sshd.service",
-        },
-        "preset": {
-            "guestPort": 22,
-            "hostAddress": "127.0.0.1",
-            "hostPort": 2222,
-            "protocol": "tcp",
-        },
-    },
-}
-audio = {
-    "controller": "intel-hda",
-    "codec": "hda-micro",
-    "backend": "sdl",
-    "duplex": True,
-}
-camera = {
-    "activation": "on-demand",
-    "device": "virtserialport",
-    "framesPerSecond": 30,
-    "guestDevice": "/dev/video42",
-    "height": 720,
-    "pixelFormat": "NV12",
-    "port": "dev.tryomarchy.camera",
-    "protocolVersion": 1,
-    "width": 1280,
-}
-battery = {
-    "activation": "always-on",
-    "device": "virtserialport",
-    "direction": "host-to-guest",
-    "guestSupplies": ["ADP0", "BAT0"],
-    "port": "dev.tryomarchy.battery",
-    "protocolVersion": 1,
-}
-storage = {
-    "device": "virtio-blk-pci",
-    "format": "raw",
-    "mode": "ephemeral",
-    "initialization": "apfs-clone",
-    "fallback": "full-copy",
-    "expandedSizeMiB": 24576,
-}
-if (
-    runtime.get("kernel") != "vmlinuz-linux"
-    or runtime.get("kernelSource") != "/boot/Image"
-    or runtime.get("initramfs") != "initramfs-linux.img"
-    or runtime.get("initramfsSource") != "/boot/initramfs-linux.img"
-    or runtime.get("disk") != "rootfs.ext4"
-    or runtime.get("compressedDisk") != "rootfs.ext4.zst"
-    or runtime.get("virtualMachineMonitor") != "qemu-system-aarch64"
-    or runtime.get("hypervisor") != "hvf"
-    or runtime.get("graphics") != graphics
-    or runtime.get("network") != network
-    or runtime.get("audio") != audio
-    or runtime.get("camera") != camera
-    or runtime.get("battery") != battery
-    or runtime.get("storage") != storage
-    or runtime.get("clipboard") != clipboard
-    or runtime.get("authentication") != authentication
-    or runtime.get("sharedFolder") != shared_folder
-    or runtime.get("devices") != expected_devices
-    or runtime.get("minimumMemoryMiB") != 2048
-    or runtime.get("recommendedMemoryMiB") != 4096
-    or runtime.get("minimumCpuCount") != 4
-):
-    fail("native runtime contract is invalid")
-
-upstream = exact_keys(
-    spec.get("upstream"),
-    {"channel", "commit", "license", "release", "repository", "tree", "treeSha256", "version"},
-    "build spec upstream",
-)
-if (
-    upstream.get("repository") != "https://github.com/basecamp/omarchy"
-    or upstream.get("channel") != "quattro"
-    or upstream.get("license") != "MIT"
-    or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:[-.][A-Za-z0-9.]+)?", str(upstream.get("release", "")))
-    or not isinstance(upstream.get("version"), str)
-    or not re.fullmatch(r"[0-9a-f]{40}", str(upstream.get("commit", "")))
-    or not re.fullmatch(r"[0-9a-f]{40}", str(upstream.get("tree", "")))
-    or not re.fullmatch(r"[0-9a-f]{64}", str(upstream.get("treeSha256", "")))
-):
-    fail("upstream identity is not pinned")
-
-supply_chain_keys = {
-    "ghostty",
-    "aquamarine",
-    "hyprtoolkit",
-    "archLinuxArmPackagesCommit",
-    "archLinuxArmPackagesRepository",
-    "hyprland",
-    "mise",
-    "omarchyPackagesCommit",
-    "omarchyPackagesRepository",
-    "tryOmarchyBattery",
-    "ttfx",
-    "vivaldi",
-    "voxtype",
-    "yay",
-}
-supply_chain = exact_keys(spec.get("supplyChain"), supply_chain_keys, "build spec supply chain")
-if (
-    supply_chain.get("omarchyPackagesRepository") != "https://github.com/omacom-io/omarchy-pkgs"
-    or supply_chain.get("omarchyPackagesCommit") != "7e448b90313fea4fb78da9a78607287691d3b241"
-    or supply_chain.get("archLinuxArmPackagesRepository") != "https://github.com/archlinuxarm/PKGBUILDs"
-    or supply_chain.get("archLinuxArmPackagesCommit") != "0b5418fc3f62860b191cd872cb2f933f9fc77841"
-):
-    fail("ARM package supply chain is not pinned")
-hyprland = exact_keys(
-    supply_chain.get("hyprland"),
-    {
-        "binarySha256",
-        "buildPackages",
-        "commit",
-        "glazeCommit",
-        "glazeLicenseSha256",
-        "glazeSha256",
-        "glazeUrl",
-        "glazeVersion",
-        "issue",
-        "license",
-        "patch",
-        "patchSha256",
-        "pkgrel",
-        "repository",
-        "sha256",
-        "upstreamPackageSha256",
-        "upstreamPackageVersion",
-        "url",
-        "version",
-    },
-    "build spec hyprland component",
-)
-exact_keys(
-    hyprland.get("buildPackages"),
-    {
-        "base-devel",
-        "binutils",
-        "cmake",
-        "gcc",
-        "gcc-libs",
-        "glibc",
-        "hyprland",
-        "hyprland-protocols",
-        "make",
-        "meson",
-        "ninja",
-        "pkgconf",
-        "xorgproto",
-    },
-    "build spec hyprland build packages",
-)
-hyprland_identity = hashlib.sha256(
-    json.dumps(hyprland, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("utf-8")
-).hexdigest()
-if hyprland_identity != "f41042613023280c808d5bf6258f2f71c1b20d0755f894b53e77defe97db42a7":
-    fail("factory Hyprland component is not the reviewed rounded-border build")
-aquamarine = exact_keys(
-    supply_chain.get("aquamarine"),
-    {
-        "binarySha256",
-        "license",
-        "packagingCommit",
-        "packagingRepository",
-        "pkgbuild",
-        "pkgbuildSha256",
-        "pkgrel",
-        "repository",
-        "sha256",
-        "url",
-        "version",
-    },
-    "build spec aquamarine component",
-)
-if aquamarine != {
-    "version": "0.15.1",
-    "pkgrel": "1",
-    "repository": "https://github.com/hyprwm/aquamarine",
-    "url": "https://github.com/hyprwm/aquamarine/archive/v0.15.1/aquamarine-0.15.1.tar.gz",
-    "sha256": "2f9de98c0bd1b7b1b09c576e390a2fef436449762fb334163c414f0c300296f2",
-    "pkgbuild": "pinned-packages/aquamarine/PKGBUILD",
-    "pkgbuildSha256": "90c998ea89b5c806919c102df78ef3f0d7816a9a08c26eac26b4adf44ba59a2a",
-    "packagingRepository": "https://gitlab.archlinux.org/archlinux/packaging/packages/aquamarine.git",
-    "packagingCommit": "8489a8358817a964a923f05ba324996378d81a5d",
-    "license": "BSD-3-Clause",
-    "binarySha256": "1fb6a90079a1f5620f9441d3e8a92426d21c6bbbab2f1ac070651425dae4129d",
-}:
-    fail("factory aquamarine component is not the reviewed libaquamarine.so=14 rebuild")
-hyprtoolkit = exact_keys(
-    supply_chain.get("hyprtoolkit"),
-    set(aquamarine),
-    "build spec hyprtoolkit component",
-)
-if hyprtoolkit != {
-    "version": "0.5.4",
-    "pkgrel": "6.2",
-    "repository": "https://github.com/hyprwm/hyprtoolkit",
-    "url": "https://github.com/hyprwm/hyprtoolkit/archive/v0.5.4/hyprtoolkit-0.5.4.tar.gz",
-    "sha256": "2fb59789f231c1c4e9154ceffc1e7524c0cae154807c0d57e6166806255b570f",
-    "pkgbuild": "pinned-packages/hyprtoolkit/PKGBUILD",
-    "pkgbuildSha256": "28c3dabce8c9553cfe283d23f568551d48efa7d51d14658cc8522d5473dd73a6",
-    "packagingRepository": "https://gitlab.archlinux.org/archlinux/packaging/packages/hyprtoolkit.git",
-    "packagingCommit": "1ed230388a2ccb2c857af980235cf25a4f86e39e",
-    "license": "BSD-3-Clause",
-    "binarySha256": "d901177e32b02d6769f5bcf118e43b22061a5a21a3aa77ee72469d4a2db85895"
-}:
-    fail("factory hyprtoolkit component is not the reviewed libaquamarine.so=14 rebuild")
-mise = exact_keys(
-    supply_chain.get("mise"),
-    {"binarySha256", "license", "reportedVersion", "sha256", "url", "version"},
-    "build spec mise component",
-)
-if mise != {
-    "version": "2026.8.11",
-    "url": "https://github.com/jdx/mise/releases/download/v2026.8.11/mise-v2026.8.11-linux-arm64.tar.xz",
-    "sha256": "fefd580d2c6a8169762f40ce5019a61de5b2dcf0b38c5d428ef6b97d5ce76fba",
-    "binarySha256": "6b7471271a990cbd6a795b24f9df83338aa220c227bf75fd083442e5a728f5f7",
-    "reportedVersion": "2026.8.11 linux-arm64 (2026-08-23)",
-    "license": "MIT",
-}:
-    fail("factory mise component is not the reviewed ARM64 release")
-ttfx = exact_keys(
-    supply_chain.get("ttfx"),
-    {
-        "cargoLockSha256",
-        "binarySha256",
-        "commit",
-        "license",
-        "licenseSha256",
-        "noticeSha256",
-        "packageRecipeCommit",
-        "pkgrel",
-        "reportedVersion",
-        "repository",
-        "rustPackageVersion",
-        "rustcVersion",
-        "cargoVersion",
-        "sha256",
-        "target",
-        "tree",
-        "url",
-        "version",
-    },
-    "build spec ttfx component",
-)
-if ttfx != {
-    "version": "0.3.2",
-    "pkgrel": 1,
-    "repository": "https://github.com/omacom-io/ttfx",
-    "commit": "7203e354498462064b7c0a89375051f65cf2ce99",
-    "tree": "2162aa57e857d28d6e81fcbe1c65ad390d4f24f3",
-    "packageRecipeCommit": "6284fcf437681c5e9b5cb6354fb111c48125ed3f",
-    "url": "https://github.com/omacom-io/ttfx/archive/refs/tags/v0.3.2.tar.gz",
-    "sha256": "d0c0df4867e7f03142fb7f77c66670d0e8da15534239c1a7abfd89f19dfc00f6",
-    "cargoLockSha256": "49e2091962fc4d425b4cf3bde1a105719b5b50eed0583ec90e85922adb45e2ce",
-    "binarySha256": "d034cc5b9a8d410ce93113ef0a5d27b5ee2327948562bf2b0e756eebd326fa8f",
-    "target": "aarch64-unknown-linux-gnu",
-    "rustPackageVersion": "rust 1:1.98.1-1",
-    "rustcVersion": "rustc 1.98.1 (48a229cea 2026-09-01) (Arch Linux rust 1:1.98.1-1)",
-    "cargoVersion": "cargo 1.98.1 (797e8a9bc 2026-08-05) (Arch Linux rust 1:1.98.1-1)",
-    "reportedVersion": "ttfx 0.3.2",
-    "license": "MIT",
-    "licenseSha256": "175441de2eb9a0d3f0627c404ad71929336fd98d75926cc27b9e364d35cc7977",
-    "noticeSha256": "e2db8c2ff527fdd6d012440d629916e9d75328f38d0e0975f4e942ea91c4e98c",
-}:
-    fail("factory ttfx component is not the reviewed ARM64 source build")
-yay = exact_keys(
-    supply_chain.get("yay"),
-    {
-        "binarySha256",
-        "license",
-        "licenseSha256",
-        "licenseUrl",
-        "reportedVersion",
-        "sha256",
-        "url",
-        "version",
-    },
-    "build spec yay component",
-)
-if yay != {
-    "version": "13.0.1",
-    "url": "https://github.com/Jguer/yay/releases/download/v13.0.1/yay_13.0.1_aarch64.tar.gz",
-    "sha256": "75bc500c8677d6760f51117ae0a61689e9cf165bea3c4800825a5c879d030726",
-    "binarySha256": "ec7453a87021f28331782d8077b8a2a7c69870710fcee991f2164dc197362ff2",
-    "reportedVersion": "yay v13.0.1 - libalpm v16.0.1",
-    "license": "GPL-3.0-or-later",
-    "licenseUrl": "https://raw.githubusercontent.com/Jguer/yay/v13.0.1/LICENSE",
-    "licenseSha256": "589ed823e9a84c56feb95ac58e7cf384626b9cbf4fda2a907bc36e103de1bad2",
-}:
-    fail("factory yay component is not the reviewed ARM64 release")
-ghostty = exact_keys(
-    supply_chain.get("ghostty"),
-    {
-        "license",
-        "pkgrel",
-        "recipe",
-        "recipeSha256",
-        "signatureSha256",
-        "signingKey",
-        "sourceSha256",
-        "sourceUrl",
-        "version",
-        "wrapperSha256",
-        "zigSha256",
-        "zigUrl",
-        "zigVersion",
-    },
-    "build spec Ghostty component",
-)
-if ghostty != {
-    "version": "1.3.1",
-    "pkgrel": "1",
-    "sourceUrl": "https://release.files.ghostty.org/1.3.1/ghostty-1.3.1.tar.gz",
-    "sourceSha256": "3349d25600ffbda281197a18314f7d18791969cffe9474f0ff16a45a9ebfccdb",
-    "signingKey": "RWQlAjJC23149WL2sEpT/l0QKy7hMIFhYdQOFy0Z7z7PbneUgvlsnYcV",
-    "zigVersion": "0.15.2",
-    "zigUrl": "https://ziglang.org/download/0.15.2/zig-aarch64-linux-0.15.2.tar.xz",
-    "zigSha256": "958ed7d1e00d0ea76590d27666efbf7a932281b3d7ba0c6b01b0ff26498f667f",
-    "recipe": "native-overlay/usr/local/share/try-omarchy/ghostty/PKGBUILD",
-    "recipeSha256": "fe333bdccba74a4817d2b8e7180f4f37f8455bbb9019cb7db81481c3f64bbf9c",
-    "wrapperSha256": "c41b20e46f257da7a06ee8c67b1056d099f61d7935ac2014525b1b2b1f74f827",
-    "license": "MIT",
-    "signatureSha256": "5591816f6a52f03d1ea5be0129fcc396aeece7238419cdd36e511546ee242798"
-}:
-    fail("Ghostty installer is not pinned to the reviewed signed ARM64 source build")
-vivaldi = exact_keys(
-    supply_chain.get("vivaldi"),
-    {
-        "license",
-        "pkgrel",
-        "reportedVersion",
-        "repository",
-        "rpmRelease",
-        "rpmSha256",
-        "rpmUrl",
-        "signingFingerprint",
-        "signingKey",
-        "signingKeySha256",
-        "version",
-    },
-    "build spec Vivaldi component",
-)
-if vivaldi != {
-    "version": "8.2.4133.52",
-    "rpmRelease": 1,
-    "pkgrel": 1,
-    "repository": "https://repo.vivaldi.com/stable",
-    "rpmUrl": "https://downloads.vivaldi.com/stable/vivaldi-stable-8.2.4133.52-1.aarch64.rpm",
-    "rpmSha256": "999e0de90883041906ccb3f9a62972318743d819b465a4e788329bb53ffa9a9a",
-    "signingKey": "keys/vivaldi-package-composer-key11.asc",
-    "signingKeySha256": "5c67d85c0aca9c0d166edb5bc5e6ebc21d67bce4e67c645e7bd76d299fd337ef",
-    "signingFingerprint": "8D1FA52AEF58A09D889DD4221256C34716BD9233",
-    "reportedVersion": "Vivaldi 8.2.4133.52",
-    "license": "Multiple, see https://www.vivaldi.com/",
-}:
-    fail("Vivaldi installer is not pinned to the reviewed signed ARM64 release")
-voxtype = exact_keys(
-    supply_chain.get("voxtype"),
-    {
-        "assets",
-        "license",
-        "pkgrel",
-        "reportedVersion",
-        "repository",
-        "signingFingerprint",
-        "signingKey",
-        "signingKeySha256",
-        "sourceSha256",
-        "sourceSignatureSha256",
-        "sourceSignatureUrl",
-        "sourceUrl",
-        "version",
-    },
-    "build spec voxtype component",
-)
-voxtype_assets = exact_keys(
-    voxtype.get("assets"),
-    {"audioBridge", "cpu", "onnx", "osd", "osdGtk4", "osdQuickshell"},
-    "build spec voxtype assets",
-)
-for name, asset in voxtype_assets.items():
-    exact_keys(
-        asset,
-        {"sha256", "signatureSha256", "signatureUrl", "url"},
-        f"build spec voxtype asset {name}",
-    )
-voxtype_identity = hashlib.sha256(
-    json.dumps(voxtype, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("utf-8")
-).hexdigest()
-if voxtype_identity != "906951dd6a221d39a63116af86dddf77c202bf8dfca59cccc73536c44cd22669":
-    fail("factory Voxtype component is not the reviewed signed ARM64 release")
-
-command_line = runtime.get("kernelCommandLine")
-if not isinstance(command_line, str) or not command_line or any(character in command_line for character in "\x00\r\n\t"):
-    fail("kernel command line is invalid")
-if manifest_guest.get("kernelCommandLine") != command_line:
-    fail("manifest and build spec command lines differ")
-arguments = command_line.split(" ")
-for required in ("root=/dev/vda", "rw", "rootwait", "console=tty0", "console=hvc0"):
-    if arguments.count(required) != 1:
-        fail(f"kernel command line must contain exactly one {required}")
-if any(argument.startswith("omarchy.virgl_dual_source=") for argument in arguments):
-    fail("kernel command line contains a launcher-owned VirGL capability argument")
-if any(argument.startswith("omarchy.qemu_virgl=") for argument in arguments):
-    fail("kernel command line already contains a QEMU VirGL role")
-if any(argument.startswith("omarchy.shared_folder_name=") for argument in arguments):
-    fail("kernel command line already contains a shared folder name")
-if any(argument.startswith("tryomarchy.ssh_access=") for argument in arguments):
-    fail("kernel command line contains a launcher-owned SSH activation argument")
-if any(argument.startswith("tryomarchy.keyboard=") for argument in arguments):
-    fail("kernel command line contains a launcher-owned keyboard geometry argument")
-
-records = manifest.get("artifacts")
-if not isinstance(records, list) or len(records) != len(expected_artifacts):
-    fail("artifact record count is invalid")
-records_by_path: dict[str, dict[str, object]] = {}
-for raw_record in records:
-    record = exact_keys(raw_record, {"bytes", "mediaType", "path", "role", "sha256"}, "artifact record")
-    path = record.get("path")
-    if not isinstance(path, str) or path not in expected_artifacts or path in records_by_path:
-        fail(f"artifact path is missing, duplicated, or unsafe: {path!r}")
-    role, media_type = expected_artifacts[path]
-    if record.get("role") != role or record.get("mediaType") != media_type:
-        fail(f"artifact metadata is invalid for {path}")
-    size = record.get("bytes")
-    digest = record.get("sha256")
-    if not isinstance(size, int) or isinstance(size, bool) or size <= 0:
-        fail(f"artifact size is invalid for {path}")
-    if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
-        fail(f"artifact digest is invalid for {path}")
-    records_by_path[path] = record
-if set(records_by_path) != set(expected_artifacts):
-    fail("artifact records are incomplete")
-
-calculated: dict[str, str] = {}
-for name, record in records_by_path.items():
-    path = guest / name
-    if name not in packaged_artifacts:
-        calculated[name] = str(record["sha256"])
-        continue
-    if path.stat().st_size != record["bytes"]:
-        fail(f"artifact size mismatch for {name}")
-    calculated[name] = sha256(path)
-    if calculated[name] != record["sha256"]:
-        fail(f"artifact digest mismatch for {name}")
-calculated["guest-manifest.json"] = hashlib.sha256(manifest_data).hexdigest()
-
-try:
-    checksum_lines = (guest / "SHA256SUMS").read_text(encoding="ascii").splitlines()
-except (OSError, UnicodeError) as error:
-    fail(f"cannot read SHA256SUMS: {error}")
-checksum_names = set(expected_artifacts) | {"guest-manifest.json"}
-checksums: dict[str, str] = {}
-for line in checksum_lines:
-    match = re.fullmatch(r"([0-9a-f]{64})  ([A-Za-z0-9._-]+)", line)
-    if not match or match.group(2) not in checksum_names or match.group(2) in checksums:
-        fail("SHA256SUMS has an invalid, unsafe, or duplicate entry")
-    checksums[match.group(2)] = match.group(1)
-if set(checksums) != checksum_names:
-    fail("SHA256SUMS is incomplete")
-for name, digest in checksums.items():
-    if calculated[name] != digest:
-        fail(f"SHA256SUMS mismatch for {name}")
-
-kernel = guest / "vmlinuz-linux"
-with kernel.open("rb") as handle:
-    handle.seek(56)
-    if handle.read(4) != b"ARM\x64":
-        fail("vmlinuz-linux is not an uncompressed ARM64 Image")
-with (guest / "initramfs-linux.img").open("rb") as handle:
-    if handle.read(6) not in {b"070701", b"070702"}:
-        fail("initramfs-linux.img is not a mkinitcpio newc archive")
-rootfs = guest / "rootfs.ext4"
-if rootfs.exists():
-    if rootfs.stat().st_size != image["sizeMiB"] * 1024 * 1024:
-        fail("rootfs.ext4 does not have the specified image size")
-    with rootfs.open("rb") as handle:
-        handle.seek(1024 + 56)
-        if handle.read(2) != b"\x53\xef":
-            fail("rootfs.ext4 does not have an ext4 superblock")
-with (guest / "rootfs.ext4.zst").open("rb") as handle:
-    if handle.read(4) != b"\x28\xb5\x2f\xfd":
-        fail("rootfs.ext4.zst is not a Zstandard frame")
-
-rootfs_record = records_by_path["rootfs.ext4"]
-expanded_size_mib = storage.get("expandedSizeMiB", image["sizeMiB"])
-if not isinstance(expanded_size_mib, int) or isinstance(expanded_size_mib, bool) or expanded_size_mib < image["sizeMiB"]:
-    fail("working-disk expansion size is invalid")
-sys.stdout.write(
-    "\t".join(
-        (
-            calculated["guest-manifest.json"],
-            str(rootfs_record["sha256"]),
-            str(rootfs_record["bytes"]),
-            str(records_by_path["rootfs.ext4.zst"]["bytes"]),
-            str(expanded_size_mib * 1024 * 1024),
-            command_line,
-        )
-    )
-)
-PY
-  )
 fi
 IFS=$'\t' read -r bundle_identity source_disk_sha source_disk_bytes compressed_disk_bytes \
-  expanded_disk_bytes kernel_command_line \
+  expanded_disk_bytes \
   <<<"$bundle_validation"
 [[ $bundle_identity =~ ^[0-9a-f]{64}$ ]] || fail "validated bundle identity is invalid"
-[[ $source_disk_sha =~ ^[0-9a-f]{64}$ ]] || fail "validated rootfs digest is invalid"
-[[ $source_disk_bytes =~ ^[1-9][0-9]*$ ]] || fail "validated rootfs size is invalid"
-[[ $compressed_disk_bytes =~ ^[1-9][0-9]*$ ]] || fail "validated compressed rootfs size is invalid"
+[[ $source_disk_sha =~ ^[0-9a-f]{64}$ ]] || fail "validated disk digest is invalid"
+[[ $source_disk_bytes =~ ^[1-9][0-9]*$ ]] || fail "validated disk size is invalid"
+[[ $compressed_disk_bytes =~ ^[1-9][0-9]*$ ]] || fail "validated compressed disk size is invalid"
 [[ $expanded_disk_bytes =~ ^[1-9][0-9]*$ ]] || fail "validated working-disk size is invalid"
 (( expanded_disk_bytes >= source_disk_bytes )) || fail "working disk cannot be smaller than its source"
-if [[ $guest_kind == guix ]]; then
-  [[ $launch_boot_abi == "$uefi_boot_abi" ]] || fail "the Guix guest does not declare the UEFI boot ABI"
-  [[ -z $kernel_command_line ]] || fail "a UEFI guest must not carry a kernel command line"
-else
-  [[ -z $launch_boot_abi ]] || fail "the Arch guest must not declare a boot ABI"
-  [[ -n $kernel_command_line ]] || fail "validated kernel command line is empty"
-fi
-case " $kernel_command_line " in
-  *' omarchy.virgl_dual_source='*)
-    fail "validated kernel command line contains a launcher-owned VirGL capability argument"
-    ;;
-  *' tryomarchy.ssh_access='*)
-    fail "validated kernel command line contains a launcher-owned SSH activation argument"
-    ;;
-  *' tryomarchy.keyboard='*)
-    fail "validated kernel command line contains a launcher-owned keyboard geometry argument"
-    ;;
-esac
+[[ $launch_boot_abi == "$uefi_boot_abi" ]] || fail "the guest does not declare the UEFI boot ABI"
 if [[ ${OMARCHY_QEMU_GPU_INSPECT_ONLY:-0} == 1 ]]; then
   printf '%s\n' "$bundle_validation"
   exit 0
@@ -1053,15 +264,15 @@ if ! qemu_port_forwarding_configure "$network_forwards"; then
 fi
 qemu_netdev=$QEMU_PORT_FORWARDING_NETDEV
 port_forwarding_summary=$QEMU_PORT_FORWARDING_SUMMARY
-ssh_kernel_argument=''
+ssh_setting=''
 if ((QEMU_PORT_FORWARDING_ENABLES_SSH)); then
-  ssh_kernel_argument=' tryomarchy.ssh_access=1'
+  ssh_setting='tryomarchy.ssh_access=1'
 fi
 if [[ $QEMU_NETWORK_MODE == bridged && $QEMU_NETWORK_SSH == 1 ]]; then
-  ssh_kernel_argument=' tryomarchy.ssh_access=1'
+  ssh_setting='tryomarchy.ssh_access=1'
 fi
 
-keyboard_kernel_argument=""
+keyboard_setting=''
 if ((reset_only)); then
   unset TRYOMARCHY_KEYBOARD
 else
@@ -1074,7 +285,7 @@ else
       fail "host Mac keyboard geometry is invalid: $host_keyboard_geometry"
       ;;
   esac
-  keyboard_kernel_argument=" tryomarchy.keyboard=$host_keyboard_geometry"
+  keyboard_setting="tryomarchy.keyboard=$host_keyboard_geometry"
   export TRYOMARCHY_KEYBOARD=$host_keyboard_geometry
 fi
 
@@ -1146,7 +357,7 @@ shared_folder=${OMARCHY_QEMU_GPU_SHARED_FOLDER:-}
 shared_folder_mount_tag=mac
 shared_folder_guest_owner_uid=1000
 shared_folder_guest_owner_gid=1000
-shared_folder_kernel_argument=""
+shared_folder_setting=""
 if [[ -n $shared_folder ]]; then
   [[ $shared_folder == /* ]] || fail "shared folder must be an absolute path"
   [[ $shared_folder != *$'\n'* && $shared_folder != *$'\r'* && $shared_folder != *,* ]] || {
@@ -1181,15 +392,15 @@ if [[ -n $shared_folder ]]; then
     }
   fi
   # The guest links ~/<name> to the mount so a shared ~/Work appears as ~/Work.
-  # The name travels on the kernel command line as URL-safe base64, which keeps
-  # spaces and non-ASCII names intact inside one space-delimited parameter.
+  # The name travels as a launcher setting in URL-safe base64, which keeps
+  # spaces and non-ASCII names intact inside one space-free value.
   shared_folder_name=${shared_folder##*/}
   [[ -n $shared_folder_name && $shared_folder_name != . && $shared_folder_name != .. ]] || {
     fail "shared folder has no usable name: $shared_folder"
   }
   shared_folder_name_encoded=$(printf '%s' "$shared_folder_name" | base64 | tr '+/' '-_' | tr -d '=\n')
   [[ $shared_folder_name_encoded =~ ^[A-Za-z0-9_-]+$ ]] || fail "cannot encode the shared folder name"
-  shared_folder_kernel_argument=" omarchy.shared_folder_name=$shared_folder_name_encoded"
+  shared_folder_setting="omarchy.shared_folder_name=$shared_folder_name_encoded"
 fi
 
 # The launcher publishes an optional guest language opt-in. The Swift app
@@ -1197,12 +408,9 @@ fi
 # so a stray environment value can never select a locale the guest image
 # never generated. Empty means the guest's own default (English).
 guest_locale=${OMARCHY_QEMU_GPU_LOCALE:-}
-locale_kernel_argument=""
 if [[ -n $guest_locale ]]; then
   case $guest_locale in
-    zh_TW.UTF-8)
-      locale_kernel_argument=" tryomarchy.locale=$guest_locale"
-      ;;
+    zh_TW.UTF-8) ;;
     *)
       fail "unsupported guest locale: $guest_locale"
       ;;
@@ -1363,167 +571,6 @@ reap_stale_work_dirs() {
 
 reap_stale_work_dirs
 
-boot_export_has_only_expected_contents() (
-  local candidate=''
-  local names=''
-
-  shopt -s nullglob dotglob
-  for candidate in "$1"/*; do
-    names+="${candidate##*/}"$'\n'
-  done
-  shopt -u nullglob dotglob
-  [[ $names == $'build-spec.json\ncomplete\ninitramfs\nkernel\n' ]]
-)
-
-assert_direct_owned_export_file() {
-  local path=$1
-  local label=$2
-
-  [[ -f $path && ! -L $path ]] || boot_recovery_fail "$label is missing or unsafe"
-  [[ $(_qps_lstat_kind "$path") == 'Regular File' ]] || {
-    boot_recovery_fail "$label is not a direct regular file"
-  }
-  [[ $(_qps_owner "$path") == $(id -u) ]] || {
-    boot_recovery_fail "$label is not owned by this user"
-  }
-}
-
-recover_persistent_boot_kit() {
-  local boot_export_dir="$work_dir/boot-export"
-  local recovery_argument=''
-  local recovery_command_line=''
-  local recovery_state=''
-  local recovery_status=0
-  local recovery_stopped=0
-  local attempt=0
-  local recovered_command_line=''
-
-  [[ $QEMU_SELECTED_STORAGE_MODE == persistent && \
-     -n $QEMU_PERSISTENT_STORAGE_IDENTITY ]] || {
-    boot_recovery_fail 'boot recovery requires a selected persistent VM'
-  }
-  [[ ${OMARCHY_QEMU_GPU_DRY_RUN:-0} == 0 ]] || {
-    boot_recovery_fail 'this saved VM needs a one-time boot recovery; launch it normally before using dry-run mode'
-  }
-  mkdir -m 700 "$boot_export_dir" || boot_recovery_fail 'could not create the private boot-export directory'
-  [[ -d $boot_export_dir && ! -L $boot_export_dir ]] || {
-    boot_recovery_fail 'the private boot-export directory is unsafe'
-  }
-  [[ $(_qps_owner "$boot_export_dir") == $(id -u) && \
-     $(_qps_permissions "$boot_export_dir") == 700 ]] || {
-    boot_recovery_fail 'the private boot-export directory is not protected'
-  }
-
-  # The recovery initramfs mounts the old disk only far enough to read /boot.
-  # QEMU also exposes the block device read-only, so neither fsck nor a malformed
-  # guest can change user data while the matching boot pair is being recovered.
-  for recovery_argument in $kernel_command_line; do
-    if [[ $recovery_argument == rootflags=* ]]; then
-      continue
-    fi
-    if [[ $recovery_argument == rw ]]; then
-      recovery_argument=ro
-    fi
-    recovery_command_line+=" $recovery_argument"
-  done
-  recovery_command_line=${recovery_command_line# }
-  recovery_command_line+=' rootflags=noload fsck.mode=skip tryomarchy.export_boot=1'
-
-  echo '[qemu-gpu] Pairing the saved VM with its original boot files (one time).' >&2
-  (
-    unset TRYOMARCHY_KEYBOARD
-    exec "$qemu_bin" \
-      -name 'Try Roguix Boot Recovery' \
-      -machine "$qemu_machine" \
-      -cpu 'host,pmu=off' \
-      -smp '2,sockets=1,cores=2,threads=1' \
-      -m 2G \
-      -nodefaults \
-      -no-reboot \
-      -display none \
-      -serial none \
-      -monitor none \
-      -qmp "unix:$qmp_socket,server=on,wait=off" \
-      -kernel "$bundled_kernel" \
-      -initrd "$bundled_initramfs" \
-      -append "$recovery_command_line" \
-      -drive "if=none,id=omarchy-recovery-root,file=$working_disk,format=raw,media=disk,cache=none,readonly=on" \
-      -device 'virtio-blk-pci,drive=omarchy-recovery-root,serial=omarchy-root' \
-      -device 'virtio-serial-pci,id=omarchy-recovery-serial' \
-      -chardev 'stdio,id=omarchy-recovery-hvc0,signal=off' \
-      -device 'virtconsole,bus=omarchy-recovery-serial.0,nr=0,chardev=omarchy-recovery-hvc0' \
-      -fsdev "local,id=omarchy-boot-export,path=$boot_export_dir,security_model=none,multidevs=remap" \
-      -device 'virtio-9p-pci,fsdev=omarchy-boot-export,mount_tag=try-omarchy-boot-export,romfile=' \
-      -add-fd "$QEMU_PERSISTENT_STORAGE_QEMU_ADD_FD"
-  ) &
-  qemu_pid=$!
-  printf '%s\n' "$qemu_pid" >"$work_dir/.qemu.pid" || \
-    boot_recovery_fail 'could not record the recovery process'
-  chmod 600 "$work_dir/.qemu.pid" || \
-    boot_recovery_fail 'could not protect the recovery process record'
-
-  for ((attempt = 0; attempt < 600; attempt++)); do
-    recovery_state=$(ps -p "$qemu_pid" -o state= 2>/dev/null || true)
-    if [[ -z $recovery_state || $recovery_state == *Z* ]]; then
-      recovery_stopped=1
-      break
-    fi
-    sleep 0.1
-  done
-  if (( recovery_stopped == 0 )); then
-    terminate_child "$qemu_pid" 40
-    qemu_pid=''
-    boot_recovery_fail 'the one-time boot recovery did not finish within 60 seconds'
-  fi
-  if wait "$qemu_pid"; then
-    recovery_status=0
-  else
-    recovery_status=$?
-  fi
-  qemu_pid=''
-  /bin/rm -f "$work_dir/.qemu.pid" || \
-    boot_recovery_fail 'could not clear the recovery process record'
-  [[ ! -e $qmp_socket && ! -L $qmp_socket ]] || \
-    /bin/rm -f "$qmp_socket" || boot_recovery_fail 'could not clear the recovery control socket'
-  (( recovery_status == 0 )) || {
-    boot_recovery_fail "the one-time boot recovery exited with status $recovery_status"
-  }
-
-  boot_export_has_only_expected_contents "$boot_export_dir" || {
-    boot_recovery_fail 'the one-time boot recovery did not publish an exact, complete export'
-  }
-  assert_direct_owned_export_file "$boot_export_dir/complete" 'boot-export marker'
-  assert_direct_owned_export_file "$boot_export_dir/kernel" 'recovered kernel'
-  assert_direct_owned_export_file "$boot_export_dir/initramfs" 'recovered initramfs'
-  assert_direct_owned_export_file "$boot_export_dir/build-spec.json" 'recovered build specification'
-  [[ $(_qps_size "$boot_export_dir/complete") == 27 && \
-     $(<"$boot_export_dir/complete") == try-omarchy-boot-export-v1 ]] || {
-    boot_recovery_fail 'the one-time boot recovery completion marker is invalid'
-  }
-  [[ $(_qps_size "$boot_export_dir/build-spec.json") =~ ^[1-9][0-9]*$ && \
-     $(_qps_size "$boot_export_dir/build-spec.json") -le 1048576 ]] || {
-    boot_recovery_fail 'the recovered build specification has an invalid size'
-  }
-  recovered_command_line=$(
-    /usr/bin/plutil -extract runtime.kernelCommandLine raw -expect string \
-      "$boot_export_dir/build-spec.json" 2>/dev/null
-  ) || boot_recovery_fail 'the recovered build specification has no kernel command line'
-  chmod 600 \
-    "$boot_export_dir/complete" \
-    "$boot_export_dir/kernel" \
-    "$boot_export_dir/initramfs" \
-    "$boot_export_dir/build-spec.json" || {
-      boot_recovery_fail 'could not protect the recovered boot files'
-    }
-  qemu_persistent_storage_stage_selected_boot_kit \
-    "$boot_export_dir/kernel" \
-    "$boot_export_dir/initramfs" \
-    "$recovered_command_line" || {
-      boot_recovery_fail 'could not pair the saved VM with its recovered boot files'
-    }
-  echo '[qemu-gpu] Saved VM boot files recovered; continuing normal launch.' >&2
-}
-
 umask 077
 work_dir=$(mktemp -d '/private/tmp/omarchy-qemu-gpu.XXXXXX') || {
   fail "could not create a private temporary directory"
@@ -1553,24 +600,10 @@ integration_bridge_socket="/tmp/${work_dir##*/}/integrations.sock"
 audio_route_dir="/tmp/${work_dir##*/}/audio-routes"
 mkdir -m 700 "$work_dir/audio-routes"
 
-bundled_kernel="$guest_dir/vmlinuz-linux"
-bundled_initramfs="$guest_dir/initramfs-linux.img"
-source_disk_name=rootfs.ext4
-if [[ $guest_kind == guix ]]; then
-  bundled_kernel=''
-  bundled_initramfs=''
-  source_disk_name=disk.raw
-fi
-if [[ $guest_kind == guix ]]; then
-  qemu_persistent_storage_configure_guest uefi || fail "could not select UEFI guest storage"
-else
-  qemu_persistent_storage_configure_guest direct || fail "could not select direct-boot guest storage"
-fi
+source_disk_name=disk.raw
 selected_existing=0
 if [[ $storage_mode == persistent ]]; then
-  if qemu_persistent_storage_select_existing \
-    "$bundle_identity" "$bundled_kernel" "$bundled_initramfs" \
-    "$kernel_command_line"; then
+  if qemu_persistent_storage_select_existing "$bundle_identity"; then
     selected_existing=1
   else
     storage_status=$?
@@ -1606,10 +639,7 @@ if (( selected_existing == 0 )); then
     "$source_disk_sha" \
     "$source_disk_bytes" \
     "$work_dir" \
-    "$expanded_disk_bytes" \
-    "$bundled_kernel" \
-    "$bundled_initramfs" \
-    "$kernel_command_line"; then
+    "$expanded_disk_bytes"; then
     :
   else
     storage_status=$?
@@ -1625,45 +655,15 @@ case ${OMARCHY_QEMU_GPU_DRY_RUN:-0} in
   0|1) ;;
   *) fail "OMARCHY_QEMU_GPU_DRY_RUN must be 0 or 1" ;;
 esac
-case ${OMARCHY_QEMU_GPU_ALLOW_BOOT_RECOVERY:-0} in
-  0|1) ;;
-  *) fail "OMARCHY_QEMU_GPU_ALLOW_BOOT_RECOVERY must be 0 or 1" ;;
-esac
-if (( QEMU_PERSISTENT_STORAGE_NEEDS_BOOT_RECOVERY )); then
-  if [[ ${OMARCHY_QEMU_GPU_ALLOW_BOOT_RECOVERY:-0} != 1 ]]; then
-    echo '[qemu-gpu] This older saved VM needs consent for one-time read-only boot pairing.' >&2
-    exit "$boot_recovery_consent_required_status"
-  fi
-  recover_persistent_boot_kit
-fi
-if [[ $guest_kind == guix ]]; then
-  boot_args=(-bios "$uefi_firmware")
-  # Firmware boots the guest's own GRUB, so the launcher-owned arguments the
-  # Arch guest reads from its command line travel as SMBIOS OEM strings
-  # (type 11); roguix-host-settings reads them. Each is name=value with a
-  # base64url or literal value, so none contains a space or comma.
-  for launcher_argument in omarchy.qemu_virgl=1 \
-    $shared_folder_kernel_argument $ssh_kernel_argument; do
-    boot_args+=(-smbios "type=11,value=$launcher_argument")
-  done
-else
-  launch_kernel=$QEMU_SELECTED_KERNEL
-  launch_initramfs=$QEMU_SELECTED_INITRAMFS
-  launch_kernel_command_line=$QEMU_SELECTED_KERNEL_COMMAND_LINE
-  [[ -n $launch_kernel && -n $launch_initramfs && -n $launch_kernel_command_line ]] || {
-    fail 'the selected VM has no complete boot kit'
-  }
-  case " $launch_kernel_command_line " in
-    *' omarchy.virgl_dual_source='*)
-      fail "selected kernel command line contains a launcher-owned VirGL capability argument"
-      ;;
-  esac
-  boot_args=(
-    -kernel "$launch_kernel"
-    -initrd "$launch_initramfs"
-    -append "$launch_kernel_command_line omarchy.qemu_virgl=1 omarchy.virgl_dual_source=1$shared_folder_kernel_argument$ssh_kernel_argument$settings_kernel_argument$keyboard_kernel_argument$locale_kernel_argument"
-  )
-fi
+boot_args=(-bios "$uefi_firmware")
+# Firmware boots the guest's own GRUB, so the launcher's settings travel as
+# SMBIOS OEM strings (type 11); roguix-host-settings reads them. Each is
+# name=value with a base64url or literal value, so none contains a space or
+# comma.
+for launcher_setting in omarchy.qemu_virgl=1 \
+  $shared_folder_setting $ssh_setting $keyboard_setting; do
+  boot_args+=(-smbios "type=11,value=$launcher_setting")
+done
 
 if ((reset_only)); then
   qemu_persistent_storage_release_lock
@@ -1676,11 +676,9 @@ if [[ -n $disk_capacity_bytes && $storage_mode == persistent && ${OMARCHY_QEMU_G
     fail 'could not apply maximum disk size'
 fi
 
+# Roguix has no guest locale switch yet; the app offers none for its image.
 if [[ -n $guest_locale ]]; then
-  case " $launch_kernel_command_line " in
-    *' tryomarchy.locale_support=1 '*) ;;
-    *) fail 'This saved VM does not support language selection. Use English to keep using it, or Reset Omarchy to use the new factory (reset erases VM data).' ;;
-  esac
+  fail 'Roguix does not support language selection yet; use English.'
 fi
 
 case ${OMARCHY_QEMU_GPU_IMMERSIVE:-1} in
@@ -1695,15 +693,6 @@ case ${OMARCHY_QEMU_GPU_IMMERSIVE:-1} in
   *) fail "OMARCHY_QEMU_GPU_IMMERSIVE must be 0 or 1" ;;
 esac
 
-# systemd's boot credential creates one temporary service without replacing
-# the guest's default target or requiring an agent to already be installed.
-settings_payload="$resources_dir/guest-settings"
-[[ -f $settings_payload/guest-settings.service && -f $settings_payload/install.py ]] || \
-  fail "the bundled settings integration is missing"
-settings_unit=$(base64 < "$settings_payload/guest-settings.service" | tr -d '\r\n')
-settings_kernel_argument=" systemd.set_credential_binary=systemd.extra-unit.try-omarchy-settings.service:$settings_unit systemd.wants=try-omarchy-settings.service"
-# QEMU escapes commas in key-value option values by doubling them.
-settings_payload_escaped=${settings_payload//,/,,}
 
 # macOS 15 can pass the paused EL2 probe, then abort with HV_BAD_ARGUMENT when
 # QEMU synchronizes vCPU registers (#211). Keep it on the platform-GIC/EL1 path.
@@ -1793,8 +782,6 @@ qemu_args=(
   -device 'virtio-rng-pci,rng=omarchy-rng'
   # Report genuinely free pages without reducing the guest RAM allocation.
   -device virtio-balloon-pci,free-page-reporting=on
-  -fsdev "local,id=omarchy-settings,path=$settings_payload_escaped,security_model=none,readonly=on"
-  -device 'virtio-9p-pci,fsdev=omarchy-settings,mount_tag=try-omarchy-settings,romfile='
   -device 'virtio-serial-pci,id=omarchy-serial'
   -chardev "socket,id=omarchy-settings-bridge,path=$settings_bridge_socket,server=on,wait=off"
   -device 'virtserialport,bus=omarchy-serial.0,nr=6,chardev=omarchy-settings-bridge,name=dev.tryomarchy.settings'
@@ -1833,16 +820,12 @@ if [[ -n $shared_folder ]]; then
   )
 fi
 
-if [[ $launch_boot_abi == "$uefi_boot_abi" ]]; then
-  # UEFI has no virtio keyboard driver, so GRUB's menu reads a USB keyboard.
-  # QEMU sends each key to one keyboard; Linux drives both.
-  require_qemu_device qemu-xhci
-  require_qemu_device usb-kbd
-  qemu_args+=(
-    -device 'qemu-xhci,id=roguix-usb'
-    -device 'usb-kbd,bus=roguix-usb.0'
-  )
-fi
+# UEFI has no virtio keyboard driver, so GRUB's menu reads a USB keyboard.
+# QEMU sends each key to one keyboard; Linux drives both.
+qemu_args+=(
+  -device 'qemu-xhci,id=roguix-usb'
+  -device 'usb-kbd,bus=roguix-usb.0'
+)
 
 # SDL2 has one legacy process-wide override that would collapse input and
 # output onto the same named device. The patched QEMU backend uses the two

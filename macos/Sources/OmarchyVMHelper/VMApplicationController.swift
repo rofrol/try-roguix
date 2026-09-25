@@ -84,7 +84,6 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
     private var childRunning = false
     private var applicationTerminationPending = false
     private var virtualMachineReachedStart = false
-    private var activeLaunchAllowedBootRecovery = false
     private var pendingHostSleepControlFailure: String?
 
     /// True while a modal alert this controller opened itself (rather than
@@ -305,7 +304,7 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func startVirtualMachine(allowBootRecovery: Bool = false) {
+    private func startVirtualMachine() {
         cancelHostWakeRetry()
         virtualMachineReachedStart = false
         pendingHostSleepControlFailure = nil
@@ -333,31 +332,6 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
                 startMenuWindow?.launchDidAbort()
                 return
             }
-            var approvedBootRecovery = allowBootRecovery
-            if !approvedBootRecovery {
-                let preflight: BootRecoveryLaunchPreflight
-                if initialArguments.first == QEMUGPUStorageOption.ephemeral.rawValue {
-                    preflight = .notRequired
-                } else {
-                    preflight = QEMUGPUStorageSpaceEstimate.bootRecoveryPreflight(
-                        environment: baseEnvironment,
-                        bundleIdentity: bundledMetrics?.identity,
-                        preference: storageLocationStore.load()
-                    )
-                }
-                switch BootRecoveryLaunchGate.decide(
-                    preflight: preflight,
-                    confirm: { [weak self] in
-                        self?.startMenuWindow?.confirmBootRecovery() ?? false
-                    }
-                ) {
-                case .cancel:
-                    startMenuWindow?.launchDidAbort()
-                    return
-                case .launch(let allowBootRecovery):
-                    approvedBootRecovery = allowBootRecovery
-                }
-            }
             let cameraDecision = CameraPreflight.decision()
             if let warning = cameraDecision.warning {
                 fputs("[camera] \(warning)\n", stderr)
@@ -365,10 +339,7 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
             guard cameraDecision.allowsLaunch else {
                 throw HelperError.io("camera policy unexpectedly prevented launch")
             }
-            try launch(
-                arguments: launchArguments(),
-                allowBootRecovery: approvedBootRecovery
-            )
+            try launch(arguments: launchArguments())
         } catch {
             failLaunch(error)
         }
@@ -576,7 +547,7 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
         )
     }
 
-    private func launch(arguments: [String], allowBootRecovery: Bool = false) throws {
+    private func launch(arguments: [String]) throws {
         let context = childLaunchContext()
         // The UI gate above normally resolves this first; failing closed here
         // too keeps a silent fallback impossible for any future caller.
@@ -589,29 +560,18 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
         }
         try PortForwardAvailability.validate(context.portForwardMappings)
         activeStateRoot = context.stateRoot
-        var environment = context.environment
-        if allowBootRecovery {
-            environment = QEMUGPURuntimeEnvironment.withBootRecoveryConsent(environment)
-        }
-
-        activeLaunchAllowedBootRecovery = allowBootRecovery
-        do {
-            try supervisor.start(
-                executableURL: launcherURL,
-                arguments: arguments,
-                environment: environment,
-                launchEvent: { [weak self] event in
-                    switch event {
-                    case .virtualMachineReady(let qmpSocketPath):
-                        self?.virtualMachineDidStart(qmpSocketPath: qmpSocketPath)
-                    }
+        try supervisor.start(
+            executableURL: launcherURL,
+            arguments: arguments,
+            environment: context.environment,
+            launchEvent: { [weak self] event in
+                switch event {
+                case .virtualMachineReady(let qmpSocketPath):
+                    self?.virtualMachineDidStart(qmpSocketPath: qmpSocketPath)
                 }
-            ) { [weak self] status in
-                self?.childDidExit(status: status)
             }
-        } catch {
-            activeLaunchAllowedBootRecovery = false
-            throw error
+        ) { [weak self] status in
+            self?.childDidExit(status: status)
         }
         childRunning = true
     }
@@ -1025,8 +985,6 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
             startMenuWindow?.dismiss()
             startMenuWindow = nil
         }
-        let launchAllowedBootRecovery = activeLaunchAllowedBootRecovery
-        activeLaunchAllowedBootRecovery = false
         cancelHostWakeRetry()
         hostSleepCoordinator.disconnect()
         let recentStandardError = supervisor.recentStandardError
@@ -1076,42 +1034,6 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
             if presentation.requiresWorkspaceReset {
                 startMenuWindow?.launchRequiresReset()
                 return
-            }
-            switch BootRecoveryChildExitGate.decide(
-                presentation: presentation,
-                launchWasAuthorized: launchAllowedBootRecovery
-            ) {
-            case .reportFailure:
-                startMenuWindow?.launchDidFail(
-                    errorMessage: "Try Roguix could not complete the one-time boot-file pairing. The saved VM was not reset or upgraded. You can safely try again."
-                )
-                return
-            case .requestConfirmation:
-                switch BootRecoveryLaunchGate.decide(
-                    preflight: .requiresConfirmation,
-                    confirm: { [weak self] in
-                        self?.startMenuWindow?.confirmBootRecovery() ?? false
-                    }
-                ) {
-                case .cancel:
-                    startMenuWindow?.launchDidAbort()
-                case .launch:
-                    // Retry the same configured workspace directly. Re-running
-                    // availability resolution here could offer to switch from
-                    // a just-disconnected external VM to the default one, then
-                    // accidentally spend consent on a different saved disk.
-                    do {
-                        try launch(
-                            arguments: launchArguments(),
-                            allowBootRecovery: true
-                        )
-                    } catch {
-                        failLaunch(error)
-                    }
-                }
-                return
-            case .unrelated:
-                break
             }
             if presentation.showsStartupFailure {
                 startMenuWindow?.dismiss()
