@@ -450,6 +450,22 @@ pull-request description, omitting fields that do not apply:
 - Remaining uncertainty or required human decision:
 ```
 
+## Long-Running Work
+
+Run builder VM work that takes more than a minute (image and system builds,
+exports) as
+`herdr-job run --name "<short description>" -- guest/guix/vm-run '<command>'`
+and wait for it in the background with `herdr-job wait <id>`. The job gets its
+own herdr tab with the live log.
+
+`guest/guix/vm-run` runs the command as root in the builder VM through its
+serial console, detached in the guest with its own log
+(`/root/vm-run/<id>.log`) and status file. It blocks until the command ends,
+prints the log as it grows, and exits with the command's own exit code;
+124 means it timed out and 125 that the console stayed unreachable, so an
+unknown outcome is never reported as success. Do not start builder work with
+the bare console or detach it with `nohup` or `&`.
+
 ## Provenance
 
 The intellectual sources of this policy are recorded in `docs/provenance-of-AGENTS.md`
