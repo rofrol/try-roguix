@@ -56,6 +56,19 @@ A Guix System VM can serve as the builder. Do not fetch the vendor checkout
 over a 9p share: copy or clone it onto the builder's own filesystem first, and
 set `safe.directory` if the copy is owned by another user.
 
+`guest/guix/vm-run '<command>'` runs a command as root in such a builder VM
+through its serial console (`.build/guix-validation/serial.sock`, or
+`VM_RUN_SOCKET`) and blocks until it ends. The command runs detached in the
+guest, logging to `/root/vm-run/<id>.log`; `vm-run` prints that log as it
+grows and exits with the command's own exit code (124 on timeout, 125 when
+the console stays unreachable). Run long builds under `herdr-job`, so they
+get their own tab and a real result:
+
+```sh
+herdr-job run --name "Build image" -- guest/guix/vm-run 'guix time-machine ... -- system image ...'
+herdr-job wait <id>
+```
+
 The default output `dist/guix/image.raw` is a Guix GC-root symlink to a 12 GiB
 raw EFI disk image, not an unpartitioned ext4 filesystem. Copy the image, not
 just the symlink, when transferring it to macOS. An existing output, including
