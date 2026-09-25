@@ -83,6 +83,9 @@
             (lambda* (#:key native-inputs inputs #:allow-other-keys)
               (let* ((omarchy (string-append #$output "/share/omarchy"))
                      (bin (string-append omarchy "/bin"))
+                     ;; Written after patch-shebangs would see them, so they
+                     ;; name the store's bash directly.
+                     (bash (search-input-file inputs "bin/bash"))
                      (menu (string-append omarchy "/default/omarchy/omarchy-menu.jsonc")))
                 (invoke "python3" #$(local-file "omarchy-menu.py") menu
                         (string-append menu ".guix"))
@@ -96,8 +99,8 @@
                    (let ((file (string-append bin "/" (car helper))))
                      (call-with-output-file file
                        (lambda (port)
-                         (format port "#!/bin/bash~%# Roguix: ~a~%~a~%"
-                                 (cadr helper) (caddr helper))))
+                         (format port "#!~a~%# Roguix: ~a~%~a~%"
+                                 bash (cadr helper) (caddr helper))))
                      (chmod file #o555)))
                  '(("omarchy-pkg-add" "add Guix packages to /etc/config.scm"
                     "exec sudo roguix-pkg add \"$@\"")
@@ -116,8 +119,12 @@
                 (let ((file (string-append bin "/omarchy-launch-webapp")))
                   (call-with-output-file file
                     (lambda (port)
-                      (format port "#!/bin/bash~%# Roguix: open a web app in a new window of the default browser.~%exec omarchy-launch-browser --new-window \"$1\"~%")))
+                      (format port "#!~a~%# Roguix: open a web app in a new window of the default browser.~%exec omarchy-launch-browser --new-window \"$1\"~%" bash)))
                   (chmod file #o555))
+                ;; Desktop files live in Guix profiles, not /usr.
+                (substitute* (string-append bin "/omarchy-launch-browser")
+                  (("\\{~/\\.local,~/\\.nix-profile,/usr\\}")
+                   "{~/.local,~/.guix-profile,/run/current-system/profile}"))
                 ;; The menu decides what is installed from pacman's database.
                 (substitute* (string-append omarchy "/shell/plugins/menu/MenuModel.js")
                   (("pacman -Qq; LC_ALL=C pacman -Qi") "roguix-pkg list; true")
