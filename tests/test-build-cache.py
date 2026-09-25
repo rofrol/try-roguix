@@ -52,6 +52,8 @@ FAKE_COMPONENT = textwrap.dedent(
     from pathlib import Path
     import sys
 
+    # build-cache.py imports its sibling app_version module.
+    sys.path.insert(0, str(Path(sys.argv[1]).parent))
     spec = importlib.util.spec_from_file_location("build_cache", sys.argv.pop(1))
     build_cache = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(build_cache)
@@ -207,14 +209,8 @@ class BuildCacheTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             for relative in (
-                "macos/Info.plist", "LICENSE", ".build/state/guest.json",
-                ".build/state/runtime.json", "dist/guest/guest-manifest.json",
-                "dist/guest/SHA256SUMS",
-                "guest/scripts/install-settings-integration.py",
-                "guest/native-overlay/usr/local/bin/omarchy-native-settings",
-                "guest/native-overlay/etc/udev/rules.d/92-omarchy-native-settings.rules",
-                "guest/native-overlay/usr/share/applications/try-omarchy-settings.desktop",
-                "guest/native-overlay/etc/skel/.config/omarchy/extensions/omarchy-menu.jsonc",
+                "macos/Info.plist", "LICENSE", ".build/state/runtime.json",
+                *build_cache.GUIX_GUEST_FILES,
                 *(f"macos/.build/qemu-gpu-runtime/{name}" for name in build_cache.RUNTIME_FILES),
             ):
                 path = root / relative

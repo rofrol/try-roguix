@@ -947,7 +947,7 @@ _qps_initialize_persistent_disk() {
   _qps_validate_store_directory \
     "$qps_staging" "$qps_identity" "$qps_source_sha" "$qps_source_bytes" \
     "$qps_working_bytes" || return 1
-  _qps_fsync "$qps_staging/rootfs.ext4" "$qps_staging/metadata.json" "$qps_staging" || {
+  _qps_fsync "$qps_staging/$QPS_DISK_NAME" "$qps_staging/metadata.json" "$qps_staging" || {
     _qps_fail 'cannot flush persistent-disk staging directory'
     return 1
   }

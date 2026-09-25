@@ -95,7 +95,7 @@ struct LanguageLaunchConfigurationTests {
         #expect(!state.supportsSelection)
         let presentation = StartMenuPresentation.language(state: state)
         #expect(!presentation.isNonDefault)
-        #expect(presentation.detail.contains("Reset Omarchy"))
+        #expect(presentation.detail.contains("Reset Roguix"))
         #expect(presentation.detail.contains("erases"))
     }
 

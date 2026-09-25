@@ -660,7 +660,7 @@ boot_args=(-bios "$uefi_firmware")
 # SMBIOS OEM strings (type 11); roguix-host-settings reads them. Each is
 # name=value with a base64url or literal value, so none contains a space or
 # comma.
-for launcher_setting in omarchy.qemu_virgl=1 \
+for launcher_setting in omarchy.qemu_virgl=1 omarchy.virgl_dual_source=1 \
   $shared_folder_setting $ssh_setting $keyboard_setting; do
   boot_args+=(-smbios "type=11,value=$launcher_setting")
 done

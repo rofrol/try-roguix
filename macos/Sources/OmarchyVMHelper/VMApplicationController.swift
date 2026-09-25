@@ -629,7 +629,7 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
         guard childRunning, virtualMachineReachedStart, !lifecycle.isStopping,
               let controlSocketPath else { return }
         guard !hostSleepCoordinator.pausedForHostSleep else {
-            startMenuWindow?.shutdownDidFail("Wait for Omarchy to resume after Mac sleep, then try again.")
+            startMenuWindow?.shutdownDidFail("Wait for Roguix to resume after Mac sleep, then try again.")
             return
         }
         lifecycle.requestSettingsAction(action)
@@ -1011,7 +1011,7 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
             // original command-line reset request. Reset still needs a new click.
             prepareStartMenu(startAutomatically: false, honorInitialReset: false)
             if status != 0 {
-                startMenuWindow?.shutdownDidFail("Omarchy stopped unexpectedly while shutting down. Your saved settings are ready for the next launch.")
+                startMenuWindow?.shutdownDidFail("Roguix stopped unexpectedly while shutting down. Your saved settings are ready for the next launch.")
             } else if settingsAction == .restart {
                 startMenuWindow?.launchOmarchy()
             }

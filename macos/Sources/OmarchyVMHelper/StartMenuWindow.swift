@@ -349,7 +349,7 @@ final class StartMenuWindow: NSObject, NSWindowDelegate {
         virtualMachineRunning = true
         closeRunningSettings = closeSettings
         self.requestSettingsAction = requestSettingsAction
-        window.title = "Try Omarchy Settings"
+        window.title = "Try Roguix Settings"
         // The VM has its own Cocoa process and may occupy a fullscreen Space.
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.level = .floating
@@ -364,7 +364,7 @@ final class StartMenuWindow: NSObject, NSWindowDelegate {
         shutdownInProgress = false
         render()
         let alert = NSAlert()
-        alert.messageText = "Omarchy couldn’t shut down"
+        alert.messageText = "Roguix couldn’t shut down"
         alert.informativeText = message
         alert.beginSheetModal(for: window)
     }
@@ -377,9 +377,9 @@ final class StartMenuWindow: NSObject, NSWindowDelegate {
               !microphoneRequestInFlight, !cameraRequestInFlight,
               window.attachedSheet == nil, portForwardingEditor == nil else { return }
         let alert = NSAlert()
-        alert.messageText = action == .restart ? "Restart Try Omarchy?" : "Shut down Omarchy to manage this VM?"
+        alert.messageText = action == .restart ? "Restart Try Roguix?" : "Shut down Roguix to manage this VM?"
         alert.informativeText = action == .restart
-            ? "Save your work first. Omarchy will shut down and start again with your saved settings."
+            ? "Save your work first. Roguix will shut down and start again with your saved settings."
             : "Save your work first. The settings window will stay open so you can change the VM location or reset it."
         alert.addButton(withTitle: action == .restart ? "Restart" : "Shut Down")
         alert.addButton(withTitle: "Cancel")
@@ -916,13 +916,13 @@ final class StartMenuWindow: NSObject, NSWindowDelegate {
         resetRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 64).isActive = true
         let resetCard = themedCard(containing: resetRow, identifier: "reset-card")
 
-        let restart = OmarchyActionButton(title: "Restart Try Omarchy…", style: .secondary, target: self, action: #selector(restartOmarchy))
+        let restart = OmarchyActionButton(title: "Restart Try Roguix…", style: .secondary, target: self, action: #selector(restartOmarchy))
         restart.heightAnchor.constraint(equalToConstant: 30).isActive = true
         restart.identifier = NSUserInterfaceItemIdentifier("restart-vm-button")
         restart.isEnabled = !controlsBusy
         let restartCaption = NSTextField(wrappingLabelWithString: shutdownInProgress
-            ? "Waiting for Omarchy to shut down. Finish saving your work inside Omarchy."
-            : "CPU, memory, shared folder, networking, port forwarding, and immersive mode changes apply when Try Omarchy next starts. Restart to apply them now.")
+            ? "Waiting for Roguix to shut down. Finish saving your work inside Roguix."
+            : "CPU, memory, shared folder, networking, port forwarding, and immersive mode changes apply when Try Roguix next starts. Restart to apply them now.")
         restartCaption.font = .monospacedSystemFont(ofSize: 10, weight: .regular)
         restartCaption.textColor = OmarchyStartMenuTheme.muted
         let runningActions = NSStackView(views: [restartCaption, restart])

@@ -231,7 +231,7 @@ enum StartMenuPresentation {
     static func language(state: LanguageMenuState) -> StartMenuLanguagePresentation {
         guard state.supportsSelection else {
             return StartMenuLanguagePresentation(
-                detail: "This saved VM does not support language selection. Reset Omarchy to use it; reset erases the VM’s data.",
+                detail: "This saved VM does not support language selection. Reset Roguix to use it; reset erases the VM’s data.",
                 isNonDefault: false,
                 statusLabel: "○  Requires reset",
                 actionTitle: "Language unavailable"
@@ -239,14 +239,14 @@ enum StartMenuPresentation {
         }
         guard let selected = state.selectedLocale else {
             return StartMenuLanguagePresentation(
-                detail: "Omarchy boots in English, the guest’s default language.",
+                detail: "Roguix boots in English, the guest’s default language.",
                 isNonDefault: false,
                 statusLabel: "○  English",
                 actionTitle: "Switch to \(GuestLocaleCatalog.traditionalChinese.displayName)"
             )
         }
         return StartMenuLanguagePresentation(
-            detail: "Omarchy boots in \(selected.displayName).",
+            detail: "Roguix boots in \(selected.displayName).",
             isNonDefault: true,
             statusLabel: "●  \(selected.displayName)",
             actionTitle: "Use English (Default)"

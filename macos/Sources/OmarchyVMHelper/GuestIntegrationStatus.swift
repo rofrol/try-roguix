@@ -92,7 +92,7 @@ enum GuestIntegrationSetup {
     static func show(window: NSWindow? = nil) {
         let alert = NSAlert()
         alert.messageText = "Review VM integrations"
-        alert.informativeText = "Inside Omarchy, open Setup > Try Omarchy Integrations. If that entry is missing, copy the command below and paste it into an Omarchy terminal.\n\nReview and install sudo Touch ID support and the Mac battery mirror. Install Touch ID support before pairing. Have your Linux password ready. Your existing VM is preserved."
+        alert.informativeText = "Inside Roguix, open Setup > Try Roguix Integrations. If that entry is missing, copy the command below and paste it into a Roguix terminal.\n\nReview and install sudo Touch ID support and the Mac battery mirror. Install Touch ID support before pairing. Have your Linux password ready. Your existing VM is preserved."
         alert.addButton(withTitle: "Copy setup command")
         alert.addButton(withTitle: "Close")
         let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 440, height: 64))
@@ -220,7 +220,7 @@ final class GuestIntegrationBridge: NSObject {
         alert.messageText = "Review your VM integrations"
         alert.informativeText = lastState == "no-response"
             ? "This VM has not answered its integration check. It may still be starting, or may need the setup included with this app. You can add new features without resetting your VM."
-            : "This app includes integration updates or repairs for your existing VM. Review them inside Omarchy when you are ready. Installation needs your Linux password."
+            : "This app includes integration updates or repairs for your existing VM. Review them inside Roguix when you are ready. Installation needs your Linux password."
         alert.addButton(withTitle: "Review setup")
         alert.addButton(withTitle: "Later")
         NSApp.activate()

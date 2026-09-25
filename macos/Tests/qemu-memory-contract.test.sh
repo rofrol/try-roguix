@@ -62,9 +62,6 @@ fi
 chmod 755 "$resources/scripts/run-qemu-gpu.sh"
 chmod 644 "$resources/scripts/qemu-port-forwarding.sh"
 
-mkdir -p "$resources/guest-settings"
-cp "$macos_dir/guest-settings.service" "$resources/guest-settings/guest-settings.service"
-cp "$macos_dir/../guest/scripts/install-settings-integration.py" "$resources/guest-settings/install.py"
 
 cat >"$contents/MacOS/omarchy-vm-helper" <<'SH'
 #!/bin/bash
@@ -411,7 +408,7 @@ run_scenario small-host-default 0 FAKE_HOST_MEMSIZE=7516192768
 assert_line_pair "$test_root/small-host-default/qemu.log" -m 4096M
 
 # An older runtime must not silently claim to reclaim memory on macOS.
-sed -i '' '/^# HVF free-page backing replacement failed$/d' "$resources/runtime/bin/Try Omarchy"
+sed -i '' '/^# HVF free-page backing replacement failed$/d' "$resources/runtime/bin/Try Roguix"
 run_scenario old-runtime 1
 assert_contains "$(<"$test_root/old-runtime/stderr")" 'lacks macOS memory reclamation'
 

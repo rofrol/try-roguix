@@ -51,7 +51,7 @@ struct InstalledAppRelease: Equatable {
 }
 
 struct AppRelease: Equatable {
-    static let releasesURL = URL(string: "https://github.com/omacom/try-omarchy/releases")!
+    static let releasesURL = URL(string: "https://github.com/rofrol/try-roguix/releases")!
     let version: AppReleaseVersion
     let url: URL
 
@@ -59,7 +59,7 @@ struct AppRelease: Equatable {
         let payload = try JSONDecoder().decode(Payload.self, from: data)
         guard !payload.draft, !payload.prerelease, payload.tagName.hasPrefix("v"),
               let version = AppReleaseVersion(String(payload.tagName.dropFirst())),
-              payload.assets.contains(where: { $0.name == "TryOmarchy.dmg" && $0.state == "uploaded" }) else {
+              payload.assets.contains(where: { $0.name == "TryRoguix.dmg" && $0.state == "uploaded" }) else {
             throw AppReleaseError.invalidRelease
         }
         // Construct the project URL instead of opening an arbitrary URL from JSON.
@@ -115,11 +115,11 @@ enum AppReleaseCheckState: Equatable {
         switch self {
         case .idle: return "Check GitHub for the latest stable Mac app release."
         case .checking: return "Checking for updates…"
-        case .available(let release): return "Try Omarchy \(release.version) is available. Review its release notes and macOS requirements before downloading."
+        case .available(let release): return "Try Roguix \(release.version) is available. Review its release notes and macOS requirements before downloading."
         case .current: return "No newer stable release was found."
         case .unknownInstalledVersion(let release):
             return "The latest stable release is \(release.version). This build does not identify its installed release reliably, so versions cannot be compared."
-        case .failed(let message): return "Couldn’t check for updates. \(message) You can still launch Omarchy."
+        case .failed(let message): return "Couldn’t check for updates. \(message) You can still launch Roguix."
         }
     }
 
