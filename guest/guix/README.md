@@ -82,8 +82,8 @@ Foot and binds Super+Q to Foot, Super+R to Wofi, Super+C to close, and Super+M t
 end the session, using Hyprland's standard navigation and workspace bindings.
 Existing user configuration is not overwritten by this skeleton mechanism.
 
-Foot avoids the separate Kitty OpenGL-context problem documented by the old
-Arch guest's `native-overlay/usr/local/bin/kitty` wrapper. Kitty and its
+Foot avoids the separate Kitty OpenGL-context problem that Try Omarchy's Arch
+guest worked around with a `kitty` wrapper. Kitty and its
 software-rendering exception are not part of this image. No compositor
 software-rendering override or version-specific Arch Hyprland patch is carried
 over. Fonts and Mesa diagnostic tools are also installed.
@@ -220,8 +220,8 @@ genimage writes; later boots find nothing to fix.
 ## Running through the app
 
 ```sh
-make guix-app   # dist/app.noindex/Roguix.app with the dist/guix guest
-make guix-run   # build it and open it like `make run`
+make app   # dist/app.noindex/Try Roguix.app with the dist/guix guest
+make run   # build it and open it
 ```
 
 `build-app.sh` recognizes a Guix guest directory by `guix-manifest.json` and
@@ -284,8 +284,7 @@ went straight to the desktop.
   `suspend` and `hibernate` to elogind's `loginctl` and accepts everything
   else as an empty success; `uwsm stop` (Logout) exits Hyprland, and tty1
   logs in again; `busctl` covers Omarchy's notification and UPower calls
-  through gdbus (`test_busctl.py`); `xdg-terminal-exec` is the Arch guest's
-  (byte-identical copy).
+  through gdbus (`test_busctl.py`); `xdg-terminal-exec` is Try Omarchy's.
 - **The account** is seeded once, at the first desktop login, by
   `roguix-omarchy-seed`: Omarchy's `config/` into `~/.config` (never
   overwriting), its applications, Hyprland toggles and fontconfig aliases;
@@ -352,10 +351,8 @@ same image.
 ## macOS integrations
 
 `modules/roguix/integrations.scm` ports the guest side of the launcher's
-integrations. The host side and wire protocols are the Arch guest's,
-unchanged, and the guest programs are byte-identical copies of the Arch
-guest's reviewed scripts (`test_build.py` pins them); only their startup
-differs.
+integrations. The host side, the wire protocols and the guest programs come
+from Try Omarchy's Arch guest, unchanged; only their startup differs.
 
 - **Launcher settings.** The launcher passes its arguments as SMBIOS OEM
   strings (see ADR 0001); `roguix-host-settings` writes them to
@@ -384,7 +381,7 @@ differs.
   with the Arch guest's options (`/dev/video42`, "Mac Camera",
   `exclusive_caps`); `camera-bridge` runs under `roguix-agent`. udev gives
   the port and `video42` to the `video` group.
-- **Touch ID for sudo.** `authentication-broker` is the Arch guest's broker,
+- **Touch ID for sudo.** `authentication-broker` is Try Omarchy's broker,
   with only its two `/usr/bin` OpenSSL references rewritten to the store at
   build time (`test_build.py` pins both). `/etc/pam.d/sudo` always starts with
   a `sufficient` `pam_exec` rule whose gate fails at once until

@@ -1,13 +1,13 @@
 ;;; Roguix — guest side of the launcher's macOS integrations.
 ;;;
-;;; The host side and its wire protocols are the Arch guest's, unchanged. The
-;;; guest programs are byte-identical copies of the Arch guest's reviewed
-;;; scripts (test_build.py pins them); only how they are started differs:
-;;; Shepherd services and login hooks instead of systemd units.
+;;; The host side and its wire protocols come from Try Omarchy, unchanged,
+;;; and so do the guest programs next to this module (reviewed there as the
+;;; Arch guest's scripts); here Shepherd services and login hooks start them
+;;; instead of systemd units.
 ;;;
-;;; The Arch guest reads launcher settings from its kernel command line. A
-;;; UEFI guest boots its own GRUB, so the launcher passes the same
-;;; `name=value' arguments as SMBIOS OEM strings (type 11) instead, and
+;;; A UEFI guest boots its own GRUB, so the launcher passes its `name=value'
+;;; settings as SMBIOS OEM strings (type 11) rather than on a kernel command
+;;; line, and
 ;;; roguix-host-settings writes them to %roguix-host-settings-file in the
 ;;; command line's format. That file lives in /run: settings last one boot.
 (define-module (roguix integrations)
@@ -232,10 +232,10 @@ done
 port exist, restarting it after it exits.")
     (license license:expat)))
 
-;; An Arch guest script whose #!/usr/bin/python3 becomes Guix's Python and
+;; A guest script written for /usr/bin whose #!/usr/bin/python3 becomes Guix's Python and
 ;; whose tools are put on PATH. SOURCE is (local-file FILE), written at the
 ;; call site so it resolves next to this module.
-(define* (arch-guest-python-script name file source #:key (tools '())
+(define* (guest-python-script name file source #:key (tools '())
                                    (inputs '()) synopsis)
   (package
     (name name)
@@ -267,7 +267,7 @@ port exist, restarting it after it exits.")
 ;;; data-control protocol observes and replaces the Hyprland selection.
 
 (define roguix-clipboard-bridge
-  (arch-guest-python-script "roguix-clipboard-bridge" "clipboard-bridge"
+  (guest-python-script "roguix-clipboard-bridge" "clipboard-bridge"
                             (local-file "clipboard-bridge")
                             #:tools '("bin/wl-paste")
                             #:inputs (list wl-clipboard)
@@ -327,7 +327,7 @@ port exist, restarting it after it exits.")
 ;;; Arch guest's graph quantum setting for the emulated HDA is installed as is.
 
 (define roguix-audio-bridge
-  (arch-guest-python-script "roguix-audio-bridge" "audio-bridge"
+  (guest-python-script "roguix-audio-bridge" "audio-bridge"
                             (local-file "audio-bridge")
                             #:tools '("bin/pactl")
                             #:inputs (list pulseaudio)
@@ -359,7 +359,7 @@ port exist, restarting it after it exits.")
 ;;; v4l2loopback-linux-module). Module options are the Arch guest's.
 
 (define roguix-camera-bridge
-  (arch-guest-python-script "roguix-camera-bridge" "camera-bridge"
+  (guest-python-script "roguix-camera-bridge" "camera-bridge"
                             (local-file "camera-bridge")
                             #:synopsis "Expose the macOS camera as /dev/video42"))
 

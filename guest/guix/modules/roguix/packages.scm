@@ -3,8 +3,8 @@
 ;;; The pinned checkout ships Hyprland 0.55.4 with Aquamarine 0.12.1, which
 ;;; cannot switch to a larger mode on virtio-gpu (see guest/guix/README.md).
 ;;; These definitions reproduce the known-good Arch guest pair: Hyprland 0.56.1
-;;; with the rounded-border patch and Aquamarine 0.14.0. Source SHA-256 values
-;;; equal guest/spec.json supplyChain.hyprland and supplyChain.aquamarine.
+;;; with the rounded-border patch and Aquamarine 0.14.0, whose reviewed source
+;;; SHA-256 values are noted below (test_build.py pins them).
 ;;;
 ;;; This file is project code, not part of the authenticated Guix channel: it is
 ;;; reviewed and committed like any other source. The build passes this
@@ -166,8 +166,8 @@
    `(("toolchain" ,gcc-toolchain-15))))
 
 ;; Aquamarine does not refresh its mode cache when QEMU changes the virtio-gpu
-;; EDID. This helper (byte-identical to the Arch guest's
-;; omarchy-native-display-sync, see test_build.py) parses the fresh EDID and
+;; EDID. This helper (Try Omarchy's omarchy-native-display-sync) parses the
+;; fresh EDID and
 ;; applies a complete modeline through hyprctl on every DRM hotplug change.
 ;; It runs as a child of the Hyprland session, started from hypr-vm.lua.
 (define roguix-display-sync
@@ -199,7 +199,7 @@
     (license license:expat)))
 
 ;; The Omarchy 4 shell is a Quickshell application; the Arch guest runs it on
-;; Quickshell 0.3.1 (guest/packages.lock.json), one release after Guix's.
+;; Quickshell 0.3.1, one release after Guix's.
 (define quickshell-0.3
   (package
     (inherit quickshell)
