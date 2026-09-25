@@ -983,7 +983,12 @@ final class StartMenuWindow: NSObject, NSWindowDelegate {
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: content.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: content.topAnchor),
+            // Start below the transparent title bar, so scrolled content
+            // never slides under the window's close and minimize buttons.
+            scrollView.topAnchor.constraint(
+                equalTo: (window.contentLayoutGuide as? NSLayoutGuide)?.topAnchor
+                    ?? content.topAnchor
+            ),
             scrollView.bottomAnchor.constraint(equalTo: actions.topAnchor, constant: -12),
             actions.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 42),
             actions.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -42),
@@ -992,7 +997,8 @@ final class StartMenuWindow: NSObject, NSWindowDelegate {
             document.heightAnchor.constraint(greaterThanOrEqualTo: scrollView.contentView.heightAnchor),
             stack.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 42),
             stack.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -42),
-            stack.topAnchor.constraint(equalTo: document.topAnchor, constant: 26),
+            // The title bar above the scroll view now provides the old 26 pt.
+            stack.topAnchor.constraint(equalTo: document.topAnchor),
             stack.bottomAnchor.constraint(equalTo: document.bottomAnchor),
             headingStack.widthAnchor.constraint(equalTo: stack.widthAnchor),
             permissionCard.widthAnchor.constraint(equalTo: stack.widthAnchor),
