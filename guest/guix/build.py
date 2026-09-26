@@ -67,7 +67,7 @@ def build(args):
     command = [
         "guix", "time-machine", "--channels=CHANNELS", "--", "system", "image",
         f"--load-path={HERE / 'modules'}",
-        "--system=aarch64-linux", "--image-type=efi-raw", "--image-size=12G",
+        "--system=aarch64-linux", "--image-type=efi-raw", "--image-size=20G",
         f"--root={output}", str(HERE / "system.scm"),
     ]
     if args.check:
