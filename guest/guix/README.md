@@ -93,7 +93,7 @@ herdr-job run --name "Build image" -- guest/guix/vm-run 'guix time-machine ... -
 herdr-job wait <id>
 ```
 
-The default output `dist/guix/image.raw` is a Guix GC-root symlink to a 12 GiB
+The default output `dist/guix/image.raw` is a Guix GC-root symlink to a 20 GiB
 raw EFI disk image, not an unpartitioned ext4 filesystem. Copy the image, not
 just the symlink, when transferring it to macOS. An existing output, including
 a dangling symlink, is refused rather than replaced. Choose another `--output`
