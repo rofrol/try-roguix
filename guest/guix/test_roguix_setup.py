@@ -6,6 +6,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+import unittest.mock
 
 HERE = Path(__file__).parent
 path = HERE / "modules" / "roguix" / "roguix-setup"
@@ -92,6 +93,10 @@ class SuggestionTests(unittest.TestCase):
         bad = base64.urlsafe_b64encode(b"../../etc/passwd").decode()
         self.assertEqual(setup.suggested_timezone({"tryomarchy.timezone": bad}), "Etc/UTC")
         self.assertEqual(setup.suggested_timezone({}), "Etc/UTC")
+
+    def test_zoneinfo_comes_from_tzdir(self):
+        with unittest.mock.patch.dict("os.environ", {"TZDIR": str(self.zoneinfo)}):
+            self.assertEqual(setup.system_zoneinfo(), str(self.zoneinfo))
 
     def test_zone_list_offers_regions_and_utc(self):
         self.assertEqual(setup.zones(str(self.zoneinfo)),

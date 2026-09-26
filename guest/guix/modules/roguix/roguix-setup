@@ -25,7 +25,25 @@ CONFIG = "/etc/config.scm"
 HOST_SETTINGS = "/run/roguix/host-settings"
 BEGIN = ";; BEGIN roguix setup"
 END = ";; END roguix setup"
-ZONEINFO = "/run/current-system/profile/share/zoneinfo"
+
+
+def system_zoneinfo():
+    """The zoneinfo directory of the running system's tzdata.
+
+    Guix keeps tzdata out of the system profile: TZDIR names it in login
+    shells, and /run/current-system/etc/localtime links into it otherwise.
+    """
+    tzdir = os.environ.get("TZDIR", "")
+    if os.path.isdir(tzdir):
+        return tzdir
+    target = os.path.realpath("/run/current-system/etc/localtime")
+    marker = "/share/zoneinfo/"
+    if marker in target:
+        return target[:target.index(marker) + len(marker) - 1]
+    return "/usr/share/zoneinfo"
+
+
+ZONEINFO = system_zoneinfo()
 RECONFIGURE = "/run/current-system/profile/bin/roguix-reconfigure"
 RECONFIGURE_LOG = "/var/log/roguix-setup-reconfigure.log"
 GUM = "gum"
