@@ -61,7 +61,8 @@ the Omarchy menu, **Super+Alt+Space** the app launcher, **Super+W** closes a
 window. Command acts as Super while the VM window is focused, except
 Command-Tab, which stays with the Mac's app switcher. Omarchy's
 Install, Remove and Update menus manage Guix packages and the Guix system
-configuration. A VM created before the
+configuration. [docs/omarchy-packages.md](docs/omarchy-packages.md) lists
+where Roguix's applications differ from Omarchy's. A VM created before the
 Omarchy desktop keeps its old one; **Reset Roguix** starts a new one.
 
 ## Using the Mac integrations
