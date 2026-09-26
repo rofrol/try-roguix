@@ -9,12 +9,8 @@
   #:use-module (gnu)
   #:use-module (gnu system linux-initrd)
   #:use-module (gnu system locale)
-  #:use-module (guix derivations)
   #:use-module (guix gexp)
   #:use-module (guix grafts)
-  #:use-module (guix monads)
-  #:use-module ((guix store) #:select (%store-monad))
-  #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-9)
   #:use-module (roguix integrations)
@@ -97,66 +93,6 @@
                                                system target)
   (operating-system-derivation (system-closure-os closure)))
 
-;; A graft derivation produces every output of the package it grafts, but the
-;; image holds only the outputs the system refers to. A VM's first reconfigure
-;; then found such grafts incomplete (glib:debug, glibc:static, ...), fetched
-;; the ungrafted outputs and grafted most of the system again, for about half
-;; an hour. The image therefore keeps every output of the system's grafts.
-(define %graft-outputs-root "/var/guix/gcroots/roguix-graft-outputs")
-
-(define-record-type <graft-outputs>
-  (graft-outputs os)
-  graft-outputs?
-  (os graft-outputs-os))
-
-(define (graft? drv)
-  (eq? 'graft (assq-ref (derivation-properties drv) 'type)))
-
-(define (local-build? drv)
-  (equal? "1" (assoc-ref (derivation-builder-environment-vars drv)
-                         "preferLocalBuild")))
-
-(define (system-grafts drv)
-  "Return the graft derivations DRV, a system derivation, depends on. Only
-grafts and the system's own local derivations are searched; package builds
-below them are not."
-  (let loop ((todo (list drv)) (seen (make-hash-table)) (grafts '()))
-    (match todo
-      (() grafts)
-      ((current . rest)
-       (let ((file (derivation-file-name current)))
-         (if (or (hash-ref seen file)
-                 (not (or (eq? current drv) (graft? current)
-                          (local-build? current))))
-             (loop rest seen grafts)
-             (begin
-               (hash-set! seen file #t)
-               (loop (append (map derivation-input-derivation
-                                  (derivation-inputs current))
-                             rest)
-                     seen
-                     (if (graft? current) (cons current grafts) grafts)))))))))
-
-(define-gexp-compiler (graft-outputs-compiler (roots <graft-outputs>)
-                                              system target)
-  (mlet %store-monad ((drv (operating-system-derivation
-                            (graft-outputs-os roots))))
-    (let ((outputs (append-map (lambda (graft)
-                                 (map (lambda (output)
-                                        (gexp-input graft (car output)))
-                                      (derivation-outputs graft)))
-                               (system-grafts drv))))
-      (gexp->derivation "roguix-graft-outputs"
-                        #~(begin
-                            (mkdir #$output)
-                            (let loop ((items (list #$@outputs)) (index 0))
-                              (unless (null? items)
-                                (symlink (car items)
-                                         (string-append #$output "/"
-                                                        (number->string index)))
-                                (loop (cdr items) (+ index 1)))))
-                        #:local-build? #t))))
-
 (define* (roguix-operating-system #:key (packages '())
                                   (host-name "roguix") (timezone "Etc/UTC")
                                   (keyboard-layout "us") keyboard-variant)
@@ -168,11 +104,10 @@ first-start setup's answers (roguix-setup)."
     (operating-system
       (inherit os)
       (services
-       (cons* (extra-special-file %ungrafted-root
-                                  (with-parameters ((%graft? #f))
-                                    (system-closure os)))
-              (extra-special-file %graft-outputs-root (graft-outputs os))
-              (operating-system-user-services os))))))
+       (cons (extra-special-file %ungrafted-root
+                                 (with-parameters ((%graft? #f))
+                                   (system-closure os)))
+             (operating-system-user-services os))))))
 
 (define (base-operating-system packages host-name timezone layout variant)
   (operating-system
