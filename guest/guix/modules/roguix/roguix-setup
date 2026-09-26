@@ -266,10 +266,38 @@ def apply_system(host_name, timezone):
     os.replace(staging, "/etc/localtime")
 
 
+def session_bus(uid, proc="/proc"):
+    """The D-Bus session address of UID's desktop, or None.
+
+    The session runs under dbus-run-session, whose bus has a random path,
+    so it is read from the environment of the account's compositor.
+    """
+    for pid in os.listdir(proc):
+        if not pid.isdigit():
+            continue
+        try:
+            if os.stat(os.path.join(proc, pid)).st_uid != uid:
+                continue
+            with open(os.path.join(proc, pid, "comm")) as stream:
+                if stream.read().strip() != "Hyprland":
+                    continue
+            with open(os.path.join(proc, pid, "environ"), "rb") as stream:
+                variables = stream.read().split(b"\0")
+        except OSError:
+            continue
+        for variable in variables:
+            if variable.startswith(b"DBUS_SESSION_BUS_ADDRESS="):
+                return variable.split(b"=", 1)[1].decode()
+    return None
+
+
 def notify(summary, body):
     """Show a desktop notification in the account's session, if it is up."""
     account = pwd.getpwnam(ACCOUNT)
     runtime = f"/run/user/{account.pw_uid}"
+    bus = session_bus(account.pw_uid)
+    if bus is None:
+        return
     if os.fork() == 0:
         try:
             os.setgid(account.pw_gid)
@@ -278,7 +306,7 @@ def notify(summary, body):
             os.execvpe("notify-send", ["notify-send", summary, body],
                        dict(os.environ, HOME=account.pw_dir,
                             XDG_RUNTIME_DIR=runtime,
-                            DBUS_SESSION_BUS_ADDRESS=f"unix:path={runtime}/bus"))
+                            DBUS_SESSION_BUS_ADDRESS=bus))
         finally:
             os._exit(1)
     os.wait()
