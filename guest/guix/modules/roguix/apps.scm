@@ -173,6 +173,8 @@ Omarchy binds it to Super+Shift+Alt+M.")
   (package
     (inherit obs)
     (arguments
+     ;; The point of the variant: the build fails if VLC or Qt 5 remain.
+     (cons* #:disallowed-references (list vlc qtbase-5)
      (substitute-keyword-arguments (package-arguments obs)
        ((#:configure-flags flags #~'())
         #~(cons "-DENABLE_VLC=OFF" #$flags))
@@ -184,7 +186,7 @@ Omarchy binds it to Super+Shift+Alt+M.")
                   `("QT_PLUGIN_PATH" ":" prefix (,(getenv "QT_PLUGIN_PATH")))
                   ;; Guix's OBS needs Mesa's libraries until Mesa has glvnd.
                   `("LD_LIBRARY_PATH" ":" prefix
-                    (,(string-append #$(this-package-input "mesa") "/lib"))))))))))
+                    (,(string-append #$(this-package-input "mesa") "/lib")))))))))))
     (inputs (modify-inputs (package-inputs obs)
               (delete "vlc")))))
 
@@ -192,12 +194,14 @@ Omarchy binds it to Super+Shift+Alt+M.")
   (package
     (inherit fcitx5-qt)
     (arguments
+     ;; The point of the variant: the build fails if Qt 5 remains.
+     (cons* #:disallowed-references (list qtbase-5)
      (substitute-keyword-arguments (package-arguments fcitx5-qt)
        ((#:configure-flags flags #~'())
         #~(cons "-DENABLE_QT5=Off" #$flags))
        ;; The only upstream test covers the Qt 5 library's key translation,
        ;; which the Qt 6 build does not have; ctest would find no tests.
-       ((#:tests? _ #t) #f)))
+       ((#:tests? _ #t) #f))))
     (inputs (modify-inputs (package-inputs fcitx5-qt)
               ;; qtbase-5 and qtbase (6) share the label "qtbase".
               (delete "qtbase")
