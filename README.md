@@ -38,9 +38,19 @@ as a record of the removed Arch guest.
 
 The Guix guest boots from the app, keeps its disk, and every integration above
 has been verified end to end through the launcher except Touch ID enrollment,
-which needs a finger on the Mac. There are no release builds yet; build from
-source. See [guest/guix/README.md](guest/guix/README.md) for the verified
-results and what is still open.
+which needs a finger on the Mac. See [guest/guix/README.md](guest/guix/README.md)
+for the verified results and what is still open.
+
+## Install
+
+Download `TryRoguix.dmg` from the
+[latest release](https://github.com/rofrol/try-roguix/releases/latest) on an
+Apple Silicon Mac with macOS 15 or newer, and drag the app to Applications.
+Releases are not notarized yet: after macOS refuses the first launch, allow
+it in **System Settings > Privacy & Security > Open Anyway**. Compare the
+download with the release's `SHA256SUMS` if you like. The first launch
+downloads the Roguix disk, about 3 GB, from the same release and checks it
+before use. How releases are made: [docs/releasing.md](docs/releasing.md).
 
 ## Quick start (from source)
 
@@ -52,9 +62,12 @@ results and what is still open.
 3. Build and open the app: `make run`. It is built as
    `dist/app.noindex/Try Roguix.app`.
 
-On the first start the VM console asks for the password of the account
-`guest`, twice. The desktop then starts without it; `sudo` asks for it. Every
-later start goes straight to Hyprland.
+On the first start the VM console asks, as Omarchy's installer does, for the
+keyboard layout, the password of the account `guest` (for `sudo`), an
+optional Git name and email, the host name and the time zone; the Mac's
+keyboard layout and time zone are suggested. The settings work at once, and
+Roguix makes them permanent in the background, which a desktop notification
+reports. Every later start goes straight to Hyprland.
 
 The desktop is Omarchy's: **Super+Return** opens a terminal, **Super+Space**
 the Omarchy menu, **Super+Alt+Space** the app launcher, **Super+W** closes a
