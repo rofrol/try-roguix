@@ -155,7 +155,9 @@
                                      (string-append bin "/" (basename command))))
                           (find-files (string-append #$output
                                                      "/share/omarchy/bin")))))))))
-    (native-inputs (list python-minimal))
+    ;; patch-shebangs points Omarchy's Python commands here; the agent-usage
+    ;; ones need sqlite3, which python-minimal lacks.
+    (native-inputs (list python))
     (inputs (list bash))
     (home-page "https://omarchy.org")
     (synopsis "Omarchy desktop configuration, shell and commands")
@@ -262,6 +264,30 @@ gate_failed() {
                   (call-with-output-file file
                     (lambda (port) (format port "#!~a~%~a" sh text)))
                   (chmod file #o555)))
+              ;; setpriv --pdeathsig SIGNAL COMMAND...: Guix's util-linux has
+              ;; no setpriv; Omarchy's shell uses only this option, to end its
+              ;; clipboard watchers with it.
+              (let ((file (string-append #$output "/bin/setpriv")))
+                (call-with-output-file file
+                  (lambda (port)
+                    (format port "#!~a~%~a"
+                            #$(file-append python-minimal "/bin/python3") "\
+import ctypes, os, signal, sys
+arguments = sys.argv[1:]
+while arguments and arguments[0].startswith('--'):
+    option = arguments.pop(0)
+    if option == '--':
+        break
+    if option != '--pdeathsig' or not arguments:
+        sys.exit(f'setpriv: Roguix supports only --pdeathsig, not {option}')
+    name = arguments.pop(0).upper()
+    number = int(name) if name.isdigit() else signal.Signals[
+        name if name.startswith('SIG') else 'SIG' + name]
+    # PR_SET_PDEATHSIG survives the exec below.
+    ctypes.CDLL(None, use_errno=True).prctl(1, int(number), 0, 0, 0)
+os.execvp(arguments[0], arguments)
+")))
+                (chmod file #o555))
               ;; uwsm-app [OPTIONS] -- COMMAND...: run COMMAND directly.
               (shim "uwsm-app" "\
 while [ $# -gt 0 ] && [ \"$1\" != -- ]; do shift; done
