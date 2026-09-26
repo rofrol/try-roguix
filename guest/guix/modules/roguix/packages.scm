@@ -30,6 +30,7 @@
             wayland-protocols-1.49
             aquamarine-0.14
             hyprland-0.56
+            xdg-desktop-portal-hyprland-0.56
             roguix-display-sync
             quickshell-0.3))
 
@@ -164,6 +165,18 @@
                ;; hyprctl 0.56 gains an interactive mode using readline.
                (append libei readline)))))
    `(("toolchain" ,gcc-toolchain-15))))
+
+;; Guix's portal is built against its Hyprland 0.55.4, which would put a
+;; second Hyprland in the system and give the share picker a 0.55 hyprctl for
+;; a 0.56 compositor. Omarchy's screen sharing and screenshots go through it.
+;; The portal itself keeps Guix's hyprutils 0.13 through hyprlang, one version
+;; within its process, as hyprpicker and hyprsunset already have.
+(define xdg-desktop-portal-hyprland-0.56
+  ;; Hyprland first: rewriting the libraries first would rebuild Guix's
+  ;; 0.55.4 against them, which then no longer matches for replacement.
+  (rewrite-hypr-libraries
+   ((package-input-rewriting `((,hyprland . ,hyprland-0.56)))
+    xdg-desktop-portal-hyprland)))
 
 ;; Aquamarine does not refresh its mode cache when QEMU changes the virtio-gpu
 ;; EDID. This helper (Try Omarchy's omarchy-native-display-sync) parses the

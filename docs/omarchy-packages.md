@@ -20,6 +20,14 @@ VLC brought the whole Qt 5 stack. Roguix builds OBS without it
 the system has no Qt 5; both refuse to build if Qt 5 comes back. Omarchy's
 own applications use Qt 6 or GTK.
 
+## Rebuilt for Roguix
+
+| Omarchy | Roguix | Why |
+| --- | --- | --- |
+| `xdg-desktop-portal-hyprland` | `xdg-desktop-portal-hyprland-0.56` | Guix builds it against its own Hyprland 0.55.4: a second Hyprland in the system, and a 0.55 `hyprctl` in the share picker talking to Roguix's 0.56 compositor, whose dispatchers changed. Roguix rebuilds it against its Hyprland and hypr libraries. |
+| `obs-studio` | `obs-without-vlc` | See above. |
+| `fcitx5-qt` | `fcitx5-qt6` | See above. |
+
 ## Replaced by a Roguix counterpart
 
 | Omarchy | Roguix | Why |
@@ -59,10 +67,9 @@ not been reviewed.
   (Thunderbolt), `ddcutil` (external monitors), `power-profiles-daemon`,
   `plymouth`, `wireless-regdb`.
 - Printing: `cups`, `cups-filters`, `cups-pk-helper`, `system-config-printer`.
-- Desktop pieces: `gnome-keyring`, `gnome-themes-extra`, `sushi`, `gvfs`
+- Desktop pieces: `gnome-themes-extra`, `sushi`, `gvfs`
   (Omarchy's `gvfs-mtp`, `gvfs-nfs`, `gvfs-smb`), `udiskie`,
-  `xdg-desktop-portal-gtk`, `xdg-desktop-portal-hyprland`,
-  `ffmpegthumbnailer`, `mpv-mpris`, `gpu-screen-recorder`, `moonlight-qt`,
+  `ffmpegthumbnailer`, `gpu-screen-recorder`, `moonlight-qt`,
   `font-google-noto`, `font-google-noto-emoji`, `font-awesome`.
 - Developer tools: `clang`, `llvm`, `ruby`, `lua@5.1`, `luarocks`, `mise`,
   `tree-sitter-cli`, `fakeroot`, `docker-compose`, `python-pygobject`,
@@ -72,6 +79,17 @@ not been reviewed.
   `plocate`, `qrencode`, `zbar`, `nss-mdns`,
   `tesseract-ocr-tessdata-fast` (`tesseract-data-eng`).
 - `libreoffice`: left out for now; see `%omarchy-applications`.
+
+### Decided against, for now
+
+- `gnome-keyring`: Roguix logs in automatically without a password, so
+  nothing unlocks the login keyring; every application that stores a secret
+  would ask for the password instead. Needs its own design (an unlocked
+  keyring, or unlocking it from the first-start password) before it is
+  added.
+- `mpv-mpris`: the package is a plugin that mpv only loads when its
+  configuration names it, which Roguix does not set up; on its own it
+  changes nothing.
 
 Omarchy's optional list, `install/omarchy-other.packages`, is not covered
 here.

@@ -198,6 +198,8 @@ configuration, Quickshell desktop shell, themes and helper commands.")
           "less" "man-db" "tldr" "grim" "slurp" "hyprpicker" "wtype"
           "imagemagick" "yt-dlp" "tesseract-ocr" "pamixer" "brightnessctl"
           "playerctl" "unzip" "whois"
+          ;; Portals: file choosers and screen sharing for sandboxed apps.
+          "xdg-desktop-portal" "xdg-desktop-portal-gtk"
           ;; Omarchy runs fcitx5 for compose keys; Chewing and Noto CJK back
           ;; the optional Traditional Chinese language.
           "fcitx5" "fcitx5-chewing" "fcitx5-gtk"
