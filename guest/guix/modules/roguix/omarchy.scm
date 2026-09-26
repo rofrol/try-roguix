@@ -187,7 +187,8 @@ configuration, Quickshell desktop shell, themes and helper commands.")
 
 ;; Omarchy's default applications (install/omarchy-base.packages): Guix's
 ;; packages, LibreWolf standing in for Chromium, and (roguix apps) for those
-;; Guix lacks. Not provided: LibreOffice, Pinta, LocalSend, Signal, Obsidian.
+;; Guix lacks. Not provided: LibreOffice, Pinta, LocalSend, Signal, Obsidian;
+;; docs/omarchy-packages.md lists every difference from Omarchy's list.
 (define %omarchy-applications
   (append
    (map specification->package
