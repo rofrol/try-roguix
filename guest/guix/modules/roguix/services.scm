@@ -115,16 +115,19 @@
                         (string-prefix? "!" (substring line (string-length prefix))))
                        (else (loop))))))))
 
-       ;; roguix-setup asks on tty1 as its controlling terminal; asked again
-       ;; until the password is set, so an interrupted setup starts over.
+       ;; roguix-setup asks on tty1 as its controlling terminal, which
+       ;; setsid -c takes from its own standard input, so the shell opens
+       ;; tty1 before running setsid. Asked again until the password is set,
+       ;; so an interrupted setup starts over.
        (setenv "TERM" "linux")
        (let loop ((attempts 0))
          (when (and (locked?) (< attempts 50))
-           (system* #$(file-append util-linux "/bin/setsid") "-w" "-c"
-                    #$(file-append bash-minimal "/bin/sh") "-c"
-                    (string-append "exec " #$(file-append roguix-setup
-                                                          "/bin/roguix-setup")
+           (system* #$(file-append bash-minimal "/bin/sh") "-c"
+                    (string-append "exec " #$(file-append util-linux "/bin/setsid")
+                                   " -w -c " #$(file-append roguix-setup
+                                                           "/bin/roguix-setup")
                                    " <>/dev/tty1 >&0 2>&0"))
+           (sleep 1)
            (loop (+ attempts 1)))))))
 
 (define (first-boot-shepherd-service _)
