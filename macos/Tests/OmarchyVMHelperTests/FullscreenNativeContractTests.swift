@@ -96,6 +96,31 @@ struct FullscreenNativeContractTests {
         #expect(fullGrab.lowerBound < reenable.lowerBound)
     }
 
+    @Test("Command-Tab reaches the macOS app switcher despite full grab")
+    func commandTabPassesThrough() throws {
+        let patch = try source(named: "patches/qemu-cocoa-command-tab.patch")
+        let builder = try source(named: "build-qemu-gpu-runtime.sh")
+
+        // Both the key down and its key up must bypass the guest, or the
+        // guest sees a Tab release without its press.
+        #expect(patch.contains("type == kCGEventKeyDown || type == kCGEventKeyUp"))
+        #expect(patch.contains("== kVK_Tab"))
+        #expect(patch.contains("kCGEventFlagMaskCommand"))
+
+        // The bypass has to come before the tap hands the event to the guest.
+        let bypass = try #require(patch.range(of: "== kVK_Tab"))
+        let capture = try #require(patch.range(of: "[view handleEvent:event]"))
+        #expect(bypass.lowerBound < capture.lowerBound)
+
+        let reenable = try #require(
+            builder.range(of: "patch -d \"$source_dir\" -p1 -f -i \"$reenable_patch\"")
+        )
+        let commandTab = try #require(
+            builder.range(of: "patch -d \"$source_dir\" -p1 -f -i \"$command_tab_patch\"")
+        )
+        #expect(reenable.lowerBound < commandTab.lowerBound)
+    }
+
     private func source(named relativePath: String) throws -> String {
         let testFile = URL(fileURLWithPath: #filePath)
         let macosDirectory = testFile
