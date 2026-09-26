@@ -180,6 +180,19 @@ struct QEMUStandardErrorDrainTests {
             ))
     }
 
+    @Test("reports the last complete disk download line as a percentage")
+    func parsesDiskDownloadProgress() {
+        let output = """
+            [qemu-gpu] Downloading Roguix: 0 of 400 bytes
+            noise [qemu-gpu] Downloading Roguix: 399 of 400 bytes
+            [qemu-gpu] Downloading Roguix: 100 of 400 bytes
+            [qemu-gpu] Downloading Roguix: 500 of 400 bytes
+            [qemu-gpu] Downloading Roguix: 2
+            """
+        #expect(QEMUGPUProcessSupervisor.diskDownloadPercent(in: output) == 25)
+        #expect(QEMUGPUProcessSupervisor.diskDownloadPercent(in: "startup\n") == nil)
+    }
+
     @Test("ignores a Ready marker embedded inside another diagnostic line")
     func readyMarkerMustStartItsLine() {
         let output = """

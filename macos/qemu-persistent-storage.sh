@@ -818,6 +818,130 @@ qemu_persistent_storage_materialize_source() {
   _qps_error "materialized immutable base image ${qps_identity:0:12}"
 }
 
+# A release app ships without the compressed root disk; it downloads it from
+# the release's assets instead, split into parts of PART_BYTES because GitHub
+# limits each asset to 2 GiB (docs/releasing.md). The parts are appended into
+# one file as they are verified, so the download needs at most one part of
+# extra space, and the result must match the size and SHA-256 that the signed
+# launch configuration pins before it is expanded; the expanded disk is then
+# checked against its own digest as for a bundled one. Sets
+# QEMU_DOWNLOADED_COMPRESSED_DISK, or QEMU_IMMUTABLE_SOURCE_DISK when the base
+# image is already materialized and nothing needs downloading.
+qemu_persistent_storage_fetch_compressed_source() {
+  local qps_identity=${1:-}
+  local qps_url_base=${2:-}
+  local qps_part_bytes=${3:-}
+  local qps_compressed_bytes=${4:-}
+  local qps_compressed_sha=${5:-}
+  local qps_source_bytes=${6:-}
+  local qps_final='' qps_download='' qps_parts='' qps_part='' qps_url=''
+  local qps_count=0 qps_index=0 qps_expected=0 qps_have=0 qps_done=0
+  local qps_curl_pid='' qps_actual=''
+  local qps_proto=${QEMU_PERSISTENT_STORAGE_DOWNLOAD_PROTOCOLS:-=https}
+
+  QEMU_DOWNLOADED_COMPRESSED_DISK=''
+  QEMU_IMMUTABLE_SOURCE_DISK=''
+  _qps_is_identity "$qps_identity" || {
+    _qps_fail 'bundle identity must be exactly 64 lowercase hexadecimal characters'
+    return 1
+  }
+  _qps_is_identity "$qps_compressed_sha" || {
+    _qps_fail 'compressed disk digest must be exactly 64 lowercase hexadecimal characters'
+    return 1
+  }
+  _qps_is_positive_integer "$qps_part_bytes" || return 1
+  _qps_is_positive_integer "$qps_compressed_bytes" || return 1
+  _qps_is_positive_integer "$qps_source_bytes" || return 1
+  [[ $qps_url_base =~ ^[a-z]+://[^[:space:]]+/$ ]] || {
+    _qps_fail 'root disk download location is invalid'
+    return 1
+  }
+
+  _qps_prepare_state_root || return 1
+  qps_final="$QEMU_PERSISTENT_STORAGE_IMAGES_ROOT/$qps_identity.$QPS_IMAGE_SUFFIX"
+  if [[ -e $qps_final || -L $qps_final ]]; then
+    _qps_validate_immutable_source "$qps_final" "$qps_source_bytes" || return 1
+    QEMU_IMMUTABLE_SOURCE_DISK=$qps_final
+    return 0
+  fi
+
+  qps_download="$QEMU_PERSISTENT_STORAGE_IMAGES_ROOT/.$qps_identity.download.zst"
+  qps_parts="$QEMU_PERSISTENT_STORAGE_IMAGES_ROOT/.$qps_identity.download.parts"
+  qps_count=$(((qps_compressed_bytes + qps_part_bytes - 1) / qps_part_bytes))
+  (( qps_count <= 99 )) || { _qps_fail 'root disk download has too many parts'; return 1; }
+
+  if [[ -f $qps_download && ! -L $qps_download ]] &&
+     [[ $(_qps_size "$qps_download") == "$qps_compressed_bytes" ]]; then
+    :
+  else
+    /bin/rm -f -- "$qps_download"
+    if ! _qps_assert_free_space "$QEMU_PERSISTENT_STORAGE_IMAGES_ROOT" \
+      "$((qps_compressed_bytes + qps_part_bytes + qps_source_bytes + QEMU_PERSISTENT_STORAGE_HEADROOM_BYTES))"; then
+      return 1
+    fi
+    /bin/mkdir -p -m 700 "$qps_parts" || return 1
+    _qps_assert_private_directory "$qps_parts" 'root disk download' || return 1
+    for ((qps_index = 0; qps_index < qps_count; qps_index++)); do
+      qps_part=$(printf '%s/disk.raw.zst.%02d' "$qps_parts" "$qps_index")
+      qps_url=$(printf '%sdisk.raw.zst.%02d' "$qps_url_base" "$qps_index")
+      qps_expected=$qps_part_bytes
+      (( qps_index == qps_count - 1 )) &&
+        qps_expected=$((qps_compressed_bytes - qps_part_bytes * (qps_count - 1)))
+      qps_have=$(_qps_size "$qps_part" 2>/dev/null || echo 0)
+      [[ $qps_have =~ ^[0-9]+$ ]] || qps_have=0
+      if (( qps_have > qps_expected )); then
+        /bin/rm -f -- "$qps_part"
+        qps_have=0
+      fi
+      if (( qps_have < qps_expected )); then
+        /usr/bin/curl --fail --location --silent --show-error \
+          --proto "$qps_proto" --proto-redir "$qps_proto" \
+          --retry 5 --retry-all-errors --connect-timeout 20 \
+          --continue-at - --output "$qps_part" "$qps_url" &
+        qps_curl_pid=$!
+        while kill -0 "$qps_curl_pid" 2>/dev/null; do
+          qps_have=$(_qps_size "$qps_part" 2>/dev/null || echo 0)
+          printf '[qemu-gpu] Downloading Roguix: %s of %s bytes\n' \
+            "$((qps_done + ${qps_have:-0}))" "$qps_compressed_bytes" >&2
+          sleep 2
+        done
+        if ! wait "$qps_curl_pid"; then
+          _qps_fail "could not download part $((qps_index + 1)) of the Roguix disk"
+          return 1
+        fi
+      fi
+      [[ $(_qps_size "$qps_part") == "$qps_expected" ]] || {
+        /bin/rm -f -- "$qps_part"
+        _qps_fail "part $((qps_index + 1)) of the Roguix disk has the wrong size"
+        return 1
+      }
+      qps_done=$((qps_done + qps_expected))
+    done
+    printf '[qemu-gpu] Downloading Roguix: %s of %s bytes\n' \
+      "$qps_compressed_bytes" "$qps_compressed_bytes" >&2
+    ( umask 077 && : > "$qps_download" ) || return 1
+    for ((qps_index = 0; qps_index < qps_count; qps_index++)); do
+      qps_part=$(printf '%s/disk.raw.zst.%02d' "$qps_parts" "$qps_index")
+      /bin/cat "$qps_part" >> "$qps_download" || return 1
+      /bin/rm -f -- "$qps_part"
+    done
+    /bin/rmdir "$qps_parts" 2>/dev/null || true
+  fi
+
+  [[ $(_qps_size "$qps_download") == "$qps_compressed_bytes" ]] || {
+    /bin/rm -f -- "$qps_download"
+    _qps_fail 'the downloaded Roguix disk has the wrong size'
+    return 1
+  }
+  qps_actual=$(_qps_sha256 "$qps_download") || return 1
+  if [[ $qps_actual != "$qps_compressed_sha" ]]; then
+    /bin/rm -f -- "$qps_download"
+    _qps_fail 'the downloaded Roguix disk does not match its signed digest'
+    return 1
+  fi
+  QEMU_DOWNLOADED_COMPRESSED_DISK=$qps_download
+}
+
 _qps_remove_recognized_directory() {
   local qps_directory=$1
   local qps_identity=$2
