@@ -8,8 +8,10 @@
   #:use-module (guix packages)
   #:use-module (guix download)
   #:use-module (guix gexp)
+  #:use-module (guix utils)
   #:use-module (guix build-system copy)
   #:use-module ((guix licenses) #:prefix license:)
+  #:use-module (gnu packages admin)
   #:use-module (gnu packages base)
   #:use-module (gnu packages bash)
   #:use-module (gnu packages linux)
@@ -17,7 +19,8 @@
             lazydocker-bin
             gum-bin
             dua-bin
-            cliamp-bin))
+            cliamp-bin
+            fastfetch-without-zfs))
 
 ;; A statically linked upstream release: unpack the tarball into the build
 ;; directory and install PLAN (copy-build-system's #:install-plan).
@@ -143,3 +146,17 @@ Omarchy's Disk Usage entry runs it."))
     (description "Cliamp is a terminal music player inspired by Winamp;
 Omarchy binds it to Super+Shift+Alt+M.")
     (license license:expat)))
+
+;; Guix's fastfetch links ZFS for pool details, which a Roguix VM has none of.
+;; ZFS brings a kernel module build and, through Guix's grafts, a slow first
+;; roguix-update.
+(define fastfetch-without-zfs
+  (package
+    (inherit fastfetch)
+    (arguments
+     (substitute-keyword-arguments (package-arguments fastfetch)
+       ;; Guix links fastfetch's optional libraries directly.
+       ((#:configure-flags flags #~'())
+        #~(cons "-DENABLE_LIBZFS=OFF" #$flags))))
+    (inputs (modify-inputs (package-inputs fastfetch)
+              (delete "zfs")))))
