@@ -46,6 +46,9 @@ def console(command, wait=15.0, attempts=12):
                         chunk = b''
                     data += chunk
                     text = data.decode(errors='replace').replace('\r', '')
+                    # A fresh bash (after a reboot) wraps each prompt in
+                    # bracketed-paste escapes, which would hide the markers.
+                    text = re.sub(r'\x1b\[[0-9;?]*[A-Za-z]', '', text)
                     # The echoed input line holds the markers too; take the
                     # output that follows it.
                     found = re.search(rf'^{BEGIN}\n(.*?)^{END}$', text,
