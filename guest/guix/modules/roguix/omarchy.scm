@@ -129,7 +129,16 @@
                 ;; The menu decides what is installed from pacman's database.
                 (substitute* (string-append omarchy "/shell/plugins/menu/MenuModel.js")
                   (("pacman -Qq; LC_ALL=C pacman -Qi") "roguix-pkg list; true")
-                  (("pacman -Q \"[$]1\"") "roguix-pkg present \"$1\"")))))
+                  (("pacman -Q \"[$]1\"") "roguix-pkg present \"$1\""))
+                ;; Guix's Qt 6.9 QML parser rejects `transient', a reserved
+                ;; word in its grammar, as a variable name, and Quickshell then
+                ;; skips the whole notification service.
+                (substitute* (string-append omarchy
+                                            "/shell/plugins/notifications/Service.qml")
+                  (("var transient = ") "var isTransient = ")
+                  (("\\{ transient = ") "{ isTransient = ")
+                  (("^( *)transient = !!" _ indent) (string-append indent "isTransient = !!"))
+                  (("return transient [|][|]") "return isTransient ||")))))
           (add-after 'install 'use-roguix-logo
             ;; omarchy-show-logo and friends print logo.txt: say GUIX, in
             ;; Omarchy's own block lettering, instead of OMARCHY.
