@@ -181,7 +181,7 @@ configuration, Quickshell desktop shell, themes and helper commands.")
   (append
    (map specification->package
         '("librewolf" "xdg-utils" "nautilus" "evince" "gnome-disk-utility"
-          "xournalpp" "obs" "kdenlive" "btop" "fastfetch"
+          "xournalpp" "obs" "kdenlive" "btop"
           "neovim" "tmux" "git" "bat" "eza" "fd" "ripgrep" "zoxide" "starship"
           "less" "man-db" "tldr" "grim" "slurp" "hyprpicker" "wtype"
           "imagemagick" "yt-dlp" "tesseract-ocr" "pamixer" "brightnessctl"
@@ -190,7 +190,8 @@ configuration, Quickshell desktop shell, themes and helper commands.")
           ;; the optional Traditional Chinese language.
           "fcitx5" "fcitx5-chewing" "fcitx5-gtk" "fcitx5-qt"
           "font-google-noto-sans-cjk"))
-   (list lazygit-bin lazydocker-bin gum-bin dua-bin cliamp-bin)))
+   (list lazygit-bin lazydocker-bin gum-bin dua-bin cliamp-bin
+         fastfetch-without-zfs)))
 
 ;;; Compatibility commands for Omarchy's Arch assumptions, plus Try Omarchy's
 ;;; xdg-terminal-exec and the per-user seed.
@@ -309,9 +310,11 @@ guix=/var/guix/gcroots/roguix-guix/bin/guix
 dir=/var/lib/roguix/channel
 [ -d \"$dir/.git\" ] || $git clone --quiet --no-checkout " #$%roguix-channel-url " \"$dir\"
 $git -C \"$dir\" fetch --quiet origin main keyring
-( cd \"$dir\" && $guix git authenticate --keyring=origin/keyring --end=origin/main \\
+# --end takes a commit, not a branch name.
+head=$($git -C \"$dir\" rev-parse origin/main)
+( cd \"$dir\" && $guix git authenticate --keyring=origin/keyring --end=\"$head\" \\
     " #$%roguix-channel-introduction " '" #$%roguix-channel-signer "' )
-$git -C \"$dir\" checkout --quiet --detach origin/main
+$git -C \"$dir\" checkout --quiet --detach \"$head\"
 if ! cmp -s \"$dir/modules/roguix/guix-commit\" /etc/roguix/modules/roguix/guix-commit; then
   echo 'roguix-update: this Roguix release needs a newer Guix than this VM has;' >&2
   echo 'reset Roguix from the latest Try Roguix app to get it.' >&2
