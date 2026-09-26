@@ -203,7 +203,8 @@ first-start setup's answers (roguix-setup)."
 
     ;; Foot avoids the separate Kitty OpenGL-context workaround in the Arch
     ;; guest. Keep compositor rendering on VirGL, without a software override.
-    (packages (append (list hyprland-0.56 roguix-display-sync
+    (packages (append (list hyprland-0.56 xdg-desktop-portal-hyprland-0.56
+                            roguix-display-sync
                             foot wofi font-dejavu mesa-utils)
                       (map specification->package packages)
                       %base-packages))
