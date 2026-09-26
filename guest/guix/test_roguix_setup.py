@@ -1,6 +1,7 @@
 """roguix-setup: the first-start setup's config and suggestion handling."""
 
 import base64
+import os
 import importlib.machinery
 import importlib.util
 from pathlib import Path
@@ -97,6 +98,18 @@ class SuggestionTests(unittest.TestCase):
     def test_zoneinfo_comes_from_tzdir(self):
         with unittest.mock.patch.dict("os.environ", {"TZDIR": str(self.zoneinfo)}):
             self.assertEqual(setup.system_zoneinfo(), str(self.zoneinfo))
+
+    def test_session_bus_comes_from_the_compositor(self):
+        proc = self.zoneinfo / "proc"
+        uid = os.getuid()
+        for pid, comm, bus in (("7", "waybar", "unix:path=/tmp/other"),
+                               ("9", "Hyprland", "unix:path=/tmp/dbus-x")):
+            (proc / pid).mkdir(parents=True)
+            (proc / pid / "comm").write_text(comm + "\n")
+            (proc / pid / "environ").write_bytes(
+                b"A=1\0DBUS_SESSION_BUS_ADDRESS=" + bus.encode() + b"\0")
+        self.assertEqual(setup.session_bus(uid, str(proc)), "unix:path=/tmp/dbus-x")
+        self.assertIsNone(setup.session_bus(uid + 1, str(proc)))
 
     def test_zone_list_offers_regions_and_utc(self):
         self.assertEqual(setup.zones(str(self.zoneinfo)),
