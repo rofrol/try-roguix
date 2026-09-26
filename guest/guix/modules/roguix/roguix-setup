@@ -8,12 +8,14 @@ through the launcher's settings (/run/roguix/host-settings).
 
 System values go into the setup block of /etc/config.scm, between its
 markers, and take effect at once for this boot; the Git identity goes into
-the account's ~/.gitconfig. roguix-reconfigure then makes the system values
-part of the running system generation.
+the account's ~/.gitconfig. A reconfigure started in the background makes
+the system values part of the system generation, so they survive a restart;
+a notification tells the account when it has finished.
 """
 
 import base64
 import os
+import pwd
 import re
 import subprocess
 import sys
@@ -24,6 +26,8 @@ HOST_SETTINGS = "/run/roguix/host-settings"
 BEGIN = ";; BEGIN roguix setup"
 END = ";; END roguix setup"
 ZONEINFO = "/run/current-system/profile/share/zoneinfo"
+RECONFIGURE = "/run/current-system/profile/bin/roguix-reconfigure"
+RECONFIGURE_LOG = "/var/log/roguix-setup-reconfigure.log"
 GUM = "gum"
 
 # (label, XKB layout, XKB variant, console keymap). XKB drives Guix's
@@ -225,10 +229,13 @@ def set_password(password):
 
 
 def set_git_identity(name, email):
+    account = pwd.getpwnam(ACCOUNT)
+    path = os.path.join(account.pw_dir, ".gitconfig")
     for key, value in (("user.name", name), ("user.email", email)):
         if value:
-            run("runuser", "-u", ACCOUNT, "--", "git", "config", "--global",
-                key, value)
+            run("git", "config", "--file", path, key, value)
+    if os.path.exists(path):
+        os.chown(path, account.pw_uid, account.pw_gid)
 
 
 def apply_system(host_name, timezone):
@@ -239,6 +246,52 @@ def apply_system(host_name, timezone):
         os.remove(staging)
     os.symlink(zone, staging)
     os.replace(staging, "/etc/localtime")
+
+
+def notify(summary, body):
+    """Show a desktop notification in the account's session, if it is up."""
+    account = pwd.getpwnam(ACCOUNT)
+    runtime = f"/run/user/{account.pw_uid}"
+    if os.fork() == 0:
+        try:
+            os.setgid(account.pw_gid)
+            os.initgroups(ACCOUNT, account.pw_gid)
+            os.setuid(account.pw_uid)
+            os.execvpe("notify-send", ["notify-send", summary, body],
+                       dict(os.environ, HOME=account.pw_dir,
+                            XDG_RUNTIME_DIR=runtime,
+                            DBUS_SESSION_BUS_ADDRESS=f"unix:path={runtime}/bus"))
+        finally:
+            os._exit(1)
+    os.wait()
+
+
+def reconfigure_in_background():
+    """Apply /etc/config.scm in a process that outlives this setup."""
+    if os.fork() != 0:
+        return
+    try:
+        os.setsid()
+        if os.fork() != 0:
+            os._exit(0)
+        log = os.open(RECONFIGURE_LOG, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+        null = os.open(os.devnull, os.O_RDONLY)
+        os.dup2(null, 0)
+        os.dup2(log, 1)
+        os.dup2(log, 2)
+        environment = dict(os.environ, HOME="/root",
+                           PATH=os.environ.get("PATH", "") +
+                           ":/run/current-system/profile/bin"
+                           ":/run/current-system/profile/sbin")
+        done = subprocess.run([RECONFIGURE], env=environment).returncode == 0
+        if done:
+            notify("Roguix settings applied",
+                   "Host name, time zone and keyboard now survive a restart.")
+        else:
+            notify("Roguix settings not applied",
+                   f"They last until a restart; see {RECONFIGURE_LOG}.")
+    finally:
+        os._exit(0)
 
 
 def main():
@@ -263,7 +316,9 @@ def main():
                                                       layout[1], layout[2])))
     apply_system(host_name, timezone)
     set_password(password)
-    print(f"Saved in {CONFIG}. Starting the desktop.\n")
+    reconfigure_in_background()
+    print(f"Saved in {CONFIG}. Starting the desktop; the system applies the\n"
+          "settings in the background and says when they survive a restart.\n")
     return 0
 
 
