@@ -17,6 +17,7 @@
   #:use-module (guix build-system linux-module)
   #:use-module (guix build-system trivial)
   #:use-module ((guix licenses) #:prefix license:)
+  #:use-module (gnu packages admin)
   #:use-module (gnu packages base)
   #:use-module (gnu packages bash)
   #:use-module (gnu packages gnome)
@@ -24,7 +25,9 @@
   #:use-module (gnu packages pulseaudio)
   #:use-module (gnu packages tls)
   #:use-module (gnu packages python)
+  #:use-module (gnu packages version-control)
   #:use-module (gnu packages xdisorg)
+  #:use-module ((roguix apps) #:select (gum-bin))
   #:use-module (gnu services)
   #:use-module (gnu services base)
   #:use-module (gnu services linux)
@@ -45,6 +48,7 @@
             roguix-battery-module
             roguix-battery-service-type
             roguix-settings
+            roguix-setup
             roguix-settings-service-type
             roguix-touch-id
             roguix-touch-id-service-type
@@ -447,6 +451,19 @@ Roguix battery agent sets from the host.")
                              battery-shepherd-service)))
    (default-value #f)
    (description "Load the battery module and run the macOS battery agent.")))
+
+;;; First-start setup: Omarchy's owner setup questions (keyboard, password,
+;;; Git identity, host name, time zone) on tty1, suggested by the Mac; it
+;;; writes the setup block of /etc/config.scm (see roguix-setup).
+
+(define roguix-setup
+  (guest-python-script "roguix-setup" "roguix-setup"
+                       (local-file "roguix-setup")
+                       #:tools '("bin/gum" "sbin/chpasswd" "bin/loadkeys"
+                                 "sbin/runuser" "bin/git" "bin/hostname")
+                       #:inputs (list gum-bin shadow kbd util-linux git
+                                      inetutils)
+                       #:synopsis "Ask Roguix's first-start questions"))
 
 ;;; Settings: Omarchy's Setup menu (omarchy-menu.py) and the desktop entry
 ;;; ask the Mac app to show its settings with one line on

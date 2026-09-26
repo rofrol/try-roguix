@@ -68,6 +68,7 @@ test:
 	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/guest/guix/test_roguix_pkg.py"
 	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/guest/guix/test_omarchy_menu.py"
 	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/guest/guix/test_battery_bridge.py"
+	@PYTHONDONTWRITEBYTECODE=1 python3 "$(ROOT)/guest/guix/test_roguix_setup.py"
 	@$(ROOT)/macos/Tests/macos-compatibility.test.sh
 	@$(ROOT)/macos/Tests/runtime-relocation.test.sh
 	@mkdir -p $(ROOT)/macos/.build/module-cache/swift $(ROOT)/macos/.build/module-cache/clang

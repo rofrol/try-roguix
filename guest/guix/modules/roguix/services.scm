@@ -18,7 +18,9 @@
   #:use-module (gnu services)
   #:use-module (gnu services shepherd)
   #:use-module (guix gexp)
-  #:use-module ((roguix integrations) #:select (%roguix-host-settings-file))
+  #:use-module ((roguix integrations)
+                #:select (%roguix-host-settings-file roguix-setup))
+  #:use-module (gnu packages bash)
   #:export (%roguix-account
             roguix-grow-root-service-type
             roguix-first-boot-service-type
@@ -97,14 +99,13 @@
   (program-file
    "roguix-first-boot"
    #~(begin
-       (use-modules (ice-9 popen) (ice-9 rdelim))
+       (use-modules (ice-9 rdelim))
 
-       (define tty "/dev/tty1")
        (define prefix (string-append #$%roguix-account ":"))
 
        (define (locked?)
-         ;; Declared with the locked password "!"; anything else was set here
-         ;; or by the owner later.
+         ;; Declared with the locked password "!"; anything else was set by
+         ;; roguix-setup or by the owner later.
          (call-with-input-file "/etc/shadow"
            (lambda (port)
              (let loop ()
@@ -114,55 +115,25 @@
                         (string-prefix? "!" (substring line (string-length prefix))))
                        (else (loop))))))))
 
-       (define (stty . arguments)
-         (apply system* #$(file-append coreutils "/bin/stty") "-F" tty arguments))
-
-       (define (set-password! password)
-         (let ((pipe (open-pipe* OPEN_WRITE
-                                 #$(file-append shadow "/sbin/chpasswd")
-                                 "--crypt-method" "SHA512")))
-           (display (string-append prefix password "\n") pipe)
-           (zero? (status:exit-val (close-pipe pipe)))))
-
-       (when (locked?)
-         (let ((port (open-file tty "r+")))
-           (define (say . strings)
-             (for-each (lambda (text) (display text port)) strings)
-             (force-output port))
-           (define (ask prompt)
-             (say prompt)
-             (stty "-echo")
-             (let ((line (read-line port)))
-               (stty "echo")
-               (say "\n")
-               (if (eof-object? line) "" line)))
-           (say "\n\nRoguix: first start\n\n"
-                "Choose the password of the account '" #$%roguix-account "'.\n"
-                "The desktop starts without it; sudo asks for it.\n\n")
-           (let loop ()
-             (let ((password (ask "New password: ")))
-               (cond ((string-null? password)
-                      (say "The password must not be empty.\n\n")
-                      (loop))
-                     ;; chpasswd reads NAME:PASSWORD lines.
-                     ((string-index password #\:)
-                      (say "The password must not contain ':'.\n\n")
-                      (loop))
-                     ((not (string=? password (ask "Repeat it: ")))
-                      (say "The passwords differ.\n\n")
-                      (loop))
-                     ((not (set-password! password))
-                      (say "Could not set the password.\n\n")
-                      (loop)))))
-           (say "\nPassword set. Starting the desktop.\n")
-           (close-port port))))))
+       ;; roguix-setup asks on tty1 as its controlling terminal; asked again
+       ;; until the password is set, so an interrupted setup starts over.
+       (setenv "TERM" "linux")
+       (let loop ((attempts 0))
+         (when (and (locked?) (< attempts 50))
+           (system* #$(file-append util-linux "/bin/setsid") "-w" "-c"
+                    #$(file-append bash-minimal "/bin/sh") "-c"
+                    (string-append "exec " #$(file-append roguix-setup
+                                                          "/bin/roguix-setup")
+                                   " <>/dev/tty1 >&0 2>&0"))
+           (loop (+ attempts 1)))))))
 
 (define (first-boot-shepherd-service _)
   (list (shepherd-service
          (provision '(roguix-first-boot))
-         (requirement '(file-systems))
+         ;; The Mac's suggestions arrive through roguix-host-settings.
+         (requirement '(file-systems roguix-host-settings))
          (one-shot? #t)
-         (documentation "Ask for the account password on the first start.")
+         (documentation "Ask the first-start setup questions on tty1.")
          (start #~(lambda _
                     (zero? (system* #$first-boot-program)))))))
 
