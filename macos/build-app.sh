@@ -7,10 +7,14 @@ usage() {
 Usage: macos/build-app.sh [--open] [--dmg] [--guest-dir DIR]
                                   [--sign-identity IDENTITY]
                                   [--notarize-profile PROFILE]
+                                  [--download-disk-from URL]
 
 Build a self-contained Apple Silicon app. Developer ID signing is used when
 --sign-identity is supplied; otherwise the local build is ad-hoc signed.
 --notarize-profile implies --dmg and names a notarytool keychain profile.
+--download-disk-from builds a release app without the compressed disk: it
+downloads the disk's parts from URL (ending in /) on the first launch
+(docs/releasing.md).
 EOF
   exit 64
 }
@@ -20,6 +24,9 @@ build_dmg=0
 guest_dir=
 sign_identity=${OMARCHY_CODESIGN_IDENTITY:--}
 notarize_profile=
+download_disk_from=
+# GitHub release assets are limited to 2 GiB; parts stay safely below it.
+disk_part_bytes=1992294400
 while (($#)); do
   case "$1" in
     --open) open_app=1; shift ;;
@@ -38,6 +45,12 @@ while (($#)); do
       (($# >= 2)) || usage
       notarize_profile=$2
       build_dmg=1
+      shift 2
+      ;;
+    --download-disk-from)
+      (($# >= 2)) || usage
+      download_disk_from=$2
+      [[ $download_disk_from =~ ^https://[^[:space:]]+/$ ]] || usage
       shift 2
       ;;
     *) usage ;;
@@ -257,6 +270,14 @@ launch_configuration="$contents/Resources/guest/launch.plist"
 /usr/bin/plutil -insert bootABI -string uefi-gpt-v1 "$launch_configuration"
 # Comma-separated optional guest languages, or "-" for none.
 /usr/bin/plutil -insert guestLocales -string "$guest_locales" "$launch_configuration"
+/usr/bin/plutil -insert compressedDiskSHA256 -string \
+  "$(/usr/bin/plutil -extract disk.compressedSHA256 raw "$guest_dir/guix-manifest.json")" \
+  "$launch_configuration"
+if [[ -n $download_disk_from ]]; then
+  /usr/bin/plutil -insert diskDownloadBase -string "$download_disk_from" "$launch_configuration"
+  /usr/bin/plutil -insert diskDownloadPartBytes -integer "$disk_part_bytes" "$launch_configuration"
+  rm -f "$contents/Resources/guest/disk.raw.zst"
+fi
 
 codesign "${app_sign_options[@]}" \
   --entitlements "$macos_dir/omarchy-vm-helper.entitlements" \

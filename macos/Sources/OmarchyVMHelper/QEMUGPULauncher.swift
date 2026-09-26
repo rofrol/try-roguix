@@ -684,6 +684,9 @@ enum CameraPreflight {
 final class QEMUGPUProcessSupervisor: @unchecked Sendable {
     enum LaunchEvent: Equatable {
         case virtualMachineReady(qmpSocketPath: String?)
+        /// A release app downloading its disk on the first launch; percent of
+        /// the compressed disk received so far.
+        case diskDownload(percent: Int)
     }
 
     struct StandardErrorDrain {
@@ -704,6 +707,7 @@ final class QEMUGPUProcessSupervisor: @unchecked Sendable {
     private var errorPipe: Pipe?
     private var errorBuffer = ""
     private var didReportVirtualMachineStart = false
+    private var lastReportedDownloadPercent: Int?
 
     func start(
         executableURL: URL,
@@ -912,6 +916,12 @@ final class QEMUGPUProcessSupervisor: @unchecked Sendable {
         errorBuffer += String(decoding: data, as: UTF8.self)
         var launchEvents: [LaunchEvent] = []
         if !didReportVirtualMachineStart,
+           let percent = Self.diskDownloadPercent(in: errorBuffer),
+           percent != lastReportedDownloadPercent {
+            lastReportedDownloadPercent = percent
+            launchEvents.append(.diskDownload(percent: percent))
+        }
+        if !didReportVirtualMachineStart,
            let event = Self.virtualMachineReadyEvent(in: errorBuffer) {
             didReportVirtualMachineStart = true
             launchEvents.append(event)
@@ -941,6 +951,24 @@ final class QEMUGPUProcessSupervisor: @unchecked Sendable {
             lineStart = standardError.index(after: newline)
         }
         return nil
+    }
+
+    /// The percentage in the last complete download progress line, written by
+    /// qemu_persistent_storage_fetch_compressed_source as
+    /// "[qemu-gpu] Downloading Roguix: RECEIVED of TOTAL bytes".
+    static func diskDownloadPercent(in standardError: String) -> Int? {
+        let prefix = "[qemu-gpu] Downloading Roguix: "
+        var percent: Int?
+        for line in standardError.split(separator: "\n", omittingEmptySubsequences: true)
+        where line.hasPrefix(prefix) && line.hasSuffix(" bytes") {
+            let fields = line.dropFirst(prefix.count).dropLast(" bytes".count)
+                .split(separator: " ")
+            guard fields.count == 3, fields[1] == "of",
+                  let received = Int64(fields[0]), let total = Int64(fields[2]),
+                  total > 0, received >= 0, received <= total else { continue }
+            percent = Int(received * 100 / total)
+        }
+        return percent
     }
 
     static func qmpSocketPath(inReadyLine line: String) -> String? {

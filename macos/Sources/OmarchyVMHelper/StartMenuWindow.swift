@@ -202,6 +202,8 @@ final class StartMenuWindow: NSObject, NSWindowDelegate {
     private var cameraRequestInFlight = false
     private var resetInProgress = false
     private var launchInProgress = false
+    /// Set while a release app downloads its disk on the first launch.
+    private var diskDownloadPercent: Int?
     private var virtualMachineRunning = false
     private var closeRunningSettings: (() -> Void)?
     private var shutdownInProgress = false
@@ -493,6 +495,13 @@ final class StartMenuWindow: NSObject, NSWindowDelegate {
 
     /// Clears the launching state when the controller stopped before the
     /// launcher was ever started. The controller presents its own explanation.
+    func launchDidReportDiskDownload(percent: Int) {
+        guard launchInProgress else { return }
+        // The last progress line is 100%; expanding the disk comes next.
+        diskDownloadPercent = percent < 100 ? percent : nil
+        render()
+    }
+
     func launchDidAbort() {
         guard launchInProgress else { return }
         launchInProgress = false
@@ -864,7 +873,9 @@ final class StartMenuWindow: NSObject, NSWindowDelegate {
         manage.isEnabled = !controlsBusy
         let resetAction = virtualMachineRunning && canResetStorage ? manage : reset
 
-        let launchButtonTitle = virtualMachineRunning ? "Done" : (launchInProgress ? "Launching Roguix…" : "Launch Roguix")
+        let launchButtonTitle = virtualMachineRunning ? "Done"
+            : !launchInProgress ? "Launch Roguix"
+            : diskDownloadPercent.map { "Downloading Roguix… \($0)%" } ?? "Launching Roguix…"
         let launchButton = OmarchyActionButton(
             title: launchButtonTitle,
             style: .primary,
@@ -1741,6 +1752,7 @@ final class StartMenuWindow: NSObject, NSWindowDelegate {
               !microphoneRequestInFlight,
               !cameraRequestInFlight else { return }
         launchInProgress = true
+        diskDownloadPercent = nil
         render()
         launch()
     }

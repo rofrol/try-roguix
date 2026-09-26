@@ -568,6 +568,8 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
                 switch event {
                 case .virtualMachineReady(let qmpSocketPath):
                     self?.virtualMachineDidStart(qmpSocketPath: qmpSocketPath)
+                case .diskDownload(let percent):
+                    self?.startMenuWindow?.launchDidReportDiskDownload(percent: percent)
                 }
             }
         ) { [weak self] status in
