@@ -19,6 +19,10 @@ mkdir -p "$HOME/.config/fcitx5" "$HOME/.config/fontconfig/conf.d"
   cp --no-preserve=mode "$roguix_share/30-roguix-cjk.conf" \
     "$HOME/.config/fontconfig/conf.d/30-roguix-cjk.conf"
 
+# Omarchy's passwordless default keyring, as an installed Omarchy has: its
+# own install/user/default-keyring.sh, which only creates what is missing.
+bash "$omarchy/install/user/default-keyring.sh"
+
 [[ -e $marker ]] && exit 0
 
 mkdir -p "$HOME/.config" "$state/done" "$state/toggles/hypr" \

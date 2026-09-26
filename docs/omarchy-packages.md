@@ -82,14 +82,28 @@ not been reviewed.
 
 ### Decided against, for now
 
-- `gnome-keyring`: Roguix logs in automatically without a password, so
-  nothing unlocks the login keyring; every application that stores a secret
-  would ask for the password instead. Needs its own design (an unlocked
-  keyring, or unlocking it from the first-start password) before it is
-  added.
 - `mpv-mpris`: the package is a plugin that mpv only loads when its
   configuration names it, which Roguix does not set up; on its own it
   changes nothing.
+
+## The keyring and disk encryption
+
+Try Roguix exists to try what an installed system is like, so it follows
+Omarchy wherever the VM does not force a difference. Like an Omarchy
+install, and like upstream Try Omarchy, Roguix ships `gnome-keyring` and
+runs Omarchy's own `install/user/default-keyring.sh` at the first login: the
+default keyring has no password, so applications store secrets without ever
+prompting. A Roguix-only encrypted keyring (for example with its password in
+the Mac Keychain) was rejected because it would behave differently from the
+system being tried.
+
+Omarchy can leave the keyring open because its installer encrypts the whole
+disk with LUKS. Try Roguix does not: the VM disk is an unencrypted image in
+`~/Library/Application Support/Try Roguix`, protected only by FileVault
+while the Mac is off or locked, and readable by anything running as the Mac
+user. Treat the VM as a place to try Roguix, not to keep production
+passwords, tokens or SSH keys. Optional guest disk encryption, with its key
+in the Mac Keychain, is a possible later addition.
 
 Omarchy's optional list, `install/omarchy-other.packages`, is not covered
 here.
