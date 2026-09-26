@@ -1,0 +1,35 @@
+From: Try Roguix contributors
+Subject: [PATCH] cocoa: leave Command-Tab to the macOS application switcher
+
+Applies after the full-grab-focus and full-grab-reenable patches.
+
+With Accessibility permission, full grab's HID event tap takes every Command
+chord while the VM window is key, so Command-Tab becomes Super-Tab in the
+guest and the keyboard can no longer leave the VM; only a trackpad swipe
+does. Let Command-Tab and Command-Shift-Tab through the tap untouched, as
+any other Mac app does. The guest has seen Command go down as Super; the
+switch makes the window resign key, and windowDidResignKey releases it.
+
+diff --git a/ui/cocoa.m b/ui/cocoa.m
+index 4a8dd1d..0b97d4d 100644
+--- a/ui/cocoa.m
++++ b/ui/cocoa.m
+@@ -429,6 +429,18 @@ static CGEventRef handleTapEvent(CGEventTapProxy proxy, CGEventType type, CGEven
+         return cgEvent;
+     }
+ 
++    /*
++     * Command-Tab and Command-Shift-Tab stay with the macOS application
++     * switcher, as in a browser or any other app, so the user can always
++     * leave the VM from the keyboard. Switching away makes the window
++     * resign key, which releases the guest's Super key again.
++     */
++    if ((type == kCGEventKeyDown || type == kCGEventKeyUp) &&
++        CGEventGetIntegerValueField(cgEvent, kCGKeyboardEventKeycode) == kVK_Tab &&
++        (CGEventGetFlags(cgEvent) & kCGEventFlagMaskCommand)) {
++        return cgEvent;
++    }
++
+     NSEvent *event = [NSEvent eventWithCGEvent:cgEvent];
+     if ([view isKeyboardCaptured] && [view handleEvent:event]) {
+         COCOA_DEBUG("Global events tap: qemu handled the event, capturing!\n");
