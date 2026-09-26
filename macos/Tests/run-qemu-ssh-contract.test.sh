@@ -501,6 +501,9 @@ for option in -kernel -initrd -append; do
 done
 assert_line_pair "$test_root/disabled/qemu.log" -name 'Try Roguix'
 assert_line_pair "$test_root/disabled/qemu.log" -smbios 'type=11,value=omarchy.qemu_virgl=1'
+# roguix-setup's suggestions: a keyboard layout always, the time zone when
+# the Mac names one.
+assert_contains "$disabled_qemu" 'type=11,value=tryomarchy.keyboard_layout='
 # UEFI has no virtio keyboard driver; GRUB's menu reads the USB keyboard.
 assert_line_pair "$test_root/disabled/qemu.log" -device 'usb-kbd,bus=roguix-usb.0'
 assert_contains "$disabled_qemu" "file=$persistent_root/disk.raw"

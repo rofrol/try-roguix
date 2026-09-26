@@ -292,6 +292,58 @@ else
   export TRYOMARCHY_KEYBOARD=$host_keyboard_geometry
 fi
 
+# First-start suggestions for roguix-setup: the Mac's time zone and keyboard
+# layout. Only layouts roguix-setup offers are named; others suggest US.
+mac_setup_settings=''
+mac_timezone=$(readlink /etc/localtime 2>/dev/null | sed -n 's|^.*/zoneinfo/||p')
+if [[ $mac_timezone =~ ^[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+)*$ ]]; then
+  mac_setup_settings="tryomarchy.timezone=$(printf '%s' "$mac_timezone" | base64 | tr '+/' '-_' | tr -d '=\n')"
+fi
+mac_layout_variant=''
+case $(defaults read com.apple.HIToolbox AppleCurrentKeyboardLayoutInputSourceID 2>/dev/null) in
+  com.apple.keylayout.US|com.apple.keylayout.ABC) mac_layout=us ;;
+  com.apple.keylayout.USInternational-PC) mac_layout=us mac_layout_variant=intl ;;
+  com.apple.keylayout.British|com.apple.keylayout.British-PC) mac_layout=gb ;;
+  com.apple.keylayout.Dvorak) mac_layout=us mac_layout_variant=dvorak ;;
+  com.apple.keylayout.Colemak) mac_layout=us mac_layout_variant=colemak ;;
+  com.apple.keylayout.Belgian) mac_layout=be ;;
+  com.apple.keylayout.Brazilian*) mac_layout=br ;;
+  com.apple.keylayout.Croatian*) mac_layout=hr ;;
+  com.apple.keylayout.Czech*) mac_layout=cz ;;
+  com.apple.keylayout.Danish) mac_layout=dk ;;
+  com.apple.keylayout.Dutch) mac_layout=nl ;;
+  com.apple.keylayout.Estonian) mac_layout=ee ;;
+  com.apple.keylayout.Finnish*) mac_layout=fi ;;
+  com.apple.keylayout.French|com.apple.keylayout.French-PC|com.apple.keylayout.French-numerical) mac_layout=fr ;;
+  com.apple.keylayout.Canadian-CSA|com.apple.keylayout.Canadian) mac_layout=ca ;;
+  com.apple.keylayout.SwissFrench) mac_layout=ch mac_layout_variant=fr ;;
+  com.apple.keylayout.German) mac_layout=de ;;
+  com.apple.keylayout.SwissGerman) mac_layout=ch ;;
+  com.apple.keylayout.Greek*) mac_layout=gr ;;
+  com.apple.keylayout.Hungarian*) mac_layout=hu ;;
+  com.apple.keylayout.Icelandic) mac_layout=is ;;
+  com.apple.keylayout.Irish*) mac_layout=ie ;;
+  com.apple.keylayout.Italian*) mac_layout=it ;;
+  com.apple.keylayout.Latvian) mac_layout=lv ;;
+  com.apple.keylayout.Lithuanian) mac_layout=lt ;;
+  com.apple.keylayout.Norwegian*) mac_layout=no ;;
+  com.apple.keylayout.Polish|com.apple.keylayout.PolishPro) mac_layout=pl ;;
+  com.apple.keylayout.Portuguese) mac_layout=pt ;;
+  com.apple.keylayout.Romanian*) mac_layout=ro ;;
+  com.apple.keylayout.Russian*) mac_layout=ru ;;
+  com.apple.keylayout.Serbian-Latin) mac_layout=rs mac_layout_variant=latin ;;
+  com.apple.keylayout.Slovak*) mac_layout=sk ;;
+  com.apple.keylayout.Slovenian) mac_layout=si ;;
+  com.apple.keylayout.Spanish*) mac_layout=es ;;
+  com.apple.keylayout.LatinAmerican) mac_layout=latam ;;
+  com.apple.keylayout.Swedish*) mac_layout=se ;;
+  com.apple.keylayout.Turkish*) mac_layout=tr ;;
+  com.apple.keylayout.Ukrainian*) mac_layout=ua ;;
+  *) mac_layout=us ;;
+esac
+mac_setup_settings+=" tryomarchy.keyboard_layout=$mac_layout"
+[[ -z $mac_layout_variant ]] || mac_setup_settings+=" tryomarchy.keyboard_variant=$mac_layout_variant"
+
 host_cpu_count=$(
   sysctl -n hw.logicalcpu 2>/dev/null ||
     sysctl -n hw.ncpu 2>/dev/null ||
@@ -672,7 +724,8 @@ boot_args=(-bios "$uefi_firmware")
 # name=value with a base64url or literal value, so none contains a space or
 # comma.
 for launcher_setting in omarchy.qemu_virgl=1 omarchy.virgl_dual_source=1 \
-  $shared_folder_setting $ssh_setting $keyboard_setting $locale_setting; do
+  $shared_folder_setting $ssh_setting $keyboard_setting $locale_setting \
+  $mac_setup_settings; do
   boot_args+=(-smbios "type=11,value=$launcher_setting")
 done
 
