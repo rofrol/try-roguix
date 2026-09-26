@@ -44,11 +44,13 @@ class GuixPkgTests(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
         self.runs = []
+        self.environments = []
         self.available = {"alacritty", "helix", "netcat-openbsd"}
         self.reconfigure_status = 0
 
     def fake_run(self, command, **kwargs):
         self.runs.append(command)
+        self.environments.append(kwargs.get("env"))
         if command[0] == pkg.GUIX:
             name = command[-1].strip("^$").replace("\\", "")
             out = f"{name}\t1.0\tout\tgnu/packages/x.scm:1:0\n" if name in self.available else ""
@@ -62,6 +64,14 @@ class GuixPkgTests(unittest.TestCase):
         self.assertEqual(self.runs[-1], [pkg.RECONFIGURE])
         self.assertIn('   "alacritty"\n   "netcat-openbsd"\n   ;; END roguix packages',
                       self.config.read_text())
+
+    def test_reconfigure_refuses_builds_unless_allowed(self):
+        self.assertEqual(pkg.main(["add", "alacritty"]), 0)
+        self.assertEqual(self.environments[-1]["ROGUIX_ALLOW_BUILD"], "0")
+        self.assertEqual(pkg.main(["add", "--allow-build", "helix"]), 0)
+        self.assertEqual(self.runs[-1], [pkg.RECONFIGURE])
+        self.assertEqual(self.environments[-1]["ROGUIX_ALLOW_BUILD"], "1")
+        self.assertEqual(pkg.config_packages(self.config.read_text()), ["alacritty", "helix"])
 
     def test_installed_or_listed_does_nothing(self):
         self.assertEqual(pkg.main(["add", "foot"]), 0)
