@@ -11,6 +11,7 @@
   #:use-module (gnu system locale)
   #:use-module (guix gexp)
   #:use-module (guix grafts)
+  #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-9)
   #:use-module (roguix integrations)
@@ -131,6 +132,19 @@ first-start setup's answers (roguix-setup)."
                                    roguix-battery-module))
     (initrd-modules (cons* "virtio_gpu" "virtio_console"
                            (base-initrd-modules linux-libre)))
+    ;; Guix builds the keyboard layout into the initrd, for typing a LUKS
+    ;; passphrase; the VM's disk is not encrypted. Left out, the initrd no
+    ;; longer changes with the first-start setup's layout, whose reconfigure
+    ;; would otherwise rebuild the initrd's kernel modules, which no server
+    ;; offers.
+    (initrd (lambda (file-systems . options)
+              (apply base-initrd file-systems
+                     (let loop ((options options))
+                       (match options
+                         (() '())
+                         ((#:keyboard-layout _ . rest) (loop rest))
+                         ((key value . rest)
+                          (cons* key value (loop rest))))))))
     ;; The VM's display is Retina-sized: the kernel's 8x16 console font is
     ;; unreadably small there, so boot messages use its built-in Terminus
     ;; 16x32 (see also console-font-service-type below).
