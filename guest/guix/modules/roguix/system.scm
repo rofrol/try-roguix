@@ -59,6 +59,11 @@
 (use-modules (roguix system))
 
 (roguix-operating-system
+ ;; BEGIN roguix setup
+ #:host-name \"roguix\"
+ #:timezone \"Etc/UTC\"
+ #:keyboard-layout \"us\"
+ ;; END roguix setup
  #:packages
  '(;; BEGIN roguix packages
    ;; END roguix packages
@@ -152,9 +157,14 @@ below them are not."
                                 (loop (cdr items) (+ index 1)))))
                         #:local-build? #t))))
 
-(define* (roguix-operating-system #:key (packages '()))
-  "Return the Roguix system, adding PACKAGES, a list of package names."
-  (let ((os (base-operating-system packages)))
+(define* (roguix-operating-system #:key (packages '())
+                                  (host-name "roguix") (timezone "Etc/UTC")
+                                  (keyboard-layout "us") keyboard-variant)
+  "Return the Roguix system, adding PACKAGES, a list of package names.
+HOST-NAME, TIMEZONE, KEYBOARD-LAYOUT and KEYBOARD-VARIANT (XKB names) are the
+first-start setup's answers (roguix-setup)."
+  (let ((os (base-operating-system packages host-name timezone
+                                   keyboard-layout keyboard-variant)))
     (operating-system
       (inherit os)
       (services
@@ -164,10 +174,10 @@ below them are not."
               (extra-special-file %graft-outputs-root (graft-outputs os))
               (operating-system-user-services os))))))
 
-(define (base-operating-system packages)
+(define (base-operating-system packages host-name timezone layout variant)
   (operating-system
-    (host-name "roguix")
-    (timezone "Etc/UTC")
+    (host-name host-name)
+    (timezone timezone)
     (locale "en_US.utf8")
     ;; Traditional Chinese, the launcher's one optional guest language
     ;; (tryomarchy.locale); the session sets LANG from it.
@@ -175,7 +185,9 @@ below them are not."
      (cons (locale-definition (name "zh_TW.utf8") (source "zh_TW")
                               (charset "UTF-8"))
            %default-locale-definitions))
-    (keyboard-layout (keyboard-layout "us"))
+    (keyboard-layout (if variant
+                         (keyboard-layout layout variant)
+                         (keyboard-layout layout)))
     (kernel linux-libre)
     (firmware '())
     ;; /dev/video42 for the Mac camera (roguix-camera-service-type) and the
@@ -271,6 +283,15 @@ below them are not."
             (service roguix-camera-service-type)
             (service roguix-battery-service-type)
             (service roguix-settings-service-type)
+            ;; Omarchy's Hyprland input reads the layout from systemd's
+            ;; vconsole.conf; Guix keeps it in keyboard-layout instead.
+            (simple-service 'roguix-vconsole etc-service-type
+                            `(("vconsole.conf"
+                               ,(plain-file "vconsole.conf"
+                                            (string-append
+                                             "XKBLAYOUT=" layout "\n"
+                                             "XKBVARIANT=" (or variant "")
+                                             "\n")))))
             (service roguix-touch-id-service-type)
             ;; Installed but never auto-started: roguix-ssh-access starts it
             ;; for one boot when the launcher forwards SSH.
