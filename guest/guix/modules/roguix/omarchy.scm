@@ -181,17 +181,17 @@ configuration, Quickshell desktop shell, themes and helper commands.")
   (append
    (map specification->package
         '("librewolf" "xdg-utils" "nautilus" "evince" "gnome-disk-utility"
-          "xournalpp" "obs" "kdenlive" "btop"
+          "xournalpp" "kdenlive" "btop"
           "neovim" "tmux" "git" "bat" "eza" "fd" "ripgrep" "zoxide" "starship"
           "less" "man-db" "tldr" "grim" "slurp" "hyprpicker" "wtype"
           "imagemagick" "yt-dlp" "tesseract-ocr" "pamixer" "brightnessctl"
           "playerctl" "unzip" "whois"
           ;; Omarchy runs fcitx5 for compose keys; Chewing and Noto CJK back
           ;; the optional Traditional Chinese language.
-          "fcitx5" "fcitx5-chewing" "fcitx5-gtk" "fcitx5-qt"
+          "fcitx5" "fcitx5-chewing" "fcitx5-gtk"
           "font-google-noto-sans-cjk"))
    (list lazygit-bin lazydocker-bin gum-bin dua-bin cliamp-bin
-         fastfetch-without-zfs)))
+         fastfetch-without-zfs obs-without-vlc fcitx5-qt6)))
 
 ;;; Compatibility commands for Omarchy's Arch assumptions, plus Try Omarchy's
 ;;; xdg-terminal-exec and the per-user seed.
