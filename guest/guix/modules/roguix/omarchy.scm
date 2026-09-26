@@ -203,6 +203,23 @@ configuration, Quickshell desktop shell, themes and helper commands.")
 (define %roguix-channel-introduction "bcc938512706d19de86dd8c6f50853fa80b063b8")
 (define %roguix-channel-signer "7D1A 8B40 0C26 0998 097F  63E5 28B8 3B16 11FA 815E")
 
+;; Roguix's commands never compile in the VM unless asked: packages come from
+;; roguix.frolow.dev and Guix's servers, and --max-jobs=0 still lets Guix
+;; build its local derivations (configuration, profiles, grafts) but refuses
+;; any other build at once instead of compiling for hours.
+;; ROGUIX_ALLOW_BUILD=1 lifts it.
+(define %build-gate "\
+gate='--max-jobs=0 --no-offload'
+[ \"${ROGUIX_ALLOW_BUILD:-0}\" = 1 ] && gate=
+gate_failed() {
+  if [ -n \"$gate\" ]; then
+    echo 'roguix: if Guix said \"unable to start any build\", this change needs' >&2
+    echo 'packages no server has binaries for yet. Try again later, or build' >&2
+    echo 'them here with ROGUIX_ALLOW_BUILD=1 (this can take hours).' >&2
+  fi
+  exit \"$1\"
+}")
+
 (define roguix-omarchy-compat
   (package
     (name "roguix-omarchy-compat")
@@ -291,11 +308,13 @@ exit 0
 ")
               ;; Apply /etc/config.scm with the Guix that built this system
               ;; (see (roguix system)), which only fetches what was added.
-              (shim "roguix-reconfigure" "\
-[ \"$(id -u)\" = 0 ] || exec sudo \"$0\" \"$@\"
-exec /var/guix/gcroots/roguix-guix/bin/guix system reconfigure \\
-  -L /etc/roguix/modules /etc/config.scm \"$@\"
-")
+              (shim "roguix-reconfigure" (string-append "\
+[ \"$(id -u)\" = 0 ] || \\
+  exec sudo ROGUIX_ALLOW_BUILD=\"${ROGUIX_ALLOW_BUILD:-0}\" \"$0\" \"$@\"
+" #$%build-gate "
+/var/guix/gcroots/roguix-guix/bin/guix system reconfigure $gate \\
+  -L /etc/roguix/modules /etc/config.scm \"$@\" || gate_failed $?
+"))
               ;; Update Roguix from its signed channel (docs/decisions/0004):
               ;; fetch it, authenticate every new commit from the channel
               ;; introduction, require the same Guix pin as this image, then
@@ -303,7 +322,9 @@ exec /var/guix/gcroots/roguix-guix/bin/guix system reconfigure \\
               ;; applied modules become /etc/roguix, so roguix-reconfigure
               ;; keeps using them offline.
               (shim "roguix-update" (string-append "\
-[ \"$(id -u)\" = 0 ] || exec sudo \"$0\" \"$@\"
+[ \"$(id -u)\" = 0 ] || \\
+  exec sudo ROGUIX_ALLOW_BUILD=\"${ROGUIX_ALLOW_BUILD:-0}\" \"$0\" \"$@\"
+" #$%build-gate "
 set -e
 git=" #$(file-append git "/bin/git") "
 guix=/var/guix/gcroots/roguix-guix/bin/guix
@@ -320,7 +341,8 @@ if ! cmp -s \"$dir/modules/roguix/guix-commit\" /etc/roguix/modules/roguix/guix-
   echo 'reset Roguix from the latest Try Roguix app to get it.' >&2
   exit 1
 fi
-exec $guix system reconfigure -L \"$dir/modules\" /etc/config.scm \"$@\"
+$guix system reconfigure $gate -L \"$dir/modules\" /etc/config.scm \"$@\" \\
+  || gate_failed $?
 "))
               (for-each (lambda (program)
                           (chmod (string-append #$output "/bin/" program) #o555))

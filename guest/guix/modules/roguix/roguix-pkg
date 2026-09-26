@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """roguix-pkg: the programs of this Guix system, for people and Omarchy.
 
-  roguix-pkg add NAME...      add to /etc/config.scm and reconfigure (root)
+  roguix-pkg add NAME...      add to /etc/config.scm and reconfigure (root);
+                              --allow-build compiles what no server has
   roguix-pkg remove NAME...   remove from /etc/config.scm and reconfigure
   roguix-pkg present NAME...  exit 0 when every NAME is installed
   roguix-pkg list             the installed package names
@@ -80,18 +81,20 @@ def guix_has(name):
     return any(line.split("\t")[0] == name for line in result.stdout.splitlines())
 
 
-def apply(old_text, new_text):
+def apply(old_text, new_text, allow_build=False):
     if new_text == old_text:
         return 0
     write_config(new_text)
-    status = subprocess.run([RECONFIGURE]).returncode
+    # roguix-reconfigure refuses to compile unless ROGUIX_ALLOW_BUILD=1.
+    environment = dict(os.environ, ROGUIX_ALLOW_BUILD="1" if allow_build else "0")
+    status = subprocess.run([RECONFIGURE], env=environment).returncode
     if status != 0:
         write_config(old_text)
         print(f"Reconfiguring failed; {CONFIG} is unchanged.", file=sys.stderr)
     return status
 
 
-def install(names):
+def install(names, allow_build=False):
     if os.geteuid() != 0:
         raise Failure("installing changes the system configuration; run it with sudo")
     text = read_config()
@@ -107,7 +110,7 @@ def install(names):
     if not added:
         return 0
     print(f"Adding {' '.join(added)} to {CONFIG}")
-    return apply(text, with_packages(text, current + added))
+    return apply(text, with_packages(text, current + added), allow_build)
 
 
 def remove(names):
@@ -165,7 +168,10 @@ def main(argv):
     command, names = (argv[0], argv[1:]) if argv else ("", [])
     try:
         if command == "add" and names:
-            return install(names)
+            allow_build = "--allow-build" in names
+            names = [name for name in names if name != "--allow-build"]
+            if names:
+                return install(names, allow_build)
         if command == "remove" and names:
             return remove(names)
         if command == "present":
