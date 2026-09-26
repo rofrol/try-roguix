@@ -14,13 +14,18 @@
   #:use-module (gnu packages admin)
   #:use-module (gnu packages base)
   #:use-module (gnu packages bash)
+  #:use-module (gnu packages fcitx5)
   #:use-module (gnu packages linux)
+  #:use-module (gnu packages qt)
+  #:use-module (gnu packages video)
   #:export (lazygit-bin
             lazydocker-bin
             gum-bin
             dua-bin
             cliamp-bin
-            fastfetch-without-zfs))
+            fastfetch-without-zfs
+            obs-without-vlc
+            fcitx5-qt6))
 
 ;; A statically linked upstream release: unpack the tarball into the build
 ;; directory and install PLAN (copy-build-system's #:install-plan).
@@ -160,3 +165,40 @@ Omarchy binds it to Super+Shift+Alt+M.")
         #~(cons "-DENABLE_LIBZFS=OFF" #$flags))))
     (inputs (modify-inputs (package-inputs fastfetch)
               (delete "zfs")))))
+
+;; Qt 5 reaches the system only through VLC 3 (OBS's optional VLC video
+;; source) and fcitx5-qt's Qt 5 input-method plugin. Omarchy's applications
+;; are Qt 6 or GTK, so both go and with them the whole Qt 5 stack.
+(define obs-without-vlc
+  (package
+    (inherit obs)
+    (arguments
+     (substitute-keyword-arguments (package-arguments obs)
+       ((#:configure-flags flags #~'())
+        #~(cons "-DENABLE_VLC=OFF" #$flags))
+       ((#:phases phases)
+        #~(modify-phases #$phases
+            (replace 'wrap-executable
+              (lambda _
+                (wrap-program (string-append #$output "/bin/obs")
+                  `("QT_PLUGIN_PATH" ":" prefix (,(getenv "QT_PLUGIN_PATH")))
+                  ;; Guix's OBS needs Mesa's libraries until Mesa has glvnd.
+                  `("LD_LIBRARY_PATH" ":" prefix
+                    (,(string-append #$(this-package-input "mesa") "/lib"))))))))))
+    (inputs (modify-inputs (package-inputs obs)
+              (delete "vlc")))))
+
+(define fcitx5-qt6
+  (package
+    (inherit fcitx5-qt)
+    (arguments
+     (substitute-keyword-arguments (package-arguments fcitx5-qt)
+       ((#:configure-flags flags #~'())
+        #~(cons "-DENABLE_QT5=Off" #$flags))
+       ;; The only upstream test covers the Qt 5 library's key translation,
+       ;; which the Qt 6 build does not have; ctest would find no tests.
+       ((#:tests? _ #t) #f)))
+    (inputs (modify-inputs (package-inputs fcitx5-qt)
+              ;; qtbase-5 and qtbase (6) share the label "qtbase".
+              (delete "qtbase")
+              (prepend qtbase)))))
