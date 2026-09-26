@@ -19,6 +19,7 @@ import pwd
 import re
 import subprocess
 import sys
+import time
 
 ACCOUNT = "guest"
 CONFIG = "/etc/config.scm"
@@ -291,29 +292,44 @@ def session_bus(uid, proc="/proc"):
     return None
 
 
-def notify(summary, body):
-    """Show a desktop notification in the account's session, if it is up."""
+def notify(summary, body, replaces=None, persistent=False):
+    """Show a desktop notification in the account's session.
+
+    Returns its id, which a later call passes as REPLACES to update it in
+    place, or None when the session is not up.
+    """
     account = pwd.getpwnam(ACCOUNT)
-    runtime = f"/run/user/{account.pw_uid}"
     bus = session_bus(account.pw_uid)
     if bus is None:
-        return
-    if os.fork() == 0:
-        try:
-            os.setgid(account.pw_gid)
-            os.initgroups(ACCOUNT, account.pw_gid)
-            os.setuid(account.pw_uid)
-            os.execvpe("notify-send", ["notify-send", summary, body],
-                       dict(os.environ, HOME=account.pw_dir,
-                            XDG_RUNTIME_DIR=runtime,
-                            DBUS_SESSION_BUS_ADDRESS=bus))
-        finally:
-            os._exit(1)
-    os.wait()
+        return None
+    command = ["notify-send", "--app-name=Roguix", "--print-id"]
+    if replaces:
+        command.append(f"--replace-id={replaces}")
+    if persistent:
+        command.append("--expire-time=0")
+
+    def drop_privileges():
+        os.setgid(account.pw_gid)
+        os.initgroups(ACCOUNT, account.pw_gid)
+        os.setuid(account.pw_uid)
+
+    result = subprocess.run(
+        command + [summary, body], preexec_fn=drop_privileges,
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+        env=dict(os.environ, HOME=account.pw_dir,
+                 XDG_RUNTIME_DIR=f"/run/user/{account.pw_uid}",
+                 DBUS_SESSION_BUS_ADDRESS=bus))
+    identifier = result.stdout.strip()
+    return identifier if result.returncode == 0 and identifier.isdigit() else None
 
 
 def reconfigure_in_background():
-    """Apply /etc/config.scm in a process that outlives this setup."""
+    """Apply /etc/config.scm in a process that outlives this setup.
+
+    The desktop starts meanwhile; once it is up, a notification says that
+    the settings already work but become permanent only when the
+    reconfigure ends, and the same notification then reports the result.
+    """
     if os.fork() != 0:
         return
     try:
@@ -329,13 +345,24 @@ def reconfigure_in_background():
                            PATH=os.environ.get("PATH", "") +
                            ":/run/current-system/profile/bin"
                            ":/run/current-system/profile/sbin")
-        done = subprocess.run([RECONFIGURE], env=environment).returncode == 0
-        if done:
+        process = subprocess.Popen([RECONFIGURE], env=environment)
+        notice = None
+        while process.poll() is None:
+            if notice is None:
+                notice = notify(
+                    "Applying your Roguix settings",
+                    "They work now. Keep Roguix running while it makes "
+                    "them permanent, up to half an hour.",
+                    persistent=True)
+            time.sleep(5)
+        if process.returncode == 0:
             notify("Roguix settings applied",
-                   "Host name, time zone and keyboard now survive a restart.")
+                   "Keyboard, time zone and host name now survive a restart.",
+                   replaces=notice)
         else:
             notify("Roguix settings not applied",
-                   f"They last until a restart; see {RECONFIGURE_LOG}.")
+                   f"They last until a restart; see {RECONFIGURE_LOG}.",
+                   replaces=notice, persistent=True)
     finally:
         os._exit(0)
 
