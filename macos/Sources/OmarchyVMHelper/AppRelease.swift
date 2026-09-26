@@ -48,6 +48,23 @@ struct InstalledAppRelease: Equatable {
     }
 
     static var current: Self { Self(info: Bundle.main.infoDictionary ?? [:]) }
+
+    /// The upstreams this build carries (scripts/app_version.py), for bug
+    /// reports: Try Omarchy's base, Omarchy and the pinned Guix.
+    static func upstreams(info: [String: Any]) -> String? {
+        var parts: [String] = []
+        if let base = info["RoguixTryOmarchyBase"] as? String,
+           let describe = base.split(separator: " ").first {
+            parts.append("Try Omarchy \(describe)")
+        }
+        if let omarchy = info["RoguixOmarchyVersion"] as? String {
+            parts.append("Omarchy \(omarchy)")
+        }
+        if let guix = info["RoguixGuixCommit"] as? String {
+            parts.append("Guix \(guix.prefix(8))")
+        }
+        return parts.isEmpty ? nil : "Based on " + parts.joined(separator: ", ")
+    }
 }
 
 struct AppRelease: Equatable {
