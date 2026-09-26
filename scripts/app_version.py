@@ -35,7 +35,33 @@ def build_version(root: Path) -> dict[str, str] | None:
         "CFBundleShortVersionString": release.group(1) if release else "0.0.0",
         "CFBundleVersion": git("rev-list", "--count", "HEAD"),
         "TryOmarchyBuildDescribe": describe,
+        **upstream_bases(root, git),
     }
+
+
+def upstream_bases(root: Path, git) -> dict[str, str]:
+    """The three upstreams a build carries (docs/releasing.md)."""
+    bases = {}
+    try:
+        # Upstream's tags live under try-omarchy/ so v* stays Try Roguix's.
+        fork_point = git("merge-base", "HEAD", "refs/remotes/upstream/main")
+        bases["RoguixTryOmarchyBase"] = "{} ({})".format(
+            git("describe", "--tags", "--match", "try-omarchy/v[0-9]*", fork_point)
+            .removeprefix("try-omarchy/"),
+            fork_point,
+        )
+    except subprocess.CalledProcessError:
+        pass
+    modules = root / "guest/guix/modules/roguix"
+    try:
+        version = re.search(r'\(name "omarchy"\)\s*\(version "([^"]+)"\)',
+                            (modules / "omarchy.scm").read_text())
+        if version:
+            bases["RoguixOmarchyVersion"] = version.group(1)
+        bases["RoguixGuixCommit"] = (modules / "guix-commit").read_text().strip()
+    except OSError:
+        pass
+    return bases
 
 
 def main() -> None:

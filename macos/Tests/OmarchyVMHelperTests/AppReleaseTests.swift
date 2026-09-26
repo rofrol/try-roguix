@@ -35,6 +35,18 @@ struct AppReleaseTests {
         try await body(AppReleasePreferences(defaults: defaults))
     }
 
+    @Test("names the upstreams a build carries, or nothing without them")
+    func upstreamBases() {
+        let info: [String: Any] = [
+            "RoguixTryOmarchyBase": "v0.4.1-33-g28f4722 (28f4722fab3e16ae26a7cb8fab2ab7908b1833e4)",
+            "RoguixOmarchyVersion": "4.0.4",
+            "RoguixGuixCommit": "7e74121a40a8308166e328a23647cf6f3768e6c8",
+        ]
+        #expect(InstalledAppRelease.upstreams(info: info) ==
+            "Based on Try Omarchy v0.4.1-33-g28f4722, Omarchy 4.0.4, Guix 7e74121a")
+        #expect(InstalledAppRelease.upstreams(info: [:]) == nil)
+    }
+
     @Test("stable versions compare numerically and reject ambiguous versions")
     func versionComparison() throws {
         #expect(try #require(AppReleaseVersion("0.10.0")) > #require(AppReleaseVersion("0.9.9")))

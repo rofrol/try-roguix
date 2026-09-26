@@ -34,7 +34,15 @@ final class AppReleaseWindow: NSObject {
         automatic.action = #selector(toggleAutomatic)
         let actions = NSStackView(views: [checkButton, releases])
         actions.spacing = 12
-        let stack = NSStackView(views: [installed, status, actions, automatic, privacy, explanation])
+        var views: [NSView] = [installed]
+        if let upstreams = InstalledAppRelease.upstreams(info: Bundle.main.infoDictionary ?? [:]) {
+            let label = NSTextField(wrappingLabelWithString: upstreams)
+            label.textColor = .secondaryLabelColor
+            label.isSelectable = true
+            views.append(label)
+        }
+        views += [status, actions, automatic, privacy, explanation]
+        let stack = NSStackView(views: views)
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 16
