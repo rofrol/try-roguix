@@ -942,6 +942,45 @@ qemu_persistent_storage_fetch_compressed_source() {
   QEMU_DOWNLOADED_COMPRESSED_DISK=$qps_download
 }
 
+# Remove base images, and unfinished downloads, of every bundle except KEEP.
+# A VM's disk is an APFS clone or copy of its base image, never an overlay, so
+# an image only matters for creating or resetting a VM from the app that
+# shipped it; each app update otherwise leaves one image of about 20 GB
+# behind. An image another launch is still materializing holds its lock and
+# is left alone.
+qemu_persistent_storage_prune_images() {
+  local qps_keep=${1:-}
+  local qps_image='' qps_identity='' qps_lock_path='' qps_bytes=0
+
+  _qps_is_identity "$qps_keep" || {
+    _qps_fail 'bundle identity must be exactly 64 lowercase hexadecimal characters'
+    return 1
+  }
+  _qps_prepare_state_root || return 1
+  for qps_image in "$QEMU_PERSISTENT_STORAGE_IMAGES_ROOT"/*."$QPS_IMAGE_SUFFIX" \
+    "$QEMU_PERSISTENT_STORAGE_IMAGES_ROOT"/.*.download.zst \
+    "$QEMU_PERSISTENT_STORAGE_IMAGES_ROOT"/.*.download.parts; do
+    [[ -e $qps_image && ! -L $qps_image ]] || continue
+    qps_identity=${qps_image##*/}
+    qps_identity=${qps_identity#.}
+    qps_identity=${qps_identity%%.*}
+    _qps_is_identity "$qps_identity" || continue
+    [[ $qps_identity != "$qps_keep" ]] || continue
+    [[ $(_qps_owner "$qps_image") == $(id -u) ]] || continue
+    qps_lock_path="$QEMU_PERSISTENT_STORAGE_LOCKS_ROOT/$qps_identity.image.lock"
+    exec 7>>"$qps_lock_path" || continue
+    if ! /usr/bin/lockf -s -t 0 7; then
+      exec 7>&-
+      continue
+    fi
+    qps_bytes=$(/usr/bin/du -sk "$qps_image" 2>/dev/null | awk '{ print $1 }')
+    /bin/rm -rf -- "$qps_image"
+    /bin/rm -f -- "$qps_lock_path"
+    exec 7>&-
+    _qps_error "removed the unused base image ${qps_identity:0:12} ($(( ${qps_bytes:-0} / 1024 )) MiB)"
+  done
+}
+
 _qps_remove_recognized_directory() {
   local qps_directory=$1
   local qps_identity=$2

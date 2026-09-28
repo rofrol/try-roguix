@@ -840,4 +840,31 @@ assert_eq "$QEMU_IMMUTABLE_SOURCE_DISK" "$expanded_download"
 assert test -z "$QEMU_DOWNLOADED_COMPRESSED_DISK"
 unset QEMU_PERSISTENT_STORAGE_DOWNLOAD_PROTOCOLS
 
+# Launching keeps only the running app's base image: others, and unfinished
+# downloads, go, except an image whose lock another launch holds.
+images_root=$(dirname "$expanded_download")
+locks_root="$(dirname "$images_root")/locks"
+identity_old=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+identity_busy=ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+printf old > "$images_root/$identity_old.raw"
+printf part > "$images_root/.$identity_old.download.zst"
+mkdir -m 700 "$images_root/.$identity_old.download.parts"
+printf busy > "$images_root/$identity_busy.raw"
+: > "$locks_root/$identity_busy.image.lock"
+/usr/bin/lockf -k "$locks_root/$identity_busy.image.lock" sleep 5 &
+lock_holder=$!
+sleep 0.5
+qemu_persistent_storage_prune_images "$identity_download" 2>"$test_root/prune.log"
+assert test -f "$expanded_download"
+assert test ! -e "$images_root/$identity_old.raw"
+assert test ! -e "$images_root/.$identity_old.download.zst"
+assert test ! -e "$images_root/.$identity_old.download.parts"
+assert test -f "$images_root/$identity_busy.raw"
+assert grep -q "removed the unused base image eeeeeeeeeeee" "$test_root/prune.log"
+kill "$lock_holder" 2>/dev/null || true
+wait "$lock_holder" 2>/dev/null || true
+qemu_persistent_storage_prune_images "$identity_download" 2>/dev/null
+assert test ! -e "$images_root/$identity_busy.raw"
+assert_fails qemu_persistent_storage_prune_images not-an-identity
+
 printf 'qemu-persistent-storage.test: PASS\n'

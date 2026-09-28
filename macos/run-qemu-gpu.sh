@@ -761,6 +761,8 @@ if (( selected_existing == 0 )); then
   fi
 fi
 working_disk=$QEMU_SELECTED_DISK
+# Earlier app versions' base images are no longer needed by this app.
+qemu_persistent_storage_prune_images "$bundle_identity" || true
 
 case ${OMARCHY_QEMU_GPU_DRY_RUN:-0} in
   0|1) ;;
