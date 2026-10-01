@@ -376,6 +376,17 @@ of other outputs (`debug`, `doc`, `jdk`) of grafted packages that grafting
 needs; the next, `add helix`, took 3 minutes and 5.3 MB. Shutdown and Logout
 from the menu work.
 
+Measured 2026-10-01 on b35: the first-start setup's reconfigure took 1415 s
+(2386 s in an earlier run) and downloaded 2.3 GB in 33 sequential substitute
+rounds. The store gained about 5 GB of nar, mostly other outputs of packages
+in the system's closure: `debug` 2.7 GB (qtdeclarative alone 1.4 GB), `doc`
+0.66 GB, OpenJDK's `jdk` 0.39 GB, plus whole `out`s such as GCC 14 and 15.
+The pinned Guix's `cumulative-grafts` (`guix/grafts.scm`) scans the
+references of every output of each derivation it may graft, building
+(substituting) missing ones, and grafts all outputs on purpose so only one
+grafted variant exists (bugs 24886 and 75157). The ungrafted GC root keeps
+only the closure, so these outputs are fetched again on every fresh VM.
+
 Verified 2026-09-24 on a fresh image: the shell's bar (workspaces, clock,
 weather, network, audio, display), the Tokyo Night background, Foot with the
 theme's colours and border on Super+Return, and Omarchy's menu on
