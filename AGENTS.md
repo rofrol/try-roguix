@@ -48,6 +48,10 @@ clean; edit them only upstream. Where they differ, this repository follows:
   builder VM (`guest/guix/README.md`) and packaged into `dist/guix` with
   `make guix-package`; there is no Arch guest, package lock or Docker build.
 - Roguix's own packages are served from `roguix.frolow.dev` (`server/`).
+- Sync with Try Omarchy by rebasing `main` onto `upstream/main` and
+  force-pushing it with `--force-with-lease`; the maintainer approves this
+  standing rewrite of `main` (2026-10-01). Release tags are never moved, and
+  upstream's tags are fetched as `try-omarchy/*` (`docs/releasing.md`).
 - The rest of this file is the project's architecture and maintenance policy.
 
 <!-- AGENTS.md version: 1.0.0 -->
