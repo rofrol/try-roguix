@@ -232,6 +232,23 @@ class TerminalTests(unittest.TestCase):
         with setup.Terminal(read_fd, output.fileno(), Broken()) as terminal:
             self.assertEqual(terminal.ask("probe", "Probe"), "value")
 
+    def test_the_cursor_waits_where_the_typed_text_appears(self):
+        read_fd, write_fd = os.pipe()
+        os.write(write_fd, "Zażółć\r".encode())
+        os.close(write_fd)
+        self.addCleanup(os.close, read_fd)
+        with tempfile.TemporaryFile() as output:
+            with setup.Terminal(read_fd, output.fileno()) as terminal:
+                terminal.note("Rejected: try again")
+                self.assertEqual(terminal.ask("probe", "Probe"), "Zażółć")
+            output.seek(0)
+            screens = output.read().decode().split("\x1b[H\x1b[2J")[1:]
+        # Title, blank, note, blank, header: the prompt is row 6, and after
+        # "> " plus each typed character the cursor sits one column on.
+        for typed, screen in enumerate(screens):
+            self.assertTrue(screen.partition("enter submit")[2].startswith(
+                f"\x1b[6;{3 + typed}H\x1b[?25h"), repr(screen))
+
 
 if __name__ == "__main__":
     unittest.main()

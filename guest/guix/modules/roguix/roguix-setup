@@ -215,7 +215,7 @@ class Terminal:
     def __exit__(self, *_):
         if self.saved is not None:
             termios.tcsetattr(self.input, termios.TCSANOW, self.saved)
-        self.write("\r\n")
+        self.write("\x1b[?25h\r\n")
 
     def write(self, text):
         os.write(self.output, text.encode())
@@ -267,16 +267,24 @@ class Terminal:
             return byte.decode(errors="replace")
         return byte.decode() if byte.isascii() and byte >= b" " else "ignored"
 
-    def draw(self, lines):
-        self.write("\x1b[H\x1b[2J" + "\r\n".join(
-            [self.TITLE, ""] + self.notes + ([""] if self.notes else []) + lines))
+    def draw(self, lines, cursor=None):
+        """Show LINES below the title and notes. CURSOR, a (line, column)
+        pair within LINES counted from 0, is where typing appears; without
+        it the cursor is hidden rather than left after the last line."""
+        top = [self.TITLE, ""] + self.notes + ([""] if self.notes else [])
+        place = "\x1b[?25l"
+        if cursor is not None:
+            line, column = cursor
+            place = f"\x1b[{len(top) + line + 1};{column + 1}H\x1b[?25h"
+        self.write("\x1b[H\x1b[2J" + "\r\n".join(top + lines) + place)
 
     def ask(self, step, header, value="", password=False):
         """A line of text; Enter accepts it."""
         self.event(f"ready {step}")
         while True:
             shown = "*" * len(value) if password else value
-            self.draw([header, f"> {shown}", "", "enter submit"])
+            prompt = f"> {shown}"
+            self.draw([header, prompt, "", "enter submit"], (1, len(prompt)))
             key = self.key()
             if key == "interrupt":
                 raise KeyboardInterrupt
@@ -305,7 +313,8 @@ class Terminal:
             rows = [("> " if item == chosen else "  ") + item
                     for item in shown[top:top + height]]
             self.draw([header, f"/ {query}", ""] + (rows or ["  (no match)"])
-                      + ["", "type to search, up/down to move, enter to pick"])
+                      + ["", "type to search, up/down to move, enter to pick"],
+                      (1, len(query) + 2))
             key = self.key()
             if key == "interrupt":
                 raise KeyboardInterrupt
