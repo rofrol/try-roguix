@@ -85,7 +85,10 @@ through its serial console (`.build/guix-validation/serial.sock`, or
 `VM_RUN_SOCKET`) and blocks until it ends. The command runs detached in the
 guest, logging to `/root/vm-run/<id>.log`; `vm-run` prints that log as it
 grows and exits with the command's own exit code (124 on timeout, 125 when
-the console stays unreachable). Run long builds under `herdr-job`, so they
+the console stays unreachable). After the builder reboots, its console waits at
+a login prompt and the 9p shares are unmounted, so `vm-run` sees no shell: log
+in as root on the console and mount `project` (read-only) at `/mnt/project` and
+`export` at `/mnt/export` first. Run long builds under `herdr-job`, so they
 get their own tab and a real result:
 
 ```sh
