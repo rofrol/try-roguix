@@ -49,16 +49,13 @@ clean; edit them only upstream. Where they differ, this repository follows:
   `make guix-package`; there is no Arch guest, package lock or Docker build.
 - Roguix's own packages are served from `roguix.frolow.dev` (`server/`).
 - Sync with Try Omarchy by rebasing `main` onto `upstream/main` and
-  force-pushing it with `--force-with-lease=main:<the reviewed old SHA>`; the
-  maintainer approves this standing rewrite of `main` (2026-10-01) only while
-  nobody else depends on `main`. Before each force-push check, with `gh`: no
-  collaborator with write access besides the maintainer, no open or merged
-  pull request from anyone else, no fork with commits ahead of `main`, no
-  ruleset or branch protection forbidding force-pushes, and the project still
-  presented as a fork of Try Omarchy rather than a renamed standalone project.
-  If any check fails or cannot be made, do not rewrite `main`: stop and ask
-  the maintainer how to sync instead. Release tags are never moved, and
-  upstream's tags are fetched as `try-omarchy/*` (`docs/releasing.md`).
+  force-pushing it with `--force-with-lease=main:<the reviewed old SHA>`. The
+  maintainer approves this standing rewrite of `main` (2026-10-01) until they
+  announce the project publicly under its own repository name; from then on
+  `main` is not rewritten, and the maintainer decides how syncing works. That
+  decision is the maintainer's, not something to infer from forks or pull
+  requests. Release tags are never moved, and upstream's tags are fetched as
+  `try-omarchy/*` (`docs/releasing.md`).
 - The rest of this file is the project's architecture and maintenance policy.
 
 <!-- AGENTS.md version: 1.0.0 -->
