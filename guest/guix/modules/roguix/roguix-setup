@@ -66,7 +66,7 @@ LAYOUTS = (
     ("English (US, international)", "us", "intl", "us-acentos"),
     ("English (UK)", "gb", "", "uk"),
     ("English (US, Dvorak)", "us", "dvorak", "dvorak"),
-    ("English (US, Colemak)", "us", "colemak", "colemak"),
+    ("English (US, Colemak)", "us", "colemak", "en-latin9"),
     ("Belgian", "be", "", "be-latin1"),
     ("Brazilian", "br", "", "br-abnt2"),
     ("Croatian", "hr", "", "croat"),

@@ -13,6 +13,7 @@
 (define-module (roguix services)
   #:use-module (gnu packages admin)
   #:use-module (gnu packages base)
+  #:use-module (gnu packages fonts)
   #:use-module (gnu packages glib)
   #:use-module (gnu packages linux)
   #:use-module (gnu services)
@@ -22,6 +23,7 @@
                 #:select (%roguix-host-settings-file roguix-setup))
   #:use-module (gnu packages bash)
   #:export (%roguix-account
+            %roguix-console-font
             roguix-grow-root-service-type
             roguix-first-boot-service-type
             roguix-session-script))
@@ -33,6 +35,12 @@
 ;; Also the root file system label in system.scm; `guix system image` gives the
 ;; root partition and its ext4 this label.
 (define %root-label "Guix_image")
+
+;; Terminus 32 px on the text consoles, as for boot messages; its 512 glyphs
+;; cover the setup's keyboard layouts, which the kernel's built-in font does
+;; not.
+(define %roguix-console-font
+  (file-append font-terminus "/share/consolefonts/ter-v32n.psf.gz"))
 
 (define grow-root-program
   (program-file
@@ -120,6 +128,11 @@
        ;; tty1 before running setsid. Asked again until the password is set,
        ;; so an interrupted setup starts over.
        (setenv "TERM" "linux")
+       ;; console-font-tty1 waits for tty1's login, which follows this
+       ;; setup, so until then tty1 has the kernel's font: load the
+       ;; consoles' font here, or a chosen layout's letters show as others.
+       (system* #$(file-append kbd "/bin/setfont") "-C" "/dev/tty1"
+                #$%roguix-console-font)
        (let loop ((attempts 0))
          (when (and (locked?) (< attempts 50))
            (system* #$(file-append bash-minimal "/bin/sh") "-c"

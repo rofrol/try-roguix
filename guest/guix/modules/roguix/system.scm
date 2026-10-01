@@ -291,13 +291,9 @@ first-start setup's answers (roguix-setup)."
                config => (pulseaudio-configuration
                           (inherit config)
                           (client-conf '((autospawn . no)))))
-              ;; Terminus 32 px on the text consoles, as for boot messages.
               (console-font-service-type
                config => (map (lambda (tty)
-                                (cons (car tty)
-                                      (file-append
-                                       font-terminus
-                                       "/share/consolefonts/ter-v32n.psf.gz")))
+                                (cons (car tty) %roguix-console-font))
                               config))
               (mingetty-service-type
                config => (if (string=? (mingetty-configuration-tty config) "tty1")
