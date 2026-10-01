@@ -24,6 +24,7 @@ import os
 import pwd
 import re
 import select
+import signal
 import subprocess
 import sys
 import termios
@@ -170,6 +171,10 @@ def with_setup(text, block):
     return text[:start] + block.lstrip() + text[end:]
 
 
+def _interrupt(number, frame):
+    raise KeyboardInterrupt
+
+
 class Terminal:
     """Questions on one terminal, read in raw mode by this one process.
 
@@ -188,8 +193,16 @@ class Terminal:
         self.saved = None
 
     def __enter__(self):
+        # A termination signal unwinds through __exit__, which restores the
+        # terminal; otherwise SIGTERM or SIGHUP left tty1 in raw mode.
+        for number in (signal.SIGTERM, signal.SIGHUP):
+            signal.signal(number, _interrupt)
         if os.isatty(self.input):
             self.saved = termios.tcgetattr(self.input)
+            # A run killed before this fix may have left the terminal raw;
+            # restore an ordinary line-editing terminal, not that.
+            self.saved[0] |= termios.ICRNL | termios.IXON
+            self.saved[3] |= termios.ICANON | termios.ECHO | termios.ISIG
             mode = termios.tcgetattr(self.input)
             mode[0] &= ~(termios.ICRNL | termios.IXON)
             mode[3] &= ~(termios.ICANON | termios.ECHO | termios.ISIG)
@@ -208,9 +221,14 @@ class Terminal:
         os.write(self.output, text.encode())
 
     def event(self, text):
-        if self.events is not None:
+        """Announce TEXT on the event channel; best effort, never blocking."""
+        if self.events is None:
+            return
+        try:
             self.events.write(f"roguix-setup: {text}\n")
             self.events.flush()
+        except OSError:
+            self.events = None
 
     def note(self, text):
         """Show TEXT above the following questions (validation messages)."""
@@ -545,8 +563,11 @@ def ask_all(terminal, settings):
 
 
 def open_events():
+    """The serial console, opened so that a full or absent reader never
+    blocks the setup."""
     try:
-        return open(EVENTS, "w", encoding="utf-8")
+        return os.fdopen(os.open(EVENTS, os.O_WRONLY | os.O_NOCTTY | os.O_NONBLOCK),
+                         "w", encoding="utf-8")
     except OSError:
         return None
 

@@ -4,6 +4,8 @@ import base64
 import io
 import os
 import pty
+import signal
+import termios
 import importlib.machinery
 import importlib.util
 from pathlib import Path
@@ -202,6 +204,33 @@ class TerminalTests(unittest.TestCase):
         self.addCleanup(output.close)
         with setup.Terminal(slave, output.fileno()) as terminal:
             self.assertEqual(terminal.ask("probe", "Probe"), "early")
+
+    def test_termination_restores_the_terminal(self):
+        master, slave = pty.openpty()
+        self.addCleanup(os.close, master)
+        self.addCleanup(os.close, slave)
+        output = open(os.devnull, "wb")
+        self.addCleanup(output.close)
+        with self.assertRaises(KeyboardInterrupt):
+            with setup.Terminal(slave, output.fileno()):
+                self.assertFalse(termios.tcgetattr(slave)[3] & termios.ECHO)
+                os.kill(os.getpid(), signal.SIGTERM)
+        restored = termios.tcgetattr(slave)[3]
+        for flag in (termios.ICANON, termios.ECHO, termios.ISIG):
+            self.assertTrue(restored & flag)
+
+    def test_a_broken_event_channel_does_not_stop_the_setup(self):
+        class Broken:
+            def write(self, text):
+                raise OSError("gone")
+        read_fd, write_fd = os.pipe()
+        os.write(write_fd, b"value\r")
+        os.close(write_fd)
+        self.addCleanup(os.close, read_fd)
+        output = open(os.devnull, "wb")
+        self.addCleanup(output.close)
+        with setup.Terminal(read_fd, output.fileno(), Broken()) as terminal:
+            self.assertEqual(terminal.ask("probe", "Probe"), "value")
 
 
 if __name__ == "__main__":
