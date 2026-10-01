@@ -11,6 +11,7 @@
 ;;; directory with -L; the image also installs it for in-guest reconfigure.
 (define-module (roguix packages)
   #:use-module (guix packages)
+  #:use-module (ice-9 match)
   #:use-module (guix download)
   #:use-module (guix git-download)
   #:use-module (guix gexp)
@@ -24,6 +25,7 @@
   #:use-module (gnu packages cpp)
   #:use-module (gnu packages freedesktop)
   #:use-module ((gnu packages commencement) #:select (gcc-toolchain-15))
+  #:use-module ((gnu packages gcc) #:select (gcc-15))
   #:use-module (gnu packages window-management)
   #:use-module ((gnu packages xdisorg) #:prefix xdisorg:)
   #:export (hyprutils-0.14
@@ -133,6 +135,9 @@
    (rewrite-hypr-libraries
     (package
      (inherit hyprland)
+     (arguments
+      (cons* #:disallowed-references (list gcc-toolchain-15 gcc-15)
+             (package-arguments hyprland)))
      (version "0.56.1")
      (source (origin
                (inherit (package-source hyprland))
@@ -164,7 +169,13 @@
                ;; 0.56 adds emulated input (libeis) for remote desktop.
                ;; hyprctl 0.56 gains an interactive mode using readline.
                (append libei readline)))))
-   `(("toolchain" ,gcc-toolchain-15))))
+   ;; gcc-toolchain-15's own parts rather than the union itself: with the
+   ;; union, ld-wrapper put its lib/ (symlinks into gcc-15's lib output) on
+   ;; the RUNPATH, which kept the whole GCC 15 compiler, about 260 MB, in the
+   ;; system. The build fails if either comes back.
+   (filter (match-lambda
+             ((label . _) (not (member label '("libc-debug" "libc-static")))))
+           (package-inputs gcc-toolchain-15))))
 
 ;; Guix's portal is built against its Hyprland 0.55.4, which would put a
 ;; second Hyprland in the system and give the share picker a 0.55 hyprctl for
