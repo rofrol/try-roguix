@@ -27,7 +27,6 @@
   #:use-module (gnu packages python)
   #:use-module (gnu packages version-control)
   #:use-module (gnu packages xdisorg)
-  #:use-module ((roguix apps) #:select (gum-bin))
   #:use-module (gnu services)
   #:use-module (gnu services base)
   #:use-module (gnu services linux)
@@ -459,10 +458,9 @@ Roguix battery agent sets from the host.")
 (define roguix-setup
   (guest-python-script "roguix-setup" "roguix-setup"
                        (local-file "roguix-setup")
-                       #:tools '("bin/gum" "sbin/chpasswd" "bin/loadkeys"
-                                 "bin/git" "bin/hostname" "bin/notify-send")
-                       #:inputs (list gum-bin shadow kbd git
-                                      inetutils libnotify)
+                       #:tools '("sbin/chpasswd" "bin/loadkeys" "bin/git"
+                                 "bin/hostname" "bin/notify-send")
+                       #:inputs (list shadow kbd git inetutils libnotify)
                        #:synopsis "Ask Roguix's first-start questions"))
 
 ;;; Settings: Omarchy's Setup menu (omarchy-menu.py) and the desktop entry

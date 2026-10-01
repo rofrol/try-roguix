@@ -11,14 +11,22 @@ markers, and take effect at once for this boot; the Git identity goes into
 the account's ~/.gitconfig. A reconfigure started in the background makes
 the system values part of the system generation, so they survive a restart;
 a notification tells the account when it has finished.
+
+One process reads the terminal for every question, in raw mode set once
+and never flushed, so keys typed ahead of the next question are kept: with
+a separate gum process per question they were lost between questions. Each
+question announces itself on the serial console (/dev/hvc0, captured by the
+Mac app) as "roguix-setup: ready STEP", which end-to-end tests wait for.
 """
 
 import base64
 import os
 import pwd
 import re
+import select
 import subprocess
 import sys
+import termios
 import time
 
 ACCOUNT = "guest"
@@ -47,7 +55,7 @@ def system_zoneinfo():
 ZONEINFO = system_zoneinfo()
 RECONFIGURE = "/run/current-system/profile/bin/roguix-reconfigure"
 RECONFIGURE_LOG = "/var/log/roguix-setup-reconfigure.log"
-GUM = "gum"
+EVENTS = "/dev/hvc0"
 
 # (label, XKB layout, XKB variant, console keymap). XKB drives Guix's
 # keyboard-layout and Hyprland (through /etc/vconsole.conf); the console
@@ -105,7 +113,8 @@ class Failure(Exception):
 def host_settings(path=HOST_SETTINGS):
     """The launcher's name=value settings, or {} without a launcher."""
     try:
-        text = open(path, encoding="utf-8").read()
+        with open(path, encoding="utf-8") as stream:
+            text = stream.read()
     except OSError:
         return {}
     return dict(token.split("=", 1) for token in text.split() if "=" in token)
@@ -161,43 +170,195 @@ def with_setup(text, block):
     return text[:start] + block.lstrip() + text[end:]
 
 
-def gum(*arguments, input_text=None):
-    result = subprocess.run([GUM, *arguments], input=input_text, text=True,
-                            stdout=subprocess.PIPE)
-    if result.returncode != 0:
-        raise KeyboardInterrupt
-    return result.stdout.strip()
+class Terminal:
+    """Questions on one terminal, read in raw mode by this one process.
+
+    INPUT and OUTPUT are file descriptors; EVENTS is a file the step
+    announcements go to, or None. A non-terminal INPUT (a pipe, in tests)
+    is read as it is.
+    """
+
+    TITLE = "Roguix: first start"
+
+    def __init__(self, input_fd=0, output_fd=1, events=None):
+        self.input = input_fd
+        self.output = output_fd
+        self.events = events
+        self.notes = []
+        self.saved = None
+
+    def __enter__(self):
+        if os.isatty(self.input):
+            self.saved = termios.tcgetattr(self.input)
+            mode = termios.tcgetattr(self.input)
+            mode[0] &= ~(termios.ICRNL | termios.IXON)
+            mode[3] &= ~(termios.ICANON | termios.ECHO | termios.ISIG)
+            mode[6][termios.VMIN] = 1
+            mode[6][termios.VTIME] = 0
+            # TCSANOW, never TCSAFLUSH: that would drop keys typed ahead.
+            termios.tcsetattr(self.input, termios.TCSANOW, mode)
+        return self
+
+    def __exit__(self, *_):
+        if self.saved is not None:
+            termios.tcsetattr(self.input, termios.TCSANOW, self.saved)
+        self.write("\r\n")
+
+    def write(self, text):
+        os.write(self.output, text.encode())
+
+    def event(self, text):
+        if self.events is not None:
+            self.events.write(f"roguix-setup: {text}\n")
+            self.events.flush()
+
+    def note(self, text):
+        """Show TEXT above the following questions (validation messages)."""
+        self.notes = (self.notes + [text])[-4:]
+
+    def key(self):
+        """The next key: a character, or "enter", "backspace", "up",
+        "down", "left", "right", "clear" or "interrupt"."""
+        byte = os.read(self.input, 1)
+        if not byte:
+            raise KeyboardInterrupt
+        if byte in (b"\r", b"\n"):
+            return "enter"
+        if byte in (b"\x7f", b"\x08"):
+            return "backspace"
+        if byte == b"\x15":
+            return "clear"
+        if byte in (b"\x03", b"\x04"):
+            return "interrupt"
+        if byte == b"\x1b":
+            sequence = b""
+            while select.select([self.input], [], [], 0.05)[0] and len(sequence) < 8:
+                sequence += os.read(self.input, 1)
+                if sequence[-1:].isalpha() or sequence[-1:] == b"~":
+                    break
+            return {b"[A": "up", b"OA": "up", b"[B": "down", b"OB": "down",
+                    b"[C": "right", b"OC": "right", b"[D": "left",
+                    b"OD": "left"}.get(sequence, "ignored")
+        if byte[0] >= 0x80:
+            # Gather a UTF-8 character.
+            needed = 1 if byte[0] >= 0xC0 else 0
+            needed += 1 if byte[0] >= 0xE0 else 0
+            needed += 1 if byte[0] >= 0xF0 else 0
+            for _ in range(needed):
+                byte += os.read(self.input, 1)
+            return byte.decode(errors="replace")
+        return byte.decode() if byte.isascii() and byte >= b" " else "ignored"
+
+    def draw(self, lines):
+        self.write("\x1b[H\x1b[2J" + "\r\n".join(
+            [self.TITLE, ""] + self.notes + ([""] if self.notes else []) + lines))
+
+    def ask(self, step, header, value="", password=False):
+        """A line of text; Enter accepts it."""
+        self.event(f"ready {step}")
+        while True:
+            shown = "*" * len(value) if password else value
+            self.draw([header, f"> {shown}", "", "enter submit"])
+            key = self.key()
+            if key == "interrupt":
+                raise KeyboardInterrupt
+            if key == "enter":
+                self.event(f"accepted {step}")
+                return value
+            if key == "backspace":
+                value = value[:-1]
+            elif key == "clear":
+                value = ""
+            elif len(key) == 1:
+                value += key
+
+    def choose(self, step, header, items, selected=None, height=15):
+        """One of ITEMS; typing narrows the list, arrows move, Enter picks."""
+        self.event(f"ready {step}")
+        query = ""
+        current = items.index(selected) if selected in items else 0
+        chosen = items[current]
+        while True:
+            shown = [item for item in items if query.lower() in item.lower()]
+            if chosen not in shown:
+                chosen = shown[0] if shown else None
+            index = shown.index(chosen) if chosen is not None else 0
+            top = max(0, min(index - height // 2, len(shown) - height))
+            rows = [("> " if item == chosen else "  ") + item
+                    for item in shown[top:top + height]]
+            self.draw([header, f"/ {query}", ""] + (rows or ["  (no match)"])
+                      + ["", "type to search, up/down to move, enter to pick"])
+            key = self.key()
+            if key == "interrupt":
+                raise KeyboardInterrupt
+            if key == "enter" and chosen is not None:
+                self.event(f"accepted {step}")
+                return chosen
+            if key == "up" and shown:
+                chosen = shown[max(0, index - 1)]
+            elif key == "down" and shown:
+                chosen = shown[min(len(shown) - 1, index + 1)]
+            elif key == "backspace":
+                query = query[:-1]
+            elif key == "clear":
+                query = ""
+            elif len(key) == 1:
+                query += key
+
+    def confirm(self, step, lines, question):
+        """Yes or no, Yes by default; y, n, arrows and Enter."""
+        self.event(f"ready {step}")
+        answer = True
+        while True:
+            choice = "[ Yes ]   No  " if answer else "  Yes   [ No ]"
+            self.draw(lines + ["", question, choice, "", "y/n, left/right, enter"])
+            key = self.key()
+            if key == "interrupt":
+                raise KeyboardInterrupt
+            if key in ("y", "Y"):
+                answer = True
+            elif key in ("n", "N"):
+                answer = False
+            elif key in ("left", "right"):
+                answer = not answer
+            elif key == "enter":
+                self.event(f"accepted {step} {'yes' if answer else 'no'}")
+                return answer
 
 
-def ask_layout(suggestion):
+def ask_layout(terminal, suggestion):
     labels = [entry[0] for entry in LAYOUTS]
-    chosen = gum("choose", "--header", "Keyboard layout", "--height", "15",
-                 "--selected", suggestion[0], *labels)
+    chosen = terminal.choose("keyboard", "Keyboard layout", labels, suggestion[0])
     return next(entry for entry in LAYOUTS if entry[0] == chosen)
 
 
-def ask_password():
+def ask_password(terminal):
     while True:
-        first = gum("input", "--password", "--header",
-                    f"Password of the account '{ACCOUNT}' (sudo asks for it)")
+        first = terminal.ask(
+            "password", f"Password of the account '{ACCOUNT}' (sudo asks for it)",
+            password=True)
+        problem = None
         if not first:
-            print("The password must not be empty.")
-            continue
-        if ":" in first:
-            print("The password must not contain ':'.")
-            continue
-        if gum("input", "--password", "--header", "Repeat the password") != first:
-            print("The passwords differ.")
-            continue
-        return first
+            problem = "The password must not be empty."
+        elif ":" in first:
+            problem = "The password must not contain ':'."
+        elif terminal.ask("password-repeat", "Repeat the password",
+                          password=True) != first:
+            problem = "The passwords differ."
+        if problem is None:
+            return first
+        terminal.note(problem)
+        terminal.event(f"rejected password {problem}")
 
 
-def ask_host_name():
+def ask_host_name(terminal):
     while True:
-        name = gum("input", "--header", "Host name", "--value", "roguix")
+        name = terminal.ask("host-name", "Host name", value="roguix")
         if HOSTNAME.match(name):
             return name
-        print("Use lowercase letters, digits and inner hyphens (up to 63).")
+        problem = "Use lowercase letters, digits and inner hyphens (up to 63)."
+        terminal.note(problem)
+        terminal.event(f"rejected host-name {problem}")
 
 
 def zones(zoneinfo=None):
@@ -213,9 +374,8 @@ def zones(zoneinfo=None):
     return sorted(set(found))
 
 
-def ask_timezone(suggestion):
-    chosen = gum("filter", "--header", "Time zone", "--value", suggestion,
-                 "--height", "15", input_text="\n".join(zones()))
+def ask_timezone(terminal, suggestion):
+    chosen = terminal.choose("time-zone", "Time zone", zones(), suggestion)
     return chosen if valid_timezone(chosen) else suggestion
 
 
@@ -367,31 +527,47 @@ def reconfigure_in_background():
         os._exit(0)
 
 
+def ask_all(terminal, settings):
+    """Every answer, in Omarchy's order; returns them once confirmed."""
+    layout = ask_layout(terminal, suggested_layout(settings))
+    apply_layout(layout)
+    password = ask_password(terminal)
+    while True:
+        name = terminal.ask("git-name", "Your name for Git commits (optional)")
+        email = terminal.ask("git-email", "Your email for Git commits (optional)")
+        host_name = ask_host_name(terminal)
+        timezone = ask_timezone(terminal, suggested_timezone(settings))
+        summary = [f"Keyboard:  {layout[0]}", f"Host name: {host_name}",
+                   f"Time zone: {timezone}",
+                   f"Git:       {name or '-'} <{email or '-'}>"]
+        if terminal.confirm("confirm", summary, "Save these settings?"):
+            return layout, password, name, email, host_name, timezone
+
+
+def open_events():
+    try:
+        return open(EVENTS, "w", encoding="utf-8")
+    except OSError:
+        return None
+
+
 def main():
     settings = host_settings()
-    print("\nRoguix: first start\n")
-    layout = ask_layout(suggested_layout(settings))
-    apply_layout(layout)
-    password = ask_password()
-    while True:
-        name = gum("input", "--header", "Your name for Git commits (optional)")
-        email = gum("input", "--header", "Your email for Git commits (optional)")
-        host_name = ask_host_name()
-        timezone = ask_timezone(suggested_timezone(settings))
-        print(f"\nKeyboard:  {layout[0]}\nHost name: {host_name}\n"
-              f"Time zone: {timezone}\nGit:       {name or '-'} <{email or '-'}>\n")
-        if subprocess.run([GUM, "confirm", "Save these settings?"]).returncode == 0:
-            break
-    set_git_identity(name, email)
-    # The password last: until it is set, first boot runs this setup again.
-    text = open(CONFIG, encoding="utf-8").read()
-    replace_file(CONFIG, with_setup(text, setup_block(host_name, timezone,
-                                                      layout[1], layout[2])))
-    apply_system(host_name, timezone)
-    set_password(password)
-    reconfigure_in_background()
-    print(f"Saved in {CONFIG}. Starting the desktop; the system applies the\n"
-          "settings in the background and says when they survive a restart.\n")
+    with Terminal(events=open_events()) as terminal:
+        layout, password, name, email, host_name, timezone = ask_all(terminal, settings)
+        set_git_identity(name, email)
+        # The password last: until it is set, first boot runs this setup again.
+        with open(CONFIG, encoding="utf-8") as stream:
+            text = stream.read()
+        replace_file(CONFIG, with_setup(text, setup_block(host_name, timezone,
+                                                          layout[1], layout[2])))
+        apply_system(host_name, timezone)
+        set_password(password)
+        terminal.event("finished")
+        reconfigure_in_background()
+        terminal.draw([f"Saved in {CONFIG}. Starting the desktop; the system",
+                       "applies the settings in the background and says when",
+                       "they survive a restart."])
     return 0
 
 
