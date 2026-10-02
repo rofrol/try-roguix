@@ -1,13 +1,38 @@
 # TODO
 
-## Command is not captured as Super in the guest
+## Command shortcuts in the guest
 
-Reported 2026-10-03: inside the VM, Command shortcuts such as Command-Space
-do nothing; the Mac keeps them.
+Reported 2026-10-03: Command-Space does nothing in the guest, and
+Command-Tab switches Mac apps.
 
-Command-to-Super mapping needs the Accessibility permission (a modifying
-CGEventTap, `FocusedCommandSuperBridge.swift`); without it the app starts
-the VM without the mapping and only logs a warning. Development builds and
+Command-Space, found: the maintainer's Karabiner-Elements rule turns
+Command-Space into F18 (for a Hammerspoon launcher) in its virtual HID
+driver, before QEMU's event tap, so the guest gets F18. Exempt the VM window
+in that rule's manipulator; the window belongs to QEMU, which has no bundle
+identifier, so match its path (check it in Karabiner-EventViewer):
+
+```json
+{"type": "frontmost_application_unless",
+ "file_paths": ["^.*/Try Roguix\\.app/Contents/Resources/runtime/bin/Try Roguix$"]}
+```
+
+Document this for users of Karabiner, Hammerspoon and AltTab: such tools may
+own a chord before the VM sees it.
+
+Command-Tab is left to macOS on purpose (`qemu-cocoa-command-tab.patch`), so
+the keyboard can always leave the VM. Users who switch apps with AltTab want
+it in the guest. Add a persisted setting, off by default, "Send Command-Tab
+to Roguix" (start menu and settings), passed to QEMU's Cocoa display; with
+it on, keep a host-only release shortcut handled before forwarding and show
+it. Parallels' "Send macOS system shortcuts: Auto/Always/Never" is the
+precedent if this grows beyond Command-Tab.
+
+The Accessibility grant still matters for the rest:
+
+Command-to-Super mapping of system shortcuts needs the Accessibility
+permission (QEMU's full-grab CGEventTap; `FocusedCommandSuperBridge.swift`
+is never started); without it the app starts the VM without the mapping and
+only logs a warning. Development builds and
 releases are signed ad hoc, so their designated requirement is the cdhash
 (`codesign -d -r-` shows `designated => cdhash H"..."`): every rebuild or
 update is a new identity for TCC, and the earlier grant no longer applies,
