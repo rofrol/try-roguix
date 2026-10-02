@@ -51,16 +51,14 @@
 ;;
 ;;   sudo roguix-reconfigure
 ;;
-;; Omarchy's install menus edit the same list. Everything else is the Roguix
-;; system in /etc/roguix, which this reuses as is.
+;; Omarchy's install menus edit the same list. The host name, time zone and
+;; keyboard come from the first-start setup, kept in
+;; /var/lib/roguix/machine-settings.scm; #:host-name, #:timezone,
+;; #:keyboard-layout and #:keyboard-variant here override them. Everything
+;; else is the Roguix system in /etc/roguix, which this reuses as is.
 (use-modules (roguix system))
 
 (roguix-operating-system
- ;; BEGIN roguix setup
- #:host-name \"roguix\"
- #:timezone \"Etc/UTC\"
- #:keyboard-layout \"us\"
- ;; END roguix setup
  #:packages
  '(;; BEGIN roguix packages
    ;; END roguix packages
@@ -95,13 +93,24 @@
   (operating-system-derivation (system-closure-os closure)))
 
 (define* (roguix-operating-system #:key (packages '())
-                                  (host-name "roguix") (timezone "Etc/UTC")
-                                  (keyboard-layout "us") keyboard-variant)
+                                  host-name timezone keyboard-layout
+                                  keyboard-variant)
   "Return the Roguix system, adding PACKAGES, a list of package names.
-HOST-NAME, TIMEZONE, KEYBOARD-LAYOUT and KEYBOARD-VARIANT (XKB names) are the
-first-start setup's answers (roguix-setup)."
-  (let ((os (base-operating-system packages host-name timezone
-                                   keyboard-layout keyboard-variant)))
+HOST-NAME, TIMEZONE, KEYBOARD-LAYOUT and KEYBOARD-VARIANT (XKB names) default
+to the first-start setup's answers (%roguix-machine-settings-file), then to
+the image's defaults."
+  (define settings (read-machine-settings))
+  (define (setting key)
+    (let ((value (assq-ref settings key)))
+      (and value (not (string-null? value)) value)))
+  (let* ((host-name (or host-name (setting 'host-name) "roguix"))
+         (timezone (or timezone (setting 'timezone) "Etc/UTC"))
+         (layout (or keyboard-layout (setting 'keyboard-layout) "us"))
+         (variant (or keyboard-variant
+                      (and (not keyboard-layout) (setting 'keyboard-variant))))
+         (os (base-operating-system packages host-name timezone layout
+                                    variant
+                                    (or (setting 'console-keymap) ""))))
     (operating-system
       (inherit os)
       (services
@@ -110,7 +119,8 @@ first-start setup's answers (roguix-setup)."
                                    (system-closure os)))
              (operating-system-user-services os))))))
 
-(define (base-operating-system packages host-name timezone layout variant)
+(define (base-operating-system packages host-name timezone layout variant
+                               console-keymap)
   (operating-system
     (host-name host-name)
     (timezone timezone)
@@ -226,6 +236,14 @@ first-start setup's answers (roguix-setup)."
             (simple-service 'roguix-config activation-service-type
                             roguix-config-activation)
             (service roguix-first-boot-service-type)
+            ;; What this system is built with; the boot service applies the
+            ;; settings file only where it differs.
+            (service roguix-machine-settings-service-type
+                     `((host-name . ,host-name)
+                       (timezone . ,timezone)
+                       (keyboard-layout . ,layout)
+                       (keyboard-variant . ,(or variant ""))
+                       (console-keymap . ,console-keymap)))
             (service roguix-host-settings-service-type)
             (service roguix-mac-share-service-type)
             (service roguix-clipboard-service-type)
@@ -309,6 +327,7 @@ first-start setup's answers (roguix-setup)."
                               ;; could no longer start.
                               (shepherd-requirement
                                (cons* 'roguix-first-boot 'roguix-mac-share
+                                      'roguix-machine-settings
                                       'elogind
                                       (mingetty-configuration-shepherd-requirement
                                        config))))

@@ -1,9 +1,10 @@
-"""roguix-setup: the first-start setup's config and suggestion handling."""
+"""roguix-setup: the first-start setup's settings and suggestion handling."""
 
 import base64
 import io
 import os
 import pty
+import re
 import signal
 import termios
 import importlib.machinery
@@ -20,47 +21,31 @@ spec = importlib.util.spec_from_loader("roguix_setup", loader)
 setup = importlib.util.module_from_spec(spec)
 loader.exec_module(setup)
 
-TEMPLATE = """(use-modules (roguix system))
+class MachineSettingsTests(unittest.TestCase):
+    def fields(self, text):
+        return dict(re.findall(r'\(([a-z-]+) \. "([^"]*)"\)', text))
 
-(roguix-operating-system
- ;; BEGIN roguix setup
- #:host-name "roguix"
- #:timezone "Etc/UTC"
- #:keyboard-layout "us"
- ;; END roguix setup
- #:packages
- '(;; BEGIN roguix packages
-   ;; END roguix packages
-   ))
-"""
-
-
-class SetupBlockTests(unittest.TestCase):
-    def test_block_replaces_only_its_markers(self):
-        block = setup.setup_block("studio", "Europe/Warsaw", "pl", "")
-        text = setup.with_setup(TEMPLATE, block)
-        self.assertIn('#:host-name "studio"', text)
-        self.assertIn('#:timezone "Europe/Warsaw"', text)
-        self.assertIn('#:keyboard-layout "pl"', text)
-        self.assertNotIn("keyboard-variant", text)
-        self.assertIn(";; BEGIN roguix packages", text)
-        self.assertEqual(text.count(setup.BEGIN), 1)
-        self.assertEqual(setup.with_setup(text, block), text)
-
-    def test_variant_is_written_when_chosen(self):
-        block = setup.setup_block("roguix", "UTC", "us", "dvorak")
-        self.assertIn('#:keyboard-variant "dvorak"', block)
+    def test_every_setting_is_written_as_data(self):
+        polish = next(entry for entry in setup.LAYOUTS if entry[0] == "Polish")
+        text = setup.machine_settings("studio", "Europe/Warsaw", polish)
+        self.assertEqual(self.fields(text), {
+            "host-name": "studio", "timezone": "Europe/Warsaw",
+            "keyboard-layout": "pl", "keyboard-variant": "",
+            "console-keymap": "pl"})
+        body = text.split("\n", 1)[1]
+        self.assertEqual(body.count("("), body.count(")"))
+        self.assertTrue(body.startswith("((") and body.rstrip().endswith("))"))
 
     def test_unsafe_values_never_reach_scheme(self):
         for value in ['x" (system "id") "', "a b", "é", "a\n"]:
             with self.assertRaises(setup.Failure):
-                setup.setup_block(value, "UTC", "us", "")
+                setup.machine_settings(value, "UTC", setup.LAYOUTS[0])
 
-    def test_a_config_without_one_block_is_refused(self):
-        with self.assertRaises(setup.Failure):
-            setup.with_setup(TEMPLATE.replace(setup.BEGIN, ""), "")
-        with self.assertRaises(setup.Failure):
-            setup.with_setup(TEMPLATE + setup.BEGIN, "")
+    def test_hosts_keeps_resolving_the_new_name(self):
+        hosts = "127.0.0.1 localhost roguix\n::1 localhost roguix\n10.0.0.2 roguix-db\n"
+        self.assertEqual(setup.renamed_hosts(hosts, "roguix", "studio"),
+                         "127.0.0.1 localhost studio\n::1 localhost studio\n"
+                         "10.0.0.2 roguix-db\n")
 
 
 class SuggestionTests(unittest.TestCase):
@@ -103,25 +88,13 @@ class SuggestionTests(unittest.TestCase):
         with unittest.mock.patch.dict("os.environ", {"TZDIR": str(self.zoneinfo)}):
             self.assertEqual(setup.system_zoneinfo(), str(self.zoneinfo))
 
-    def test_session_bus_comes_from_the_compositor(self):
-        proc = self.zoneinfo / "proc"
-        uid = os.getuid()
-        for pid, comm, bus in (("7", "waybar", "unix:path=/tmp/other"),
-                               ("9", "Hyprland", "unix:path=/tmp/dbus-x")):
-            (proc / pid).mkdir(parents=True)
-            (proc / pid / "comm").write_text(comm + "\n")
-            (proc / pid / "environ").write_bytes(
-                b"A=1\0DBUS_SESSION_BUS_ADDRESS=" + bus.encode() + b"\0")
-        self.assertEqual(setup.session_bus(uid, str(proc)), "unix:path=/tmp/dbus-x")
-        self.assertIsNone(setup.session_bus(uid + 1, str(proc)))
-
     def test_zone_list_offers_regions_and_utc(self):
         self.assertEqual(setup.zones(str(self.zoneinfo)),
                          ["America/Argentina/Buenos_Aires", "Europe/Warsaw", "UTC"])
 
     def test_every_layout_is_a_valid_scheme_value(self):
-        for label, layout, variant, keymap in setup.LAYOUTS:
-            setup.setup_block("roguix", "UTC", layout, variant)
+        for entry in setup.LAYOUTS:
+            setup.machine_settings("roguix", "UTC", entry)
 
 
 class TerminalTests(unittest.TestCase):

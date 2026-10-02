@@ -6,11 +6,11 @@ layout, the password of the account, an optional Git name and email, the host
 name and the time zone. The Mac app suggests the keyboard layout and time zone
 through the launcher's settings (/run/roguix/host-settings).
 
-System values go into the setup block of /etc/config.scm, between its
-markers, and take effect at once for this boot; the Git identity goes into
-the account's ~/.gitconfig. A reconfigure started in the background makes
-the system values part of the system generation, so they survive a restart;
-a notification tells the account when it has finished.
+System values go into /var/lib/roguix/machine-settings.scm, a data file
+that /etc/config.scm reads, and take effect at once; until a reconfigure
+builds them into the system, the roguix-machine-settings service applies
+them at every boot, so the setup starts no reconfigure. The Git identity
+goes into the account's ~/.gitconfig.
 
 One process reads the terminal for every question, in raw mode set once
 and never flushed, so keys typed ahead of the next question are kept: with
@@ -25,16 +25,14 @@ import pwd
 import re
 import select
 import signal
+import socket
 import subprocess
 import sys
 import termios
-import time
 
 ACCOUNT = "guest"
-CONFIG = "/etc/config.scm"
+MACHINE_SETTINGS = "/var/lib/roguix/machine-settings.scm"
 HOST_SETTINGS = "/run/roguix/host-settings"
-BEGIN = ";; BEGIN roguix setup"
-END = ";; END roguix setup"
 
 
 def system_zoneinfo():
@@ -54,8 +52,6 @@ def system_zoneinfo():
 
 
 ZONEINFO = system_zoneinfo()
-RECONFIGURE = "/run/current-system/profile/bin/roguix-reconfigure"
-RECONFIGURE_LOG = "/var/log/roguix-setup-reconfigure.log"
 EVENTS = "/dev/hvc0"
 
 # (label, XKB layout, XKB variant, console keymap). XKB drives Guix's
@@ -147,28 +143,20 @@ def valid_timezone(zone, zoneinfo=None):
 def scheme_string(text):
     """A Scheme string literal for TEXT, already restricted to safe characters."""
     if not re.fullmatch(r"[A-Za-z0-9_+./-]*", text):
-        raise Failure(f"refusing to write {text!r} into {CONFIG}")
+        raise Failure(f"refusing to write {text!r} into {MACHINE_SETTINGS}")
     return '"' + text + '"'
 
 
-def setup_block(host_name, timezone, layout, variant):
-    lines = [BEGIN,
-             f" #:host-name {scheme_string(host_name)}",
-             f" #:timezone {scheme_string(timezone)}",
-             f" #:keyboard-layout {scheme_string(layout)}"]
-    if variant:
-        lines.append(f" #:keyboard-variant {scheme_string(variant)}")
-    lines.append(" " + END)
-    return "\n".join(lines)
-
-
-def with_setup(text, block):
-    """TEXT with its setup block replaced; the markers must be there once."""
-    if text.count(BEGIN) != 1 or text.count(END) != 1:
-        raise Failure(f"{CONFIG} has no single setup block; edit it by hand")
-    start = text.index(BEGIN)
-    end = text.index(END) + len(END)
-    return text[:start] + block.lstrip() + text[end:]
+def machine_settings(host_name, timezone, layout):
+    """The machine settings file's text: data that /etc/config.scm and the
+    roguix-machine-settings service read, never load."""
+    _, xkb_layout, variant, keymap = layout
+    fields = (("host-name", host_name), ("timezone", timezone),
+              ("keyboard-layout", xkb_layout), ("keyboard-variant", variant),
+              ("console-keymap", keymap))
+    return (";; Written by roguix-setup; read by /etc/config.scm and at boot.\n("
+            + "\n ".join(f"({key} . {scheme_string(value)})" for key, value in fields)
+            + ")\n")
 
 
 def _interrupt(number, frame):
@@ -444,114 +432,24 @@ def set_git_identity(name, email):
         os.chown(path, account.pw_uid, account.pw_gid)
 
 
-def apply_system(host_name, timezone):
+def renamed_hosts(text, previous, host_name):
+    """/etc/hosts TEXT with the host name PREVIOUS, as a whole word, renamed."""
+    return re.sub(rf"(?<![\w.-]){re.escape(previous)}(?![\w.-])", host_name, text)
+
+
+def apply_system(host_name, timezone, hosts="/etc/hosts"):
+    previous = socket.gethostname()
     run("hostname", host_name)
+    # Keep /etc/hosts resolving the name, or sudo waits on DNS.
+    with open(hosts, encoding="utf-8") as stream:
+        text = stream.read()
+    replace_file(hosts, renamed_hosts(text, previous, host_name))
     zone = os.path.join(ZONEINFO, timezone)
     staging = "/etc/localtime.roguix-setup"
     if os.path.lexists(staging):
         os.remove(staging)
     os.symlink(zone, staging)
     os.replace(staging, "/etc/localtime")
-
-
-def session_bus(uid, proc="/proc"):
-    """The D-Bus session address of UID's desktop, or None.
-
-    The session runs under dbus-run-session, whose bus has a random path,
-    so it is read from the environment of the account's compositor.
-    """
-    for pid in os.listdir(proc):
-        if not pid.isdigit():
-            continue
-        try:
-            if os.stat(os.path.join(proc, pid)).st_uid != uid:
-                continue
-            with open(os.path.join(proc, pid, "comm")) as stream:
-                if stream.read().strip() != "Hyprland":
-                    continue
-            with open(os.path.join(proc, pid, "environ"), "rb") as stream:
-                variables = stream.read().split(b"\0")
-        except OSError:
-            continue
-        for variable in variables:
-            if variable.startswith(b"DBUS_SESSION_BUS_ADDRESS="):
-                return variable.split(b"=", 1)[1].decode()
-    return None
-
-
-def notify(summary, body, replaces=None, persistent=False):
-    """Show a desktop notification in the account's session.
-
-    Returns its id, which a later call passes as REPLACES to update it in
-    place, or None when the session is not up.
-    """
-    account = pwd.getpwnam(ACCOUNT)
-    bus = session_bus(account.pw_uid)
-    if bus is None:
-        return None
-    command = ["notify-send", "--app-name=Roguix", "--print-id"]
-    if replaces:
-        command.append(f"--replace-id={replaces}")
-    if persistent:
-        command.append("--expire-time=0")
-
-    def drop_privileges():
-        os.setgid(account.pw_gid)
-        os.initgroups(ACCOUNT, account.pw_gid)
-        os.setuid(account.pw_uid)
-
-    result = subprocess.run(
-        command + [summary, body], preexec_fn=drop_privileges,
-        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
-        env=dict(os.environ, HOME=account.pw_dir,
-                 XDG_RUNTIME_DIR=f"/run/user/{account.pw_uid}",
-                 DBUS_SESSION_BUS_ADDRESS=bus))
-    identifier = result.stdout.strip()
-    return identifier if result.returncode == 0 and identifier.isdigit() else None
-
-
-def reconfigure_in_background():
-    """Apply /etc/config.scm in a process that outlives this setup.
-
-    The desktop starts meanwhile; once it is up, a notification says that
-    the settings already work but become permanent only when the
-    reconfigure ends, and the same notification then reports the result.
-    """
-    if os.fork() != 0:
-        return
-    try:
-        os.setsid()
-        if os.fork() != 0:
-            os._exit(0)
-        log = os.open(RECONFIGURE_LOG, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
-        null = os.open(os.devnull, os.O_RDONLY)
-        os.dup2(null, 0)
-        os.dup2(log, 1)
-        os.dup2(log, 2)
-        environment = dict(os.environ, HOME="/root",
-                           PATH=os.environ.get("PATH", "") +
-                           ":/run/current-system/profile/bin"
-                           ":/run/current-system/profile/sbin")
-        process = subprocess.Popen([RECONFIGURE], env=environment)
-        notice = None
-        while process.poll() is None:
-            if notice is None:
-                notice = notify(
-                    "Applying your Roguix settings",
-                    "They work now. Keep Roguix running while it makes "
-                    "them permanent, up to half an hour.",
-                    persistent=True)
-            time.sleep(5)
-        if process.returncode == 0:
-            notify("Roguix settings applied",
-                   "Keyboard, time zone and host name now survive a restart.",
-                   replaces=notice)
-        else:
-            notify("Roguix settings not applied",
-                   f"They last until a restart; see {RECONFIGURE_LOG}.",
-                   replaces=notice, persistent=True)
-    finally:
-        os._exit(0)
 
 
 def ask_all(terminal, settings):
@@ -586,18 +484,13 @@ def main():
     with Terminal(events=open_events()) as terminal:
         layout, password, name, email, host_name, timezone = ask_all(terminal, settings)
         set_git_identity(name, email)
-        # The password last: until it is set, first boot runs this setup again.
-        with open(CONFIG, encoding="utf-8") as stream:
-            text = stream.read()
-        replace_file(CONFIG, with_setup(text, setup_block(host_name, timezone,
-                                                          layout[1], layout[2])))
+        os.makedirs(os.path.dirname(MACHINE_SETTINGS), mode=0o755, exist_ok=True)
+        replace_file(MACHINE_SETTINGS, machine_settings(host_name, timezone, layout))
         apply_system(host_name, timezone)
+        # The password last: until it is set, first boot runs this setup again.
         set_password(password)
         terminal.event("finished")
-        reconfigure_in_background()
-        terminal.draw([f"Saved in {CONFIG}. Starting the desktop; the system",
-                       "applies the settings in the background and says when",
-                       "they survive a restart."])
+        terminal.draw([f"Saved in {MACHINE_SETTINGS}. Starting the desktop."])
     return 0
 
 

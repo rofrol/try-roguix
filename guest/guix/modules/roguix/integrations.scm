@@ -453,14 +453,14 @@ Roguix battery agent sets from the host.")
 
 ;;; First-start setup: Omarchy's owner setup questions (keyboard, password,
 ;;; Git identity, host name, time zone) on tty1, suggested by the Mac; it
-;;; writes the setup block of /etc/config.scm (see roguix-setup).
+;;; writes /var/lib/roguix/machine-settings.scm (see roguix-setup).
 
 (define roguix-setup
   (guest-python-script "roguix-setup" "roguix-setup"
                        (local-file "roguix-setup")
                        #:tools '("sbin/chpasswd" "bin/loadkeys" "bin/git"
-                                 "bin/hostname" "bin/notify-send")
-                       #:inputs (list shadow kbd git inetutils libnotify)
+                                 "bin/hostname")
+                       #:inputs (list shadow kbd git inetutils)
                        #:synopsis "Ask Roguix's first-start questions"))
 
 ;;; Settings: Omarchy's Setup menu (omarchy-menu.py) and the desktop entry

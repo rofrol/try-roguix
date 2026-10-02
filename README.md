@@ -66,9 +66,9 @@ before use. How releases are made: [docs/releasing.md](docs/releasing.md).
 On the first start the VM console asks, as Omarchy's installer does, for the
 keyboard layout, the password of the account `guest` (for `sudo`), an
 optional Git name and email, the host name and the time zone; the Mac's
-keyboard layout and time zone are suggested. The settings work at once, and
-Roguix makes them permanent in the background, which a desktop notification
-reports. Every later start goes straight to Hyprland.
+keyboard layout and time zone are suggested. The settings work at once and
+are kept across restarts without rebuilding the system. Every later start
+goes straight to Hyprland.
 
 The desktop is Omarchy's: **Super+Return** opens a terminal, **Super+Space**
 the Omarchy menu, **Super+Alt+Space** the app launcher, **Super+W** closes a

@@ -114,6 +114,18 @@ password twice before tty1 logs in; it sets it with `chpasswd` (SHA-512).
 Guix account activation keeps a password set this way across reboots and
 reconfigures, so the prompt appears only while the password is still locked.
 
+The same setup asks for the keyboard layout, host name and time zone. It
+applies them at once and writes them to `/var/lib/roguix/machine-settings.scm`,
+a data file (an alist of strings, read, never loaded) that `/etc/config.scm`
+uses for `roguix-operating-system`'s defaults; arguments in `config.scm`
+override it. It starts no reconfigure: `roguix-machine-settings`, a boot
+service the tty1 session waits for, compares the file with the values the
+running system was built with and, only where they differ, sets the host
+name, `/etc/hostname`, `/etc/hosts`, `/etc/localtime`, `/etc/vconsole.conf`
+(which Omarchy's Hyprland input reads) and the console keymap. The next
+reconfigure, for example when a package is added, builds the values in and
+the service has nothing left to do.
+
 Like the Arch guest, the VM console then logs in directly: the disk is
 protected by the Mac account. tty1 auto-logs in `guest`, and
 `/etc/profile.d/roguix-session.sh` runs `start-hyprland` there only; other
@@ -380,7 +392,7 @@ of other outputs (`debug`, `doc`, `jdk`) of grafted packages that grafting
 needs; the next, `add helix`, took 3 minutes and 5.3 MB. Shutdown and Logout
 from the menu work.
 
-Measured 2026-10-01 on b35: the first-start setup's reconfigure took 1415 s
+Measured 2026-10-01 on b35, when the setup still reconfigured: the first-start reconfigure took 1415 s
 (2386 s in an earlier run) and downloaded 2.3 GB in 33 sequential substitute
 rounds. The store gained about 5 GB of nar, mostly other outputs of packages
 in the system's closure: `debug` 2.7 GB (qtdeclarative alone 1.4 GB), `doc`
