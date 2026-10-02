@@ -546,3 +546,18 @@ struct StorageLocationMenuState: Equatable {
         }
     }
 }
+
+/// The launcher refuses to expand a factory image without room for it
+/// (qemu-persistent-storage.sh); say how much is needed instead of a generic
+/// failure.
+enum StorageSpaceFailure {
+    static func message(standardError: String) -> String? {
+        let pattern = #/not enough free space for the VM: (\d+) MiB required, (\d+) MiB available/#
+        guard let match = standardError.matches(of: pattern).last,
+              let required = Double(match.1), let available = Double(match.2) else { return nil }
+        let gigabytes = { (mebibytes: Double) in mebibytes * 1_048_576 / 1_000_000_000 }
+        let needed = Int(gigabytes(required).rounded(.up))
+        let free = Int(gigabytes(available).rounded(.down))
+        return "Roguix needs \(needed) GB free on this Mac to set up its disk, but only \(free) GB is free. Free up space, then try again."
+    }
+}
