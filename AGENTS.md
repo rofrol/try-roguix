@@ -45,7 +45,7 @@ The sections above are Try Omarchy's, kept verbatim so rebases onto it stay
 clean; edit them only upstream. Where they differ, this repository follows:
 
 - The guest is Roguix (Guix System), built from `guest/guix/` in a Guix System
-  builder VM (`guest/guix/README.md`) and packaged into `dist/guix` with
+  builder VM (`guest/guix/README.md`) and packaged into `build/guix` with
   `make guix-package`; there is no Arch guest, package lock or Docker build.
 - Roguix's own packages are served from `roguix.frolow.dev` (`server/`).
 - Sync with Try Omarchy by rebasing `main` onto `upstream/main` and

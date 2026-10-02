@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-Usage: macos/build-app.sh [--open] [--dmg] [--guest-dir DIR]
+Usage: macos/build-app.sh [--open] [--dmg] [--guest-dir DIR] [--output-dir DIR]
                                   [--sign-identity IDENTITY]
                                   [--notarize-profile PROFILE]
                                   [--download-disk-from URL]
@@ -22,6 +22,7 @@ EOF
 open_app=0
 build_dmg=0
 guest_dir=
+output_dir=
 sign_identity=${OMARCHY_CODESIGN_IDENTITY:--}
 notarize_profile=
 download_disk_from=
@@ -34,6 +35,11 @@ while (($#)); do
     --guest-dir)
       (($# >= 2)) || usage
       guest_dir=$2
+      shift 2
+      ;;
+    --output-dir)
+      (($# >= 2)) || usage
+      output_dir=$2
       shift 2
       ;;
     --sign-identity)
@@ -67,12 +73,19 @@ macos_dir=$(cd "$(dirname "$0")" && pwd)
 repo_dir=$(cd "$macos_dir/.." && pwd -P)
 helper="$macos_dir/.build/release/omarchy-vm-helper"
 legacy_app="$repo_dir/dist/Try Roguix.app"
-app="$repo_dir/dist/app.noindex/Try Roguix.app"
+# Development and release builds each get their own .noindex directory, so
+# building one never rewrites a bundle that is running from the other.
+output_dir=${output_dir:-"$repo_dir/build/dev.noindex"}
+mkdir -p "$output_dir" && output_dir=$(cd "$output_dir" && pwd -P) || {
+  echo "build-app: cannot use output directory $output_dir" >&2
+  exit 1
+}
+app="$output_dir/Try Roguix.app"
 contents="$app/Contents"
 bundled_qemu="$contents/Resources/runtime/bin/Try Roguix"
 module_cache="$macos_dir/.build/module-cache"
 runtime_source="$macos_dir/.build/qemu-gpu-runtime"
-guest_dir=${guest_dir:-"$repo_dir/dist/guix"}
+guest_dir=${guest_dir:-"$repo_dir/build/guix"}
 dependency_bundler="$macos_dir/bundle-macho-dependencies.sh"
 compatibility_verifier="$macos_dir/verify-macos-compatibility.sh"
 package_dmg="$macos_dir/package-dmg.sh"
@@ -134,7 +147,7 @@ if [[ -e $legacy_app || -L $legacy_app ]]; then
   fi
   rm -rf -- "$legacy_app"
 fi
-mkdir -p "$repo_dir/dist/app.noindex"
+mkdir -p "$output_dir"
 # A .noindex container is the supported per-directory Spotlight exclusion.
 # Removing and unregistering the legacy bundle above also prevents a previously
 # indexed build at the old path from surviving this migration.
@@ -287,7 +300,7 @@ codesign --verify --deep --strict --verbose=2 "$app"
 
 echo "[native] Built $app"
 if (( build_dmg )); then
-  dmg="$repo_dir/dist/TryRoguix.dmg"
+  dmg="$output_dir/TryRoguix.dmg"
   rm -f "$dmg"
   package_options=()
   if [[ $sign_identity != - ]]; then

@@ -10,14 +10,15 @@ Use the root Makefile for normal development:
 
 ```sh
 make runtime   # macos/.build/qemu-gpu-runtime
-make app       # dist/app.noindex/Try Roguix.app
-make run
-make package   # signed and notarized dist/TryRoguix.dmg
-make release   # signed and notarized dist/TryRoguix.dmg
+make app       # build/dev.noindex/Try Roguix.app
+make install   # copy it to ~/Applications/Try Roguix.app
+make run       # install, then open the installed copy
+make package   # signed and notarized build/dev.noindex/TryRoguix.dmg
+make release   # signed and notarized build/dev.noindex/TryRoguix.dmg
 make test
 ```
 
-`make app` requires an existing `dist/guest/` and staged QEMU runtime. A full
+`make app` requires an existing `build/guix/` and staged QEMU runtime. A full
 `make build` creates both first.
 
 The staged runtime is a complete, checksum-pinned Apple Silicon closure built
@@ -35,7 +36,7 @@ for release signing and notarization:
 ```sh
 macos/build-app.sh \
   --dmg \
-  --guest-dir dist/guest \
+  --guest-dir build/guix \
   --sign-identity "Developer ID Application: Example (TEAMID)" \
   --notarize-profile try-omarchy
 ```
@@ -50,9 +51,10 @@ make run DEVELOPMENT_SIGN_IDENTITY="Apple Development: Your Name (TEAMID)"
 `make package` uses `PACKAGE_SIGN_IDENTITY` and `PACKAGE_NOTARY_PROFILE`, which
 default to the configured release credentials. It fails instead of producing
 an unnotarized fallback.
-Runtime caches are private to `macos/.build/`; user-facing output always goes
-to `dist/`. The generated app lives inside `dist/app.noindex/`, which keeps a
-development build from appearing beside an installed copy in Command-Space.
+Runtime caches are private to `macos/.build/`; builds go to `build/` and
+release assets to `dist/` (docs/architecture.md, "Build layout"). The
+generated app lives inside `build/dev.noindex/`, which keeps a development
+build from appearing beside the installed copy in Command-Space.
 
 Normal app launches maintain one stable user VM disk under
 `~/Library/Application Support/Try Roguix/VM/v1/guix`. Storage integration

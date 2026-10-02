@@ -79,7 +79,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--image", type=Path, required=True,
                         help="raw efi-raw disk image produced by build.py")
-    parser.add_argument("--output", type=Path, default=ROOT / "dist/guix")
+    parser.add_argument("--output", type=Path, default=ROOT / "build/guix")
     parser.add_argument("--zstd", type=Path, default=ZSTD)
     parser.add_argument("--credentials", default="first-boot",
                         choices=sorted(artifact.CREDENTIALS))

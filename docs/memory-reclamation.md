@@ -53,7 +53,7 @@ factory artifact directory:
 ```sh
 python3 macos/Tests/hvf-memory-reclaim-smoke.py \
   --qemu macos/.build/qemu-gpu-runtime/bin/qemu-system-aarch64 \
-  --guest-dir dist/guest
+  --guest-dir build/guix
 ```
 
 The test uses a 3 GiB headless VM and QEMU's disposable disk snapshot mode. It

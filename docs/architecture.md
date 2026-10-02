@@ -258,11 +258,16 @@ unrecognized host files stay untouched, as everywhere else here.
 ## Build layout
 
 - `guest/guix/` defines Roguix and builds its image with a pinned Guix in a
-  Guix System builder; `make guix-package` compresses it into `dist/guix`.
+  Guix System builder; `make guix-package` compresses it into `build/guix`.
 - `macos/` builds the Swift launcher and a patched QEMU runtime. The runtime is
   isolated, relocated, and signed before it enters the app bundle.
-- `dist/` is the only public output directory. It is generated and ignored by
-  Git.
+- `build/` holds what builds produce: the packaged guest (`build/guix`), the
+  development app (`build/dev.noindex`) and the release app
+  (`build/release.noindex`). `make install` copies the development app to
+  `~/Applications`, and `make run` opens that copy, so a rebuild never
+  rewrites a running app.
+- `dist/` holds only finished release assets, one directory per release tag.
+  Both are generated and ignored by Git.
 
 ## Trust model
 

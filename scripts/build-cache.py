@@ -22,7 +22,7 @@ from app_version import build_version
 SCHEMA_VERSION = 2
 # The packaged Roguix guest the app embeds (guest/guix/package.py writes it
 # from an image built with guest/guix/build.py; it has no cached build step).
-GUIX_GUEST_FILES = ("dist/guix/guix-manifest.json", "dist/guix/SHA256SUMS")
+GUIX_GUEST_FILES = ("build/guix/guix-manifest.json", "build/guix/SHA256SUMS")
 
 
 def read_runtime_manifest(path: Path) -> frozenset[str]:
@@ -300,7 +300,7 @@ def validate_runtime(root: Path, previous: dict[str, Any] | None) -> dict[str, A
 
 
 def validate_app(root: Path, previous: dict[str, Any] | None) -> dict[str, Any]:
-    app = root / "dist/app.noindex/Try Roguix.app"
+    app = root / "build/dev.noindex/Try Roguix.app"
     required = [
         app / "Contents/MacOS/omarchy-vm-helper",
         app / "Contents/Resources/TryRoguix.icns",

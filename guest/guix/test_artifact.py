@@ -138,7 +138,7 @@ class PackageTests(unittest.TestCase):
         self.root = Path(self.directory.name)
         self.zstd = package.ZSTD if package.ZSTD.is_file() else Path(shutil.which("zstd"))
         self.image = gpt_disk(self.root / "image.raw")
-        self.output = self.root / "dist/guix"
+        self.output = self.root / "build/guix"
 
     def packaged(self):
         return package.package(self.image, self.output, self.zstd, "first-boot")

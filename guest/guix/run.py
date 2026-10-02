@@ -47,7 +47,7 @@ def qemu_command(image, firmware):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--image", type=Path, default=ROOT / "dist/guix/image.raw")
+    parser.add_argument("--image", type=Path, default=ROOT / "build/guix/image.raw")
     parser.add_argument("--dry-run", action="store_true",
                         help="print the command without opening the image or starting QEMU")
     args = parser.parse_args()

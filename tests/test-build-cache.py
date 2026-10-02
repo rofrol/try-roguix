@@ -96,10 +96,10 @@ class BuildCacheTests(unittest.TestCase):
         app = dry_run.index(" app --")
         self.assertLess(runtime, app)
         self.assertNotIn(" guest --", dry_run)
-        self.assertIn('--guest-dir "' + str(REPOSITORY / "dist/guix") + '"', dry_run)
+        self.assertIn('--guest-dir "' + str(REPOSITORY / "build/guix") + '"', dry_run)
         self.assertIn("Build output:", dry_run)
         self.assertIn(
-            str(REPOSITORY / "dist/app.noindex/Try Roguix.app"), dry_run
+            str(REPOSITORY / "build/dev.noindex/Try Roguix.app"), dry_run
         )
 
         forced = subprocess.run(
@@ -127,9 +127,10 @@ class BuildCacheTests(unittest.TestCase):
         build_script = (REPOSITORY / "macos/build-app.sh").read_text()
         open_script = (REPOSITORY / "macos/open-qemu-gpu.sh").read_text()
         self.assertIn(
-            'app="$repo_dir/dist/app.noindex/Try Roguix.app"',
+            'output_dir=${output_dir:-"$repo_dir/build/dev.noindex"}',
             build_script,
         )
+        self.assertIn('app="$output_dir/Try Roguix.app"', build_script)
         self.assertIn(
             'legacy_app="$repo_dir/dist/Try Roguix.app"',
             build_script,
@@ -137,9 +138,11 @@ class BuildCacheTests(unittest.TestCase):
         self.assertIn('rm -rf -- "$legacy_app"', build_script)
         self.assertNotIn(".metadata_never_index", build_script)
         self.assertIn(
-            'app="$repo_dir/dist/app.noindex/Try Roguix.app"',
+            'app=${TRY_ROGUIX_APP:-"$repo_dir/build/dev.noindex/Try Roguix.app"}',
             open_script,
         )
+        release_script = (REPOSITORY / "macos/release.sh").read_text()
+        self.assertIn("build=build/release.noindex", release_script)
 
     def test_runtime_file_manifest_is_the_single_validated_closure(self) -> None:
         manifest = REPOSITORY / "macos/runtime-files.txt"
@@ -176,12 +179,12 @@ class BuildCacheTests(unittest.TestCase):
             (root / "macos/README.md").write_text("first docs\n")
             (root / ".build/state").mkdir(parents=True)
             (root / ".build/state/runtime.json").write_text("{}\n")
-            (root / "dist/guix").mkdir(parents=True)
+            (root / "build/guix").mkdir(parents=True)
             for name in build_cache.GUIX_GUEST_FILES:
                 (root / name).write_text("first\n")
             paths = build_cache.component_files(root, "app")
-            self.assertIn(root / "dist/guix/guix-manifest.json", paths)
-            self.assertIn(root / "dist/guix/SHA256SUMS", paths)
+            self.assertIn(root / "build/guix/guix-manifest.json", paths)
+            self.assertIn(root / "build/guix/SHA256SUMS", paths)
             self.assertIn(root / "macos/Sources/main.swift", paths)
             self.assertNotIn(root / "macos/README.md", paths)
             self.assertFalse(any("dist/guest" in str(path) for path in paths))
@@ -189,7 +192,7 @@ class BuildCacheTests(unittest.TestCase):
     def test_app_validation_requires_packaged_icon(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            app = root / "dist/app.noindex/Try Roguix.app"
+            app = root / "build/dev.noindex/Try Roguix.app"
             for relative in (
                 "Contents/MacOS/omarchy-vm-helper",
                 "Contents/Resources/runtime/bin/Try Roguix",
@@ -217,7 +220,7 @@ class BuildCacheTests(unittest.TestCase):
                 path = root / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("fixture\n")
-            (root / ".gitignore").write_text("/dist/\n/.build/\n/macos/.build/\n")
+            (root / ".gitignore").write_text("/dist/\n/build/\n/.build/\n/macos/.build/\n")
 
             def git(*arguments: str) -> None:
                 subprocess.run(
@@ -258,7 +261,7 @@ class BuildCacheTests(unittest.TestCase):
             git("commit", "--allow-empty", "-qm", "Advance HEAD")
             self.assertNotEqual(committed, fingerprint())
             stable = fingerprint()
-            (root / "dist/build-log").write_text("ignored output\n")
+            (root / "build/build-log").write_text("ignored output\n")
             self.assertEqual(stable, fingerprint())
 
     def test_state_write_is_readable_and_replaces_old_state(self) -> None:

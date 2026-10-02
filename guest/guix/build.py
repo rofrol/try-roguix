@@ -115,7 +115,7 @@ def main():
     parser.add_argument("--source", type=Path,
                         default=HERE.parents[2] / "vendor/guix")
     parser.add_argument("--output", type=Path,
-                        default=HERE.parents[1] / "dist/guix/image.raw")
+                        default=HERE.parents[1] / "build/guix/image.raw")
     parser.add_argument("--dry-run", action="store_true",
                         help="print the plan without running Guix")
     parser.add_argument("--check", action="store_true",

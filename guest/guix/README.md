@@ -100,7 +100,7 @@ herdr-job run --name "Build image" -- guest/guix/vm-run 'guix time-machine ... -
 herdr-job wait <id>
 ```
 
-The default output `dist/guix/image.raw` is a Guix GC-root symlink to a 20 GiB
+The default output `build/guix/image.raw` is a Guix GC-root symlink to a 20 GiB
 raw EFI disk image, not an unpartitioned ext4 filesystem. Copy the image, not
 just the symlink, when transferring it to macOS. An existing output, including
 a dangling symlink, is refused rather than replaced. Choose another `--output`
@@ -157,7 +157,7 @@ make guix-package GUIX_IMAGE=/absolute/path/to/image.raw
 `package.py` accepts only the exact `efi-raw` layout: a protective MBR,
 identical primary and backup GPT headers with valid CRCs, partition 1 an EFI
 system partition (FAT) at LBA 2048 and partition 2 an ext4 root labelled
-`Guix_image`, nothing else. It writes `dist/guix/` with exactly:
+`Guix_image`, nothing else. It writes `build/guix/` with exactly:
 
 - `disk.raw.zst`: the disk, compressed with the runtime's pinned `zstd`;
 - `guix-manifest.json`: kind `roguix-guest-artifacts`, boot ABI
@@ -264,7 +264,7 @@ genimage writes; later boots find nothing to fix.
 ## Running through the app
 
 ```sh
-make app   # dist/app.noindex/Try Roguix.app with the dist/guix guest
+make app   # build/dev.noindex/Try Roguix.app with the build/guix guest
 make run   # build it and open it
 ```
 

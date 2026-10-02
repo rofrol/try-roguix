@@ -1,10 +1,14 @@
 SHELL := /bin/bash
 
 override ROOT := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
+# build/ holds what builds produce; dist/ only finished release assets.
+override BUILD := $(ROOT)/build
 override DIST := $(ROOT)/dist
-override GUEST_DIST := $(DIST)/guix
-override APP := $(DIST)/app.noindex/Try Roguix.app
-override DMG := $(DIST)/TryRoguix.dmg
+override GUEST_DIST := $(BUILD)/guix
+override APP := $(BUILD)/dev.noindex/Try Roguix.app
+override DMG := $(BUILD)/dev.noindex/TryRoguix.dmg
+# Runs use an installed copy, so rebuilding never rewrites a running app.
+INSTALLED_APP ?= $(HOME)/Applications/Try Roguix.app
 override BUILD_CACHE := $(ROOT)/scripts/build-cache.py
 override BUILD_STATE := $(ROOT)/.build/state
 RELEASE_SIGN_IDENTITY ?= Developer ID Application: Eduardo Martinez (RZC79MPD34)
@@ -21,7 +25,7 @@ SHELL_TESTS := network-helper qemu-networking qemu-port-forwarding \
 SHELL_TEST_TARGETS := $(addprefix test-shell-,$(SHELL_TESTS))
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor test guix-package runtime app build run run-ephemeral reset version-preflight package package-preflight release release-preflight clean clean-all
+.PHONY: help doctor test guix-package runtime app build install run run-ephemeral reset version-preflight package package-preflight release release-preflight clean clean-all
 .PHONY: test-all test-contracts test-swift test-shell test-resize $(SHELL_TEST_TARGETS)
 
 help:
@@ -33,7 +37,8 @@ help:
 	  '  make test TEST_JOBS=1  Run test suites serially for debugging' \
 	  '  make build          Build only changed runtime and app inputs' \
 	  '  make build FORCE=1  Rebuild every component' \
-	  '  make run            Build the app from existing artifacts and open it' \
+	  '  make install        Build the app and copy it to ~/Applications' \
+	  '  make run            Install the app and open the installed copy' \
 	  '  make run DEVELOPMENT_SIGN_IDENTITY="Apple Development: ..."' \
 	  '                      Keep macOS privacy grants across local rebuilds' \
 	  '  make package        Create a signed and notarized distribution DMG' \
@@ -41,9 +46,9 @@ help:
 	  '' \
 	  'Component builds:' \
 	  '  make guix-package GUIX_IMAGE=/path/image.raw' \
-	  '                      Package a Roguix image (guest/guix/build.py) into dist/guix' \
+	  '                      Package a Roguix image (guest/guix/build.py) into build/guix' \
 	  '  make runtime        Ensure macos/.build/qemu-gpu-runtime is current' \
-	  '  make app            Ensure the runtime and the app (with dist/guix) are current' \
+	  '  make app            Ensure the runtime and the app (with build/guix) are current' \
 	  '' \
 	  'Storage:' \
 	  '  make run-ephemeral  Run without retaining VM changes' \
@@ -113,9 +118,9 @@ runtime:
 	  "$(ROOT)/macos/build-qemu-gpu-runtime.sh"
 
 # The guest image is built in a Guix System builder (guest/guix/README.md)
-# and packaged with `make guix-package`; the app embeds dist/guix.
+# and packaged with `make guix-package`; the app embeds build/guix.
 app: runtime
-	@[[ -f "$(GUEST_DIST)/guix-manifest.json" ]] || { echo 'error: dist/guix is missing; run make guix-package GUIX_IMAGE=...' >&2; exit 1; }
+	@[[ -f "$(GUEST_DIST)/guix-manifest.json" ]] || { echo 'error: build/guix is missing; run make guix-package GUIX_IMAGE=...' >&2; exit 1; }
 	@OMARCHY_FORCE_BUILD="$(FORCE)" \
 	  OMARCHY_CODESIGN_IDENTITY="$(DEVELOPMENT_SIGN_IDENTITY)" \
 	  "$(BUILD_CACHE)" \
@@ -125,14 +130,21 @@ app: runtime
 build: doctor app
 	@printf 'Build output: %s\n' "$(APP)"
 
-run: app
-	@$(ROOT)/macos/open-qemu-gpu.sh
+install: app
+	@if pgrep -f -- "$(INSTALLED_APP)/Contents/" >/dev/null; then echo 'error: the installed Try Roguix is running; quit it, then run make install again' >&2; exit 1; fi
+	@mkdir -p "$(dir $(INSTALLED_APP))"
+	@rm -rf -- "$(INSTALLED_APP)"
+	@ditto "$(APP)" "$(INSTALLED_APP)"
+	@printf 'Installed: %s\n' "$(INSTALLED_APP)"
 
-run-ephemeral: app
-	@$(ROOT)/macos/open-qemu-gpu.sh --ephemeral
+run: install
+	@TRY_ROGUIX_APP="$(INSTALLED_APP)" $(ROOT)/macos/open-qemu-gpu.sh
 
-reset: app
-	@$(ROOT)/macos/open-qemu-gpu.sh --reset-storage
+run-ephemeral: install
+	@TRY_ROGUIX_APP="$(INSTALLED_APP)" $(ROOT)/macos/open-qemu-gpu.sh --ephemeral
+
+reset: install
+	@TRY_ROGUIX_APP="$(INSTALLED_APP)" $(ROOT)/macos/open-qemu-gpu.sh --reset-storage
 
 version-preflight:
 	@python3 "$(ROOT)/scripts/app_version.py" --root "$(ROOT)" --require-release
@@ -143,7 +155,7 @@ package-preflight: version-preflight
 
 package: package-preflight
 	@$(MAKE) --no-print-directory runtime
-	@[[ -f "$(GUEST_DIST)/guix-manifest.json" ]] || { echo 'error: dist/guix is missing; run make guix-package GUIX_IMAGE=...' >&2; exit 1; }
+	@[[ -f "$(GUEST_DIST)/guix-manifest.json" ]] || { echo 'error: build/guix is missing; run make guix-package GUIX_IMAGE=...' >&2; exit 1; }
 	@$(ROOT)/macos/build-app.sh \
 	  --dmg \
 	  --guest-dir "$(GUEST_DIST)" \
@@ -156,7 +168,7 @@ release-preflight: version-preflight
 
 release: release-preflight
 	@$(MAKE) --no-print-directory runtime
-	@[[ -f "$(GUEST_DIST)/guix-manifest.json" ]] || { echo 'error: dist/guix is missing; run make guix-package GUIX_IMAGE=...' >&2; exit 1; }
+	@[[ -f "$(GUEST_DIST)/guix-manifest.json" ]] || { echo 'error: build/guix is missing; run make guix-package GUIX_IMAGE=...' >&2; exit 1; }
 	@$(ROOT)/macos/build-app.sh \
 	  --dmg \
 	  --guest-dir "$(GUEST_DIST)" \
@@ -167,6 +179,7 @@ clean:
 	@echo 'Removing repository build output and caches...'
 	@rm -rf -- \
 	  "$(DIST)" \
+	  "$(BUILD)" \
 	  "$(ROOT)/.build" \
 	  "$(ROOT)/macos/.build" \
 	  "$(ROOT)/macos/.swiftpm"
