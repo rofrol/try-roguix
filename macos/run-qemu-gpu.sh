@@ -707,6 +707,10 @@ if [[ $storage_mode == persistent ]]; then
   fi
 fi
 
+if [[ $storage_mode == reset ]]; then
+  qemu_persistent_storage_discard_for_reset "$bundle_identity" || \
+    fail "could not erase the VM before reset"
+fi
 if (( selected_existing == 0 )); then
   if [[ -n $disk_capacity_bytes ]]; then
     (( disk_capacity_bytes >= expanded_disk_bytes )) || fail 'maximum disk size is below the factory capacity'

@@ -942,6 +942,39 @@ qemu_persistent_storage_fetch_compressed_source() {
   QEMU_DOWNLOADED_COMPRESSED_DISK=$qps_download
 }
 
+# Erase the saved VM and other bundles' base images before a reset creates
+# the new VM. The new factory image can then reuse their space; without this
+# a reset needs room for the old VM, the old image and the new image at once.
+# A reset that fails afterwards leaves no VM, which is what was asked for.
+qemu_persistent_storage_discard_for_reset() {
+  local qps_identity=${1:-}
+  local qps_storage_key='current'
+
+  _qps_is_identity "$qps_identity" || {
+    _qps_fail 'bundle identity must be exactly 64 lowercase hexadecimal characters'
+    return 1
+  }
+  _qps_prepare_state_root || return 1
+  case "${OMARCHY_QEMU_GPU_DEVELOPMENT_MULTI_DISK:-0}" in
+    0) ;;
+    1) qps_storage_key=$qps_identity ;;
+    *)
+      _qps_fail 'OMARCHY_QEMU_GPU_DEVELOPMENT_MULTI_DISK must be 0 or 1'
+      return 1
+      ;;
+  esac
+  _qps_acquire_lock "$qps_storage_key" || return 1
+  _qps_reap_interrupted_work "$qps_storage_key"
+  if ! _qps_reset_persistent_disk "$qps_storage_key" || {
+    [[ $qps_storage_key == current ]] && ! _qps_reset_remaining_legacy_workspaces
+  }; then
+    qemu_persistent_storage_release_lock
+    return 1
+  fi
+  qemu_persistent_storage_release_lock
+  qemu_persistent_storage_prune_images "$qps_identity"
+}
+
 # Remove base images, and unfinished downloads, of every bundle except KEEP.
 # A VM's disk is an APFS clone or copy of its base image, never an overlay, so
 # an image only matters for creating or resetting a VM from the app that

@@ -867,4 +867,26 @@ qemu_persistent_storage_prune_images "$identity_download" 2>/dev/null
 assert test ! -e "$images_root/$identity_busy.raw"
 assert_fails qemu_persistent_storage_prune_images not-an-identity
 
+# A reset erases the saved VM and other bundles' images before the new
+# factory image is expanded, so it needs no room for all three at once.
+export OMARCHY_QEMU_GPU_STATE_ROOT="$test_root/discard-state"
+export OMARCHY_QEMU_GPU_DEVELOPMENT_MULTI_DISK=0
+qemu_persistent_storage_select \
+  persistent "$identity_a" "$source_disk" "$source_sha" "$source_bytes" ''
+discard_disk_dir=${QEMU_SELECTED_DISK%/*}
+qemu_persistent_storage_release_lock
+discard_images="$OMARCHY_QEMU_GPU_STATE_ROOT/guix/images"
+printf old > "$discard_images/$identity_old.raw"
+printf new > "$discard_images/$identity_b.raw"
+qemu_persistent_storage_discard_for_reset "$identity_b" 2>"$test_root/discard.log"
+assert test ! -e "$discard_disk_dir"
+assert test ! -e "$discard_images/$identity_old.raw"
+assert test -f "$discard_images/$identity_b.raw"
+assert grep -q "reset persistent workspace" "$test_root/discard.log"
+qemu_persistent_storage_select \
+  reset "$identity_b" "$source_disk_b" "$source_sha_b" "$source_bytes_b" ''
+assert cmp -s "$QEMU_SELECTED_DISK" "$source_disk_b"
+qemu_persistent_storage_release_lock
+assert_fails qemu_persistent_storage_discard_for_reset not-an-identity
+
 printf 'qemu-persistent-storage.test: PASS\n'
