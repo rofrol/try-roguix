@@ -37,7 +37,7 @@ struct InstalledAppRelease: Equatable {
         // Require the build provenance introduced by #223 before comparing.
         let describe = info["TryOmarchyBuildDescribe"] as? String
         let shortVersion = info["CFBundleShortVersionString"] as? String ?? ""
-        if let parsed = AppReleaseVersion(shortVersion), describe == "v\(parsed)" {
+        if let parsed = AppReleaseVersion(shortVersion), describe == AppRelease.tag(parsed) {
             version = parsed
             let build = info["CFBundleVersion"] as? String
             label = "Version \(parsed)" + (build.map { " (\($0))" } ?? "")
@@ -69,19 +69,28 @@ struct InstalledAppRelease: Equatable {
 
 struct AppRelease: Equatable {
     static let releasesURL = URL(string: "https://github.com/rofrol/try-roguix/releases")!
+    /// Release tags are this prefix and X.Y.Z (docs/releasing.md).
+    static let tagPrefix = "try-roguix-v"
     let version: AppReleaseVersion
     let url: URL
 
     static func decode(_ data: Data) throws -> Self {
         let payload = try JSONDecoder().decode(Payload.self, from: data)
-        guard !payload.draft, !payload.prerelease, payload.tagName.hasPrefix("v"),
-              let version = AppReleaseVersion(String(payload.tagName.dropFirst())),
+        guard !payload.draft, !payload.prerelease, payload.tagName.hasPrefix(tagPrefix),
+              let version = AppReleaseVersion(String(payload.tagName.dropFirst(tagPrefix.count))),
               payload.assets.contains(where: { $0.name == "TryRoguix.dmg" && $0.state == "uploaded" }) else {
             throw AppReleaseError.invalidRelease
         }
         // Construct the project URL instead of opening an arbitrary URL from JSON.
-        return Self(version: version, url: releasesURL.appendingPathComponent("tag/v\(version)"))
+        return Self(version: version)
     }
+
+    init(version: AppReleaseVersion) {
+        self.version = version
+        url = Self.releasesURL.appendingPathComponent("tag/" + Self.tag(version))
+    }
+
+    static func tag(_ version: AppReleaseVersion) -> String { tagPrefix + version.description }
 
     private struct Payload: Decodable {
         let tagName: String
@@ -182,7 +191,7 @@ struct AppReleasePreferences {
         get {
             guard let text = defaults.string(forKey: Self.latestVersionKey),
                   let version = AppReleaseVersion(text) else { return nil }
-            return AppRelease(version: version, url: AppRelease.releasesURL.appendingPathComponent("tag/v\(version)"))
+            return AppRelease(version: version)
         }
         nonmutating set { defaults.set(newValue?.version.description, forKey: Self.latestVersionKey) }
     }

@@ -235,7 +235,7 @@ class BuildCacheTests(unittest.TestCase):
                 return build_cache.fingerprint(root, "app", ["build-app"])
 
             untagged = fingerprint()
-            git("tag", "v1.2.3")
+            git("tag", "try-roguix-v1.2.3")
             tagged = fingerprint()
             self.assertNotEqual(untagged, tagged)
 

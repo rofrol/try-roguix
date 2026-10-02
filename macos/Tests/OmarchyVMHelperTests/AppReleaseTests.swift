@@ -9,16 +9,16 @@ struct AppReleaseTests {
         InstalledAppRelease(info: [
             "CFBundleShortVersionString": version,
             "CFBundleVersion": "321",
-            "TryOmarchyBuildDescribe": "v\(version)",
+            "TryOmarchyBuildDescribe": "try-roguix-v\(version)",
         ])
     }
 
     private func release(_ version: String = "0.5.0") throws -> AppRelease {
-        try AppRelease.decode(payload(tag: "v\(version)"))
+        try AppRelease.decode(payload(tag: "try-roguix-v\(version)"))
     }
 
     private func payload(
-        tag: String = "v0.5.0", draft: Bool = false, prerelease: Bool = false,
+        tag: String = "try-roguix-v0.5.0", draft: Bool = false, prerelease: Bool = false,
         assetName: String = "TryRoguix.dmg", assetState: String = "uploaded"
     ) throws -> Data {
         try JSONSerialization.data(withJSONObject: [
@@ -62,7 +62,7 @@ struct AppReleaseTests {
         let legacy = InstalledAppRelease(info: ["CFBundleShortVersionString": "0.4.0", "CFBundleVersion": "5"])
         #expect(legacy.version == nil)
         #expect(legacy.label == "Installed release unknown")
-        for describe in ["v0.5.0-2-gabc", "v0.5.0-dirty", "v0.6.0"] {
+        for describe in ["try-roguix-v0.5.0-2-gabc", "try-roguix-v0.5.0-dirty", "try-roguix-v0.6.0", "v0.5.0"] {
             let build = InstalledAppRelease(info: ["CFBundleShortVersionString": "0.5.0", "TryOmarchyBuildDescribe": describe])
             #expect(build.version == nil)
         }
@@ -71,10 +71,11 @@ struct AppReleaseTests {
     @Test("only published stable releases with an uploaded Mac app are accepted")
     func releaseValidation() throws {
         let latest = try release()
-        #expect(latest.url.absoluteString == "https://github.com/rofrol/try-roguix/releases/tag/v0.5.0")
+        #expect(latest.url.absoluteString == "https://github.com/rofrol/try-roguix/releases/tag/try-roguix-v0.5.0")
         for data in [
             try payload(draft: true), try payload(prerelease: true),
-            try payload(tag: "v0.5.0-beta"), try payload(tag: "0.5.0"),
+            try payload(tag: "try-roguix-v0.5.0-beta"), try payload(tag: "0.5.0"),
+            try payload(tag: "v0.5.0"), try payload(tag: "roguix-v0.5.0"),
             try payload(assetName: "source.zip"), try payload(assetState: "starter"),
         ] {
             #expect(throws: AppReleaseError.self) { try AppRelease.decode(data) }

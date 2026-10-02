@@ -17,15 +17,18 @@ meets a guest without its half.
 
 ## Versions and tags
 
-Try Roguix releases are tagged `vX.Y.Z`, independently of the three
-upstreams it carries. The Mac app's `CFBundleShortVersionString` comes from
-that tag (`scripts/app_version.py`) and must be three integers, and the
-update checker (`AppRelease.swift`) only accepts such tags with a
+Try Roguix releases are tagged `try-roguix-vX.Y.Z`, independently of the
+three upstreams it carries; the prefix names the Mac app, as opposed to the
+Roguix guest and its channel. The Mac app's `CFBundleShortVersionString`
+comes from that tag (`scripts/app_version.py`) and must be three integers,
+and the update checker (`AppRelease.swift`) only accepts such tags with a
 `TryRoguix.dmg` asset, on a published release that is not marked as a
-prerelease. The first Try Roguix release is `v0.5.0`: `v0.1.0` to `v0.4.1`
-were Try Omarchy's.
+prerelease. The first Try Roguix release, 0.5.0, was tagged `v0.5.0` before
+this scheme; that tag stays, and releases from 0.5.1 on use the prefix.
+`v0.1.0` to `v0.4.1` were Try Omarchy's.
 
-Upstream's tags are kept under `try-omarchy/` so `v*` stays Try Roguix's:
+Upstream's tags are kept locally under `try-omarchy/`, apart from Try
+Roguix's:
 
 ```sh
 git config remote.upstream.tagOpt --no-tags
@@ -60,7 +63,7 @@ after the first attempt; never to turn Gatekeeper off.
 2. Build and package the factory image (`guest/guix/README.md`,
    `make guix-package GUIX_IMAGE=...`) from the commit being released.
 3. `make test`.
-4. Tag the release commit: `git tag -a v0.5.0 -m "Try Roguix 0.5.0"`.
+4. Tag the release commit: `git tag -a try-roguix-v0.5.1 -m "Try Roguix 0.5.1"`.
 5. `macos/release.sh`: `TryRoguix.dmg`, the disk parts and `SHA256SUMS` in
    `dist/release`.
 6. Push the tag and create the release as a prerelease with all of
@@ -68,5 +71,7 @@ after the first attempt; never to turn Gatekeeper off.
 7. Install `TryRoguix.dmg` on a clean account and launch it: the disk
    downloads, expands and boots, the first-start setup runs, and the
    updates window names the upstreams.
-8. Clear the prerelease flag so `releases/latest`, and so the app's update
-   checker, finds it.
+8. Clear the prerelease flag and mark the release Latest
+   (`gh release edit TAG --prerelease=false --latest`), so `releases/latest`,
+   and so the app's update checker, finds it; with two tag schemes, do not
+   leave the choice of Latest to GitHub.

@@ -7,7 +7,7 @@ root=$(cd "$(dirname "$0")/.." && pwd -P)
 cd "$root"
 
 python3 scripts/app_version.py --root "$root" --require-release
-tag=$(git describe --exact-match --tags --match 'v[0-9]*' HEAD)
+tag=$(git describe --exact-match --tags --match 'try-roguix-v[0-9]*' HEAD)
 [[ -f dist/guix/guix-manifest.json && -f dist/guix/disk.raw.zst ]] || {
   echo "release: package the factory image first (make guix-package)" >&2
   exit 1

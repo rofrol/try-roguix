@@ -10,6 +10,9 @@ import re
 import subprocess
 import sys
 
+# Try Roguix's release tags: TAG_PREFIX plus X.Y.Z (docs/releasing.md).
+TAG_PREFIX = "try-roguix-v"
+
 
 def build_version(root: Path) -> dict[str, str] | None:
     def git(*arguments: str) -> str:
@@ -26,11 +29,11 @@ def build_version(root: Path) -> dict[str, str] | None:
     if inside != "true":
         return None
 
-    describe = git("describe", "--tags", "--match", "v[0-9]*", "--always")
+    describe = git("describe", "--tags", "--match", TAG_PREFIX + "[0-9]*", "--always")
     # Unlike `git describe --dirty`, status also detects untracked source files.
     if git("status", "--porcelain", "--untracked-files=all"):
         describe += "-dirty"
-    release = re.fullmatch(r"v([0-9]+\.[0-9]+\.[0-9]+)", describe)
+    release = re.fullmatch(re.escape(TAG_PREFIX) + r"([0-9]+\.[0-9]+\.[0-9]+)", describe)
     return {
         "CFBundleShortVersionString": release.group(1) if release else "0.0.0",
         "CFBundleVersion": git("rev-list", "--count", "HEAD"),
@@ -43,7 +46,7 @@ def upstream_bases(root: Path, git) -> dict[str, str]:
     """The three upstreams a build carries (docs/releasing.md)."""
     bases = {}
     try:
-        # Upstream's tags live under try-omarchy/ so v* stays Try Roguix's.
+        # Upstream's tags live under try-omarchy/, apart from Try Roguix's.
         fork_point = git("merge-base", "HEAD", "refs/remotes/upstream/main")
         bases["RoguixTryOmarchyBase"] = "{} ({})".format(
             git("describe", "--tags", "--match", "try-omarchy/v[0-9]*", fork_point)
@@ -77,9 +80,10 @@ def main() -> None:
         if version and version["TryOmarchyBuildDescribe"].endswith("-dirty"):
             raise ValueError("the worktree must be clean before building a signed app")
         if not version or re.fullmatch(
-            r"v[0-9]+\.[0-9]+\.[0-9]+", version["TryOmarchyBuildDescribe"]
+            re.escape(TAG_PREFIX) + r"[0-9]+\.[0-9]+\.[0-9]+",
+            version["TryOmarchyBuildDescribe"],
         ) is None:
-            raise ValueError("HEAD must carry an exact vX.Y.Z release tag")
+            raise ValueError(f"HEAD must carry an exact {TAG_PREFIX}X.Y.Z release tag")
     elif version is None:
         print(
             f"warning: {args.root} is not a git checkout; "

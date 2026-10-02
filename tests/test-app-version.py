@@ -66,17 +66,17 @@ class AppVersionTests(unittest.TestCase):
             self.assertIn(expected_error, result.stderr)
 
     def test_tagged_release_and_ignored_build_outputs(self) -> None:
-        self.git("tag", "-a", "v1.2.3", "-m", "Release")
+        self.git("tag", "-a", "try-roguix-v1.2.3", "-m", "Release")
         (self.root / ".build").mkdir()
         (self.root / ".build/output").write_text("ignored build output")
         value = self.stamp()
         self.assertEqual("1.2.3", value["CFBundleShortVersionString"])
         self.assertEqual("1", value["CFBundleVersion"])
-        self.assertEqual("v1.2.3", value["TryOmarchyBuildDescribe"])
+        self.assertEqual("try-roguix-v1.2.3", value["TryOmarchyBuildDescribe"])
         self.preflight()
 
     def test_untracked_source_is_dirty_until_committed(self) -> None:
-        self.git("tag", "v1.2.3")
+        self.git("tag", "try-roguix-v1.2.3")
         (self.root / "added.swift").write_text("// untracked app source\n")
         for staged in (False, True):
             with self.subTest(staged=staged):
@@ -84,27 +84,31 @@ class AppVersionTests(unittest.TestCase):
                     self.git("add", "added.swift")
                 value = self.stamp()
                 self.assertEqual("0.0.0", value["CFBundleShortVersionString"])
-                self.assertEqual("v1.2.3-dirty", value["TryOmarchyBuildDescribe"])
+                self.assertEqual("try-roguix-v1.2.3-dirty", value["TryOmarchyBuildDescribe"])
                 self.preflight("worktree must be clean")
         self.git("commit", "-qm", "Add source")
         value = self.stamp()
         self.assertEqual("0.0.0", value["CFBundleShortVersionString"])
         self.assertEqual("2", value["CFBundleVersion"])
-        self.assertRegex(value["TryOmarchyBuildDescribe"], r"^v1\.2\.3-1-g[0-9a-f]+$")
+        self.assertRegex(value["TryOmarchyBuildDescribe"], r"^try-roguix-v1\.2\.3-1-g[0-9a-f]+$")
         self.preflight("HEAD must carry an exact")
 
     def test_modified_tracked_source_is_dirty(self) -> None:
-        self.git("tag", "v1.2.3")
+        self.git("tag", "try-roguix-v1.2.3")
         self.source.write_text("// modified source\n")
         value = self.stamp()
         self.assertEqual("0.0.0", value["CFBundleShortVersionString"])
-        self.assertEqual("v1.2.3-dirty", value["TryOmarchyBuildDescribe"])
+        self.assertEqual("try-roguix-v1.2.3-dirty", value["TryOmarchyBuildDescribe"])
         self.preflight("worktree must be clean")
 
     def test_untagged_and_non_release_tags(self) -> None:
         self.assertEqual("0.0.0", self.stamp()["CFBundleShortVersionString"])
         self.preflight("HEAD must carry an exact")
-        self.git("tag", "v1foo")
+        self.git("tag", "try-roguix-v1foo")
+        self.assertEqual("0.0.0", self.stamp()["CFBundleShortVersionString"])
+        self.preflight("HEAD must carry an exact")
+        # Bare vX.Y.Z was the scheme of v0.5.0 and Try Omarchy, not a release now.
+        self.git("tag", "v1.2.3")
         self.assertEqual("0.0.0", self.stamp()["CFBundleShortVersionString"])
         self.preflight("HEAD must carry an exact")
 
