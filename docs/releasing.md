@@ -65,7 +65,11 @@ after the first attempt; never to turn Gatekeeper off.
 3. `make test`.
 4. Tag the release commit: `git tag -a try-roguix-v0.5.1 -m "Try Roguix 0.5.1"`.
 5. `macos/release.sh`: `TryRoguix.dmg`, the disk parts and `SHA256SUMS` in
-   `dist/release`.
+   `dist/release`. A running development app holds `dist/app.noindex`; then
+   build in a worktree at the tag (`git worktree add --detach DIR TAG`) with
+   `dist/guix` and `macos/.build/qemu-gpu-runtime` cloned in (`cp -c -R`),
+   not the rest of `macos/.build`, whose Swift module cache is bound to its
+   checkout's path.
 6. Push the tag and create the release as a prerelease with all of
    `dist/release/*`; prerelease assets are already downloadable.
 7. Install `TryRoguix.dmg` on a clean account and launch it: the disk
