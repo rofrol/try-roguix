@@ -16,8 +16,12 @@ identifier, so match its path (check it in Karabiner-EventViewer):
  "file_paths": ["^.*/Try Roguix\\.app/Contents/Resources/runtime/bin/Try Roguix$"]}
 ```
 
-Document this for users of Karabiner, Hammerspoon and AltTab: such tools may
-own a chord before the VM sees it.
+Done 2026-10-03 in the maintainer's dotfiles (ef9ebbb), which also restored
+the Emacs rule the F18 change had replaced. Still to do: test without the
+F18 workaround, binding Cmd+Space in Hammerspoon directly after a logout
+(the steps are in ~/.hammerspoon/init.lua); and document this for users of
+Karabiner, Hammerspoon and AltTab: such tools may own a chord before the VM
+sees it.
 
 Command-Tab is left to macOS on purpose (`qemu-cocoa-command-tab.patch`), so
 the keyboard can always leave the VM. Users who switch apps with AltTab want
