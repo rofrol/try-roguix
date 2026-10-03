@@ -80,3 +80,13 @@ disk (factory image, size, last use, how it was created), keep the chosen
 one as `current` and archive the others outside the scanned tree, with
 Reset as one option rather than the only one. Adopt an identity disk
 automatically only when it is the single candidate.
+
+## Say why a launch did not happen
+
+Reported 2026-10-03: "Try Roguix does not start", minutes after the app had
+been quit while its VM was shutting down. Shortly after, opening the app and
+clicking Launch worked; the cause was not reproduced and nothing was logged.
+The app should never fail silently: show which stage it reached (start menu,
+starting QEMU, guest booting, first-start setup waiting), keep the
+launcher's stderr in a log, alert with its tail on a non-zero exit, and
+reveal an already running instance instead of only activating it.
