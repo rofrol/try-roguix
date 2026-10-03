@@ -95,3 +95,13 @@ The app could not have reported that, since it never ran. For failures after
 it starts: keep the launcher's stderr in `~/Library/Logs/Try Roguix/` and
 `os_log`, and replace the generic "couldn't start, reinstall" alert with the
 log's last lines. Lower priority than the restart hang.
+
+## Send the minimum guest size fix to Try Omarchy
+
+`qemu-cocoa-minimum-guest-size.patch` fixes a hang that upstream shares: its
+`qemu-cocoa-dynamic-display.patch` and QEMU's DEBUG EDK2 are the same, so a
+guest reboot after a small window should hang there too. Kept as a separate
+patch so rebases onto upstream do not conflict; offer it upstream (with the
+firmware's ASSERT line as the reproducer) and drop ours once it lands. Upstream
+QEMU's Cocoa UI also forwards the window size: reproduce on unpatched QEMU
+before reporting it there.
