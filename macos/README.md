@@ -59,8 +59,9 @@ build from appearing beside the installed copy in Command-Space.
 Normal app launches maintain one stable user VM disk under
 `~/Library/Application Support/Try Roguix/VM/v1/guix`. Storage integration
 tests and specialized development runs can opt into identity-keyed parallel
-disks by setting `OMARCHY_QEMU_GPU_DEVELOPMENT_MULTI_DISK=1`; release behavior
-leaves it unset. Each persistent disk keeps the identity of the factory that
+disks by setting `OMARCHY_QEMU_GPU_DEVELOPMENT_MULTI_DISK=1` (`make
+run-isolated`); `make run` and release behavior leave it unset, so they use
+the same VM as a Finder launch. Each persistent disk keeps the identity of the factory that
 created it and boots through the runtime's UEFI firmware from its own GRUB and
 Guix System generations. App updates reuse the disk; the current bundled
 factory is selected only for a new, reset, or ephemeral VM, so an existing VM

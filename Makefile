@@ -25,7 +25,7 @@ SHELL_TESTS := network-helper qemu-networking qemu-port-forwarding \
 SHELL_TEST_TARGETS := $(addprefix test-shell-,$(SHELL_TESTS))
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor test guix-package runtime app build install run run-ephemeral reset version-preflight package package-preflight release release-preflight clean clean-all
+.PHONY: help doctor test guix-package runtime app build install run run-isolated run-ephemeral reset version-preflight package package-preflight release release-preflight clean clean-all
 .PHONY: test-all test-contracts test-swift test-shell test-resize $(SHELL_TEST_TARGETS)
 
 help:
@@ -39,6 +39,7 @@ help:
 	  '  make build FORCE=1  Rebuild every component' \
 	  '  make install        Build the app and copy it to ~/Applications' \
 	  '  make run            Install the app and open the installed copy' \
+	  '  make run-isolated   Open the development build with its own VM per build' \
 	  '  make run DEVELOPMENT_SIGN_IDENTITY="Apple Development: ..."' \
 	  '                      Keep macOS privacy grants across local rebuilds' \
 	  '  make package        Create a signed and notarized distribution DMG' \
@@ -139,6 +140,9 @@ install: app
 
 run: install
 	@TRY_ROGUIX_APP="$(INSTALLED_APP)" $(ROOT)/macos/open-qemu-gpu.sh
+
+run-isolated: app
+	@OMARCHY_QEMU_GPU_DEVELOPMENT_MULTI_DISK=1 $(ROOT)/macos/open-qemu-gpu.sh
 
 run-ephemeral: install
 	@TRY_ROGUIX_APP="$(INSTALLED_APP)" $(ROOT)/macos/open-qemu-gpu.sh --ephemeral

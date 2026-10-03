@@ -85,11 +85,19 @@ usb_environment=()
 if [[ -n ${OMARCHY_QEMU_GPU_USB_HOST:-} ]]; then
   usb_environment=(--env "OMARCHY_QEMU_GPU_USB_HOST=$OMARCHY_QEMU_GPU_USB_HOST")
 fi
+# Like a Finder launch, the one saved VM by default; identity-keyed disks per
+# build only when the caller opts in (make run-isolated). Defaulting to them
+# here left a second VM beside the one Finder uses, which then refused to
+# start with "multiple saved VMs".
+storage_environment=()
+if [[ ${OMARCHY_QEMU_GPU_DEVELOPMENT_MULTI_DISK:-0} == 1 ]]; then
+  storage_environment=(--env OMARCHY_QEMU_GPU_DEVELOPMENT_MULTI_DISK=1)
+fi
 
 exec /usr/bin/open \
   -n \
   -W \
-  --env OMARCHY_QEMU_GPU_DEVELOPMENT_MULTI_DISK=1 \
+  ${storage_environment[@]+"${storage_environment[@]}"} \
   ${usb_environment[@]+"${usb_environment[@]}"} \
   --stdin /dev/null \
   --stdout /dev/null \

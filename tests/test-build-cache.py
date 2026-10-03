@@ -141,6 +141,17 @@ class BuildCacheTests(unittest.TestCase):
             'app=${TRY_ROGUIX_APP:-"$repo_dir/build/dev.noindex/Try Roguix.app"}',
             open_script,
         )
+        # make run uses the same single saved VM as Finder; only
+        # make run-isolated opts into one VM per build.
+        self.assertNotIn("--env OMARCHY_QEMU_GPU_DEVELOPMENT_MULTI_DISK=1 \\\n", open_script)
+        isolated = subprocess.run(
+            ["make", "-n", "run-isolated"], cwd=REPOSITORY, check=True,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True).stdout
+        self.assertIn("OMARCHY_QEMU_GPU_DEVELOPMENT_MULTI_DISK=1", isolated)
+        run = subprocess.run(
+            ["make", "-n", "run"], cwd=REPOSITORY, check=True,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True).stdout
+        self.assertNotIn("MULTI_DISK", run)
         release_script = (REPOSITORY / "macos/release.sh").read_text()
         self.assertIn("build=build/release.noindex", release_script)
 
