@@ -137,6 +137,7 @@ install: app
 	@rm -rf -- "$(INSTALLED_APP)"
 	@ditto "$(APP)" "$(INSTALLED_APP)"
 	@printf 'Installed: %s\n' "$(INSTALLED_APP)"
+	@printf 'Pin this copy in the Dock, not one under build/: builds are disposable.\n'
 
 run: install
 	@TRY_ROGUIX_APP="$(INSTALLED_APP)" $(ROOT)/macos/open-qemu-gpu.sh

@@ -265,7 +265,8 @@ unrecognized host files stay untouched, as everywhere else here.
   development app (`build/dev.noindex`) and the release app
   (`build/release.noindex`). `make install` copies the development app to
   `~/Applications`, and `make run` opens that copy, so a rebuild never
-  rewrites a running app.
+  rewrites a running app. Pin that copy in the Dock: a tile pointing into
+  the repository breaks silently when build output moves or is cleaned.
 - `dist/` holds only finished release assets, one directory per release tag.
   Both are generated and ignored by Git.
 

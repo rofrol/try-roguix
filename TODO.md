@@ -83,10 +83,13 @@ automatically only when it is the single candidate.
 
 ## Say why a launch did not happen
 
-Reported 2026-10-03: "Try Roguix does not start", minutes after the app had
-been quit while its VM was shutting down. Shortly after, opening the app and
-clicking Launch worked; the cause was not reproduced and nothing was logged.
-The app should never fail silently: show which stage it reached (start menu,
-starting QEMU, guest booting, first-start setup waiting), keep the
-launcher's stderr in a log, alert with its tail on a non-zero exit, and
-reveal an already running instance instead of only activating it.
+Reported 2026-10-03 twice: "Try Roguix does not start". Cause: a Dock tile
+pinned to the old development build (`dist/app.noindex`), deleted by the
+build-layout change; clicking it did nothing and logged nothing. The tile now
+points to `~/Applications/Try Roguix.app`, and `make install` and
+docs/architecture.md say to pin that copy.
+
+The app could not have reported that, since it never ran. For failures after
+it starts: keep the launcher's stderr in `~/Library/Logs/Try Roguix/` and
+`os_log`, and replace the generic "couldn't start, reinstall" alert with the
+log's last lines. Lower priority than the restart hang.
