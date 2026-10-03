@@ -62,12 +62,14 @@ not yet proven.
   certificate would also keep grants across updates on other Macs, without
   solving Gatekeeper.
 
-## Restart from inside the guest hangs in the firmware
+## The VM window shrinks on every guest reboot
 
-Found 2026-10-03 on b37: `sudo reboot` in the guest resets QEMU
-(`-action reboot=reset`), but the VM stays in EDK2 (the program counter is
-in firmware, nothing reaches the console) and never boots. Shutting down and
-launching again works. Not yet known whether earlier images behave the same.
+Found 2026-10-03 while testing reboots: each guest reboot (`reboot(2)` in the
+guest) leaves the VM window about 75% of its previous size (227x202,
+171x160, 130x129 ... 22x48 points over ten reboots), with nobody touching it.
+The 0.75 factor matches `cocoa_initial_window_frame` in
+`qemu-cocoa-dynamic-display.patch`; check how a guest reset re-applies the
+initial frame.
 
 ## Choose a VM instead of only resetting
 

@@ -62,6 +62,7 @@ memory_reclaim_patch="$native_dir/patches/qemu-hvf-free-page-reclaim.patch"
 mapped_sections_patch="$native_dir/patches/qemu-hvf-mapped-sections.patch"
 strchrnul_patch="$native_dir/patches/qemu-darwin-strchrnul-compat.patch"
 usb_exact_bus_patch="$native_dir/patches/qemu-usb-host-exact-bus.patch"
+minimum_guest_size_patch="$native_dir/patches/qemu-cocoa-minimum-guest-size.patch"
 slirp_patch="$native_dir/patches/libslirp-darwin-icmp-matching.patch"
 udp_patch="$native_dir/patches/libslirp-ipv4-udp-translation.patch"
 fence_poll_patch="$native_dir/patches/qemu-darwin-gpu-fence-poll.patch"
@@ -95,6 +96,7 @@ mapped_sections_patch_sha256=2991378d565faeaf114bb5948bfa9ad05c39b078e4e1f4c2a67
 fence_poll_patch_sha256=1ac407bdb617dfc52d004d0ebd0d07641d920f7d3a9756223c6426a207fb1499
 strchrnul_patch_sha256=ec1048dd0e8ebe53bf7e8a3bca9bf2f5f4336cd607d4cd077437470e9a32094a
 usb_exact_bus_patch_sha256=5e39159171295c566d014a1ef2744130f80fa02b742c349fa47373b00ae697ec
+minimum_guest_size_patch_sha256=17514983c64a7724429c3dfd45f8839f8f362e0d984cc850e6a5d3aa8cca7189
 udp_patch_sha256=95e8ee890be78cdce70b3ee54a8adac27be02421be08b986ae987c74ef8cec8c
 slirp_patch_sha256=20f3d424c79929fb82d240d0ee06b99e9f93ecfb9460579dc414303820d59f90
 slirp_source_root=libslirp-v4.9.4
@@ -224,6 +226,8 @@ macos_major=$(sw_vers -productVersion | awk -F. '{ print $1 }')
   die "missing HVF free-page reclaim patch: $memory_reclaim_patch"
 [[ -f $mapped_sections_patch && ! -L $mapped_sections_patch ]] || \
   die "missing HVF mapped-sections patch: $mapped_sections_patch"
+[[ -f $minimum_guest_size_patch && ! -L $minimum_guest_size_patch ]] || \
+  die "missing Cocoa minimum guest size patch: $minimum_guest_size_patch"
 [[ -f $strchrnul_patch && ! -L $strchrnul_patch ]] || \
   die "missing Darwin strchrnul compatibility patch: $strchrnul_patch"
 [[ -f $usb_exact_bus_patch && ! -L $usb_exact_bus_patch ]] || \
@@ -449,6 +453,8 @@ verify_file_sha "Try Roguix HVF free-page reclaim patch" \
   "$memory_reclaim_patch" "$memory_reclaim_patch_sha256"
 verify_file_sha "Try Roguix HVF mapped-sections patch" \
   "$mapped_sections_patch" "$mapped_sections_patch_sha256"
+verify_file_sha "Try Roguix Cocoa minimum guest size patch" \
+  "$minimum_guest_size_patch" "$minimum_guest_size_patch_sha256"
 verify_file_sha "Try Roguix Darwin GPU fence polling patch" \
   "$fence_poll_patch" "$fence_poll_patch_sha256"
 verify_file_sha "Try Roguix Darwin strchrnul compatibility patch" \
@@ -480,6 +486,7 @@ patch -d "$source_dir" -p1 -f -i "$precise_scroll_patch"
 patch -d "$source_dir" -p1 -f -i "$iso_swap_patch"
 patch -d "$source_dir" -p1 -f -i "$injected_text_patch"
 patch -d "$source_dir" -p1 -f -i "$usb_exact_bus_patch"
+patch -d "$source_dir" -p1 -f -i "$minimum_guest_size_patch"
 
 virgl_root="$dependency_root/virglrenderer/$virgl_version"
 angle_root="$dependency_root/angle/$angle_version"
